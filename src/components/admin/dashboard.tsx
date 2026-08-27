@@ -38,15 +38,15 @@ export function AdminDashboard() {
       />
 
       {/* KPI grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 lg:gap-3">
         <KpiCard label="Այսօրվա վաճառք" value={fmt(f.salesToday)} icon={TrendingUp} sub={`${c.ordersToday ?? 0} պատվեր`} />
         <KpiCard label="Շաբաթվա վաճառք" value={fmt(f.salesWeek)} icon={ShoppingCart} sub={`${c.ordersWeek ?? 0} պատվեր`} />
         <KpiCard label="Ամսական վաճառք" value={fmt(f.salesMonth)} icon={TrendingUp} sub={`${c.ordersMonth ?? 0} պատվեր`} />
         <KpiCard label="Ընդհանուր պատվերներ" value={String(c.totalOrders ?? 0)} icon={Activity} sub={`${c.totalClients ?? 0} հաճախորդ`} />
         <KpiCard label="Ստացված այսօր" value={fmt(f.collectedToday)} icon={Wallet} sub="Վճարումներ" />
-        <KpiCard label="Ընդհանուր պարտք" value={fmt(f.outstandingDebt)} icon={AlertTriangle} sub="Չվճարված" trend="up" />
-        <KpiCard label="Ժամկետանց պարտք" value={fmt(f.overdueDebt)} icon={AlertTriangle} sub={`${c.overdueOrders ?? 0} պատվեր`} trend="down" />
-        <KpiCard label="Ցածր մնացորդ" value={String(c.lowStockCount ?? 0)} icon={Package} sub="Ապրանքներ" trend="down" />
+        <KpiCard label="Ընդհանուր պարտք" value={fmt(f.outstandingDebt)} icon={AlertTriangle} sub="Չվճարված" accent={f.outstandingDebt > 0 ? "red" : undefined} />
+        <KpiCard label="Ժամկետանց պարտք" value={fmt(f.overdueDebt)} icon={AlertTriangle} sub={`${c.overdueOrders ?? 0} պատվեր`} accent={f.overdueDebt > 0 ? "red" : undefined} />
+        <KpiCard label="Ցածր մնացորդ" value={String(c.lowStockCount ?? 0)} icon={Package} sub="Ապրանքներ" accent={c.lowStockCount > 0 ? "yellow" : undefined} />
       </div>
 
       {/* Charts */}

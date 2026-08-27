@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Plus, Barcode } from "lucide-react";
 import { useState } from "react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { ProductDetailDrawer } from "./product-detail-drawer";
 
 async function fetchProducts() {
   const res = await fetch("/api/products");
@@ -19,6 +20,7 @@ async function fetchProducts() {
 export function ProductsModule({ role }: { role: string }) {
   const { data, isLoading } = useQuery({ queryKey: ["products"], queryFn: fetchProducts });
   const [barcodeId, setBarcodeId] = useState<string | null>(null);
+  const [detailId, setDetailId] = useState<string | null>(null);
 
   return (
     <div className="space-y-6">
@@ -45,7 +47,7 @@ export function ProductsModule({ role }: { role: string }) {
             </TableHeader>
             <TableBody>
               {data?.products?.map((p: any) => (
-                <TableRow key={p.id} className="border-hairline hover:bg-muted/40">
+                <TableRow key={p.id} className="border-hairline hover:bg-muted/40 cursor-pointer" onClick={() => setDetailId(p.id)}>
                   <TableCell className="text-sm font-medium">
                     <div className="flex flex-col">
                       <span>{p.name}</span>
@@ -87,6 +89,9 @@ export function ProductsModule({ role }: { role: string }) {
           )}
         </SheetContent>
       </Sheet>
+
+      {/* Product detail drawer */}
+      <ProductDetailDrawer productId={detailId} open={!!detailId} onClose={() => setDetailId(null)} role={role} />
     </div>
   );
 }

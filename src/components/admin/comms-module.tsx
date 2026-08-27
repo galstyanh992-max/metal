@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Mail, MessageCircle, Send, Inbox, Loader2, CheckCircle2, XCircle, Clock } from "lucide-react";
+import { Mail, MessageCircle, Send, Inbox, Loader2, CheckCircle2, XCircle, Clock, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -203,6 +203,25 @@ function SendDialog({ onClose }: { onClose: () => void }) {
     onError: (e: any) => toast.error(e?.message ?? "Սխալ"),
   });
 
+  const aiMutation = useMutation({
+    mutationFn: async () => {
+      const clientName = selectedClient?.type === "COMPANY" ? selectedClient?.companyName : `${selectedClient?.firstName} ${selectedClient?.lastName}`;
+      const prompt = channel === "EMAIL"
+        ? `Գրիր պրոֆեսիոնալ էլ․ նամակ հաճախորդ ${clientName}-ին։ Թեմա՝ պատվերի հաստատում։ Հայերենով։ Քաղաքավարի, բայց ոչ շատ երկար։ JSON ձևաչափով՝ {"subject": "...", "body": "..."}`
+        : `Գրիր կարճ WhatsApp հաղորդագրություն հաճախորդ ${clientName}-ին։ Թեմա՝ պատվերի հաստատում։ Հայերենով։ Առավելագույնը 2 նախադասություն։ JSON ձևաչափով՝ {"body": "..."}`;
+      const res = await fetch("/api/ai", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ module: channel === "EMAIL" ? "EMAIL_ASSISTANT" : "WHATSAPP_ASSISTANT", prompt, tier: "fast" }) });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.error ?? "AI failed"); }
+      return res.json();
+    },
+    onSuccess: (data) => {
+      const output = data.proposal?.output ?? {};
+      if (output.body) setBody(output.body);
+      if (output.subject && channel === "EMAIL") setSubject(output.subject);
+      toast.success("AI սևագիրը պատրաստ է");
+    },
+    onError: (e: any) => toast.error(e?.message ?? "AI սխալ"),
+  });
+
   const submit = () => {
     if (!clientId) { toast.error("Ընտրեք հաճախորդ"); return; }
     if (!to) { toast.error(`Հաճախորդը չունի ${channel === "EMAIL" ? "էլ․ հասցե" : "հեռախոս"}`); return; }
@@ -261,7 +280,19 @@ function SendDialog({ onClose }: { onClose: () => void }) {
           )}
 
           <div className="space-y-1.5">
-            <Label className="text-xs uppercase tracking-wider text-muted-foreground">Հաղորդագրություն</Label>
+            <div className="flex items-center justify-between">
+              <Label className="text-xs uppercase tracking-wider text-muted-foreground">Հաղորդագրություն</Label>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-6 text-[10px] gap-1"
+                disabled={aiMutation.isPending || !clientId}
+                onClick={() => aiMutation.mutate()}
+              >
+                {aiMutation.isPending ? <Loader2 className="size-3 animate-spin" /> : <Sparkles className="size-3 text-copper" />}
+                AI Սևագիր
+              </Button>
+            </div>
             <Textarea
               value={body}
               onChange={(e) => setBody(e.target.value)}

@@ -30,21 +30,27 @@ export function Money({ value, className }: { value: number; className?: string 
   return <span className={cn("num tabular-nums", className)}>{formatAMD(value)}</span>;
 }
 
-export function KpiCard({ label, value, sub, trend, icon: Icon }: {
+export function KpiCard({ label, value, sub, trend, icon: Icon, accent }: {
   label: string;
   value: string;
   sub?: string;
   trend?: "up" | "down" | "flat";
   icon?: any;
+  accent?: "green" | "red" | "yellow" | "copper";
 }) {
+  const colorClass = accent === "green" ? "text-status-green"
+    : accent === "red" ? "text-status-red"
+    : accent === "yellow" ? "text-status-yellow"
+    : accent === "copper" ? "text-copper"
+    : "";
   return (
-    <div className="bg-card border border-hairline p-4 lg:p-5 space-y-2">
+    <div className="bg-card border border-hairline p-3 lg:p-5 space-y-1.5 lg:space-y-2">
       <div className="flex items-start justify-between gap-2">
-        <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">{label}</div>
-        {Icon && <Icon className="size-4 text-muted-foreground/60" />}
+        <div className="text-[10px] lg:text-[11px] uppercase tracking-wider text-muted-foreground font-medium">{label}</div>
+        {Icon && <Icon className="size-3.5 lg:size-4 text-muted-foreground/60 shrink-0" />}
       </div>
-      <div className="text-2xl font-semibold tracking-tight tabular-nums">{value}</div>
-      {sub && <div className="text-xs text-muted-foreground">{sub}</div>}
+      <div className={`text-lg lg:text-2xl font-semibold tracking-tight tabular-nums ${colorClass}`}>{value}</div>
+      {sub && <div className="text-[10px] lg:text-xs text-muted-foreground">{sub}</div>}
     </div>
   );
 }
