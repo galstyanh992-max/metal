@@ -81,6 +81,21 @@ export function WorkspaceShell() {
 
   const items = NAV.filter((n) => n.roles.includes(role));
 
+  const handleLogout = async () => {
+    try {
+      const csrfRes = await fetch("/api/auth/csrf");
+      const { csrfToken } = await csrfRes.json();
+      await fetch("/api/auth/signout", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: `csrfToken=${encodeURIComponent(csrfToken)}&callbackUrl=/&json=true`,
+      });
+    } catch (e) {
+      console.error("Logout error:", e);
+    }
+    window.location.href = "/";
+  };
+
   const renderModule = () => {
     if (active === "dashboard") {
       if (role === "ADMIN") return <AdminDashboard />;
@@ -147,7 +162,7 @@ export function WorkspaceShell() {
               <kbd className="hidden md:inline-flex text-[9px] px-1 py-0.5 border border-hairline rounded-sm shrink-0">⌘K</kbd>
             </button>
             <NotificationsBell />
-            <Button variant="ghost" size="sm" onClick={() => signOut({ redirect: false })} className="gap-2">
+            <Button variant="ghost" size="sm" onClick={handleLogout} className="gap-2">
               <LogOut className="size-4" />
               <span className="hidden sm:inline">Ելք</span>
             </Button>

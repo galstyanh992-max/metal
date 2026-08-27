@@ -8,8 +8,10 @@ import { WorkspaceShell } from "@/components/shell/workspace-shell";
 export default function Home() {
   const { data: session, status } = useSession();
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
+  // Prevent hydration mismatch: render loading until client is ready
+  const [clientReady] = useState(() => typeof window !== "undefined");
 
-  if (status === "loading") {
+  if (!clientReady || status === "loading") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-muted-foreground text-sm">Բեռնվում է…</div>

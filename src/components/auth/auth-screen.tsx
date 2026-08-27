@@ -23,6 +23,9 @@ export function AuthScreen({ mode, onModeChange }: { mode: "signin" | "signup"; 
     setLoading(false);
     if (!res?.ok) {
       setError("Սխալ էլ․ հասցե կամ գաղտնաբառ");
+    } else {
+      // Force page reload to pick up the new session
+      window.location.reload();
     }
   };
 
