@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Plus, ShoppingCart, Loader2, Search } from "lucide-react";
+import { Plus, ShoppingCart, Loader2, Search, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { OrderDetailDrawer } from "./order-detail-drawer";
+import { DynamicFormRenderer } from "@/components/forms/dynamic-form-renderer";
+import { BomPreview } from "@/components/forms/bom-preview";
 
 async function fetchOrders() {
   const res = await fetch("/api/orders");
@@ -150,11 +152,21 @@ export function OrdersModule({ role }: { role: string }) {
 function CreateOrderDialog({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const { data: clientsData } = useQuery({ queryKey: ["clients"], queryFn: fetchClients });
   const { data: productsData } = useQuery({ queryKey: ["products"], queryFn: fetchProducts });
+  const { data: templateData } = useQuery({
+    queryKey: ["form-template", "ORDER_ITEM"],
+    queryFn: async () => {
+      const res = await fetch("/api/forms/entity/ORDER_ITEM");
+      if (!res.ok) throw new Error("failed");
+      return res.json();
+    },
+  });
 
   const [clientId, setClientId] = useState("");
-  const [items, setItems] = useState<Array<{ productId: string; qty: number; width?: number; height?: number; color?: string }>>([
-    { productId: "", qty: 1, width: 1000, height: 1500, color: "սպիտակ" },
+  const [items, setItems] = useState<Array<{ productId: string; parameters: Record<string, any> }>>([
+    { productId: "", parameters: { quantity: 1, width: 1000, height: 1500, color: "սպիտակ" } },
   ]);
+
+  const template = templateData?.template;
 
   const mutation = useMutation({
     mutationFn: async (payload: any) => {
@@ -176,15 +188,17 @@ function CreateOrderDialog({ onClose, onCreated }: { onClose: () => void; onCrea
       clientId,
       items: items.map((i) => ({
         productId: i.productId,
-        qty: i.qty,
-        parameters: { width: String(i.width), height: String(i.height), color: i.color ?? "" },
+        qty: Number(i.parameters.quantity) || 1,
+        parameters: Object.fromEntries(
+          Object.entries(i.parameters).map(([k, v]) => [k, String(v)])
+        ),
       })),
     });
   };
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Նոր պատվեր</DialogTitle>
         </DialogHeader>
@@ -206,35 +220,33 @@ function CreateOrderDialog({ onClose, onCreated }: { onClose: () => void; onCrea
           <div className="space-y-3">
             <Label className="text-xs uppercase tracking-wider text-muted-foreground">Ապրանքներ</Label>
             {items.map((it, idx) => (
-              <div key={idx} className="grid grid-cols-12 gap-2 p-3 border border-hairline">
-                <div className="col-span-12 md:col-span-4">
-                  <Select value={it.productId} onValueChange={(v) => updateItem(idx, "productId", v)}>
-                    <SelectTrigger className="h-9"><SelectValue placeholder="Ապրանք" /></SelectTrigger>
-                    <SelectContent>
-                      {productsData?.products?.map((p: any) => (
-                        <SelectItem key={p.id} value={p.id}>{p.name} ({p.sku})</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+              <div key={idx} className="p-3 border border-hairline space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="flex-1">
+                    <Select value={it.productId} onValueChange={(v) => updateItem(idx, "productId", v)}>
+                      <SelectTrigger className="h-9"><SelectValue placeholder="Ապրանք" /></SelectTrigger>
+                      <SelectContent>
+                        {productsData?.products?.map((p: any) => (
+                          <SelectItem key={p.id} value={p.id}>{p.name} ({p.sku})</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button variant="ghost" size="sm" disabled={items.length === 1} onClick={() => setItems(items.filter((_, i) => i !== idx))} className="text-destructive h-9">
+                    <Trash2 className="size-4" />
+                  </Button>
                 </div>
-                <div className="col-span-4 md:col-span-2">
-                  <Input type="number" placeholder="Լայնություն" value={it.width} onChange={(e) => updateItem(idx, "width", Number(e.target.value))} className="h-9" />
-                </div>
-                <div className="col-span-4 md:col-span-2">
-                  <Input type="number" placeholder="Բարձրություն" value={it.height} onChange={(e) => updateItem(idx, "height", Number(e.target.value))} className="h-9" />
-                </div>
-                <div className="col-span-2 md:col-span-1">
-                  <Input type="number" placeholder="Քանակ" value={it.qty} onChange={(e) => updateItem(idx, "qty", Number(e.target.value))} className="h-9" />
-                </div>
-                <div className="col-span-2 md:col-span-2">
-                  <Input placeholder="Գույն" value={it.color} onChange={(e) => updateItem(idx, "color", e.target.value)} className="h-9" />
-                </div>
-                <div className="col-span-12 md:col-span-1 flex items-center justify-end">
-                  <Button variant="ghost" size="sm" disabled={items.length === 1} onClick={() => setItems(items.filter((_, i) => i !== idx))} className="text-destructive">×</Button>
-                </div>
+                <DynamicFormRenderer
+                  template={template}
+                  values={it.parameters}
+                  onChange={(key, value) => updateParam(idx, key, value)}
+                />
+                {it.productId && it.parameters.width && it.parameters.height && (
+                  <BomPreview productId={it.productId} parameters={it.parameters} />
+                )}
               </div>
             ))}
-            <Button variant="outline" size="sm" onClick={() => setItems([...items, { productId: "", qty: 1, width: 1000, height: 1500, color: "սպիտակ" }])} className="gap-2">
+            <Button variant="outline" size="sm" onClick={() => setItems([...items, { productId: "", parameters: { quantity: 1, width: 1000, height: 1500, color: "սպիտակ" } }])} className="gap-2">
               <Plus className="size-3.5" /> Ավելացնել ապրանք
             </Button>
           </div>
@@ -252,6 +264,9 @@ function CreateOrderDialog({ onClose, onCreated }: { onClose: () => void; onCrea
 
   function updateItem(idx: number, field: string, value: any) {
     setItems(items.map((it, i) => (i === idx ? { ...it, [field]: value } : it)));
+  }
+  function updateParam(idx: number, key: string, value: any) {
+    setItems(items.map((it, i) => (i === idx ? { ...it, parameters: { ...it.parameters, [key]: value } } : it)));
   }
 }
 

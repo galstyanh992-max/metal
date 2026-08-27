@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard, Users, Package, ShoppingCart, Warehouse as WarehouseIcon,
-  Truck, FileText, Settings, LogOut, Menu, Search, Bell, Factory,
+  Truck, FileText, Settings, Settings2, LogOut, Menu, Search, Bell, Factory,
   ChevronDown, Sparkles, Receipt, Crown, Calculator, Mail, MessageCircle,
   type LucideIcon,
 } from "lucide-react";
@@ -32,6 +32,7 @@ import { DocumentsModule } from "@/components/admin/documents-module";
 import { CommsModule } from "@/components/admin/comms-module";
 import { SettingsModule } from "@/components/admin/settings-module";
 import { FormBuilderModule } from "@/components/forms/form-builder";
+import { BomRulesModule } from "@/components/admin/bom-rules-module";
 
 type NavItem = { key: string; label: string; icon: LucideIcon; module: string; roles: string[] };
 
@@ -50,6 +51,7 @@ const NAV: NavItem[] = [
   { key: "comms", label: "Հաղորդակցություն", icon: Mail, module: "comms", roles: ["ADMIN", "OPERATOR"] },
   { key: "ai", label: "AI Օգնական", icon: Sparkles, module: "ai", roles: ["ADMIN", "OPERATOR"] },
   { key: "forms", label: "Դինամիկ ձևեր", icon: FileText, module: "forms", roles: ["ADMIN"] },
+  { key: "bom", label: "BOM Կանոններ", icon: Settings2, module: "bom", roles: ["ADMIN"] },
   { key: "settings", label: "Կարգավորումներ", icon: Settings, module: "settings", roles: ["ADMIN"] },
 ];
 
@@ -93,6 +95,7 @@ export function WorkspaceShell() {
     if (active === "documents") return <DocumentsModule />;
     if (active === "comms") return <CommsModule />;
     if (active === "forms" && role === "ADMIN") return <FormBuilderModule />;
+    if (active === "bom" && role === "ADMIN") return <BomRulesModule />;
     if (active === "settings" && role === "ADMIN") return <SettingsModule />;
     return <ComingSoon label={items.find((i) => i.key === active)?.label ?? active} />;
   };
