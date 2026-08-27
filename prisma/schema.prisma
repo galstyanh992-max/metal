@@ -1,0 +1,911 @@
+// Prisma schema — Metal Blinds ERP/CRM Armenia
+// SQLite datasource (single-instance dev)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// =============================================================
+// AUTH & RBAC
+// =============================================================
+
+enum UserRole {
+  ADMIN
+  OPERATOR
+  WAREHOUSE
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  name          String
+  role          UserRole @default(OPERATOR)
+  passwordHash  String
+  phone         String?
+  active        Boolean  @default(true)
+  archivedAt    DateTime?
+  lastLoginAt   DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  auditLogs     AuditLog[]
+  ordersCreated Order[]      @relation("OrderCreatedBy")
+  movements     InventoryMovement[]
+  approvals     AiProposal[] @relation("AiApprovedBy")
+  communications CommunicationLog[] @relation("CommCreatedBy")
+  documents     GeneratedDocument[] @relation("DocCreatedBy")
+  notifications Notification[]
+  loyaltyOverrides LoyaltyOverride[] @relation("LoyaltyOverrideBy")
+  taxRuleChanges TaxRuleVersion[]    @relation("TaxRuleChangeBy")
+  clientComments ClientComment[]
+
+  @@index([role])
+}
+
+// =============================================================
+// CLIENTS
+// =============================================================
+
+enum ClientType {
+  INDIVIDUAL
+  COMPANY
+}
+
+enum ClientStatus {
+  GREEN
+  YELLOW
+  ORANGE
+  RED
+  CRITICAL
+}
+
+model Client {
+  id                String     @id @default(cuid())
+  type              ClientType @default(INDIVIDUAL)
+  // individual
+  firstName         String?
+  lastName          String?
+  // company
+  companyName       String?
+  taxId             String?
+  legalAddress      String?
+  actualAddress     String?
+  bankingDetails    String?    // JSON string: {bank, account, swift?}
+  paymentTerms      String?
+  // common
+  phone             String
+  email             String?
+  primaryAddress    String?
+  secondaryAddress  String?
+  preferredLanguage String     @default("hy")
+  preferredChannel  String     @default("whatsapp") // email | whatsapp | phone
+  // financial profile (computed)
+  creditLimit       Int        @default(0) // AMD
+  loyaltyTierId     String?
+  loyaltyDiscount   Int        @default(0) // percent
+  status            ClientStatus @default(GREEN)
+  active            Boolean    @default(true)
+  archivedAt        DateTime?
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  contacts          ClientContact[]
+  addresses         ClientAddress[]
+  photos            ClientPhoto[]
+  documents         ClientDocument[]
+  comments          ClientComment[]
+  orders            Order[]
+  communications    CommunicationLog[]
+  loyaltyOverrides  LoyaltyOverride[]
+  loyaltyTier       LoyaltyTier? @relation(fields: [loyaltyTierId], references: [id])
+
+  @@index([type])
+  @@index([phone])
+  @@index([email])
+  @@index([taxId])
+}
+
+model ClientContact {
+  id        String  @id @default(cuid())
+  clientId  String
+  name      String
+  role      String? // director / manager / purchaser
+  phone     String
+  email     String?
+  client    Client  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+}
+
+model ClientAddress {
+  id        String  @id @default(cuid())
+  clientId  String
+  label     String  // "primary" | "secondary" | custom
+  line      String
+  city      String?
+  client    Client  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+}
+
+model ClientPhoto {
+  id        String   @id @default(cuid())
+  clientId  String
+  url       String
+  caption   String?
+  createdAt DateTime @default(now())
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+}
+
+model ClientDocument {
+  id        String   @id @default(cuid())
+  clientId  String
+  name      String
+  url       String
+  mimeType  String
+  createdAt DateTime @default(now())
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+}
+
+model ClientComment {
+  id        String   @id @default(cuid())
+  clientId  String
+  authorId  String
+  body      String
+  createdAt DateTime @default(now())
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  author    User     @relation(fields: [authorId], references: [id])
+
+  @@index([clientId])
+}
+
+// =============================================================
+// CATALOG: Products, Categories, Units, Suppliers
+// =============================================================
+
+model Category {
+  id        String     @id @default(cuid())
+  name      String
+  parentId  String?
+  parent    Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children  Category[] @relation("CategoryTree")
+  products  Product[]
+  sortOrder Int        @default(0)
+  active    Boolean    @default(true)
+
+  @@index([parentId])
+}
+
+model Unit {
+  id        String   @id @default(cuid())
+  code      String   @unique // piece | m | m2 | kg | roll | kit | ...
+  name      String   // Armenian display name
+  symbol    String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  products  Product[]
+}
+
+model Product {
+  id              String   @id @default(cuid())
+  sku             String   @unique
+  name            String
+  categoryId      String?
+  unitId          String
+  color           String?
+  description     String?
+  photoUrl        String?
+  barcode         String?
+  qrCode          String?
+  salePrice       Int      @default(0) // AMD
+  purchasePrice   Int      @default(0) // AMD (current)
+  minStock        Int      @default(0)
+  active          Boolean  @default(true)
+  archivedAt      DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  category        Category? @relation(fields: [categoryId], references: [id])
+  unit            Unit      @relation(fields: [unitId], references: [id])
+  suppliers       ProductSupplier[]
+  priceHistory    ProductPriceHistory[]
+  inventoryMovements InventoryMovement[]
+  bomComponents   BomRule[]   @relation("BomComponent")
+  orderItems      OrderItem[]
+
+  @@index([categoryId])
+  @@index([unitId])
+  @@index([sku])
+  @@index([barcode])
+}
+
+model ProductSupplier {
+  id           String   @id @default(cuid())
+  productId    String
+  supplierId   String
+  supplierSku  String?
+  leadTimeDays Int      @default(0)
+  preferred    Boolean  @default(false)
+  product      Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  supplier     Supplier @relation(fields: [supplierId], references: [id])
+
+  @@unique([productId, supplierId])
+  @@index([supplierId])
+}
+
+model ProductPriceHistory {
+  id            String    @id @default(cuid())
+  productId     String
+  salePrice     Int
+  purchasePrice Int
+  effectiveFrom DateTime  @default(now())
+  effectiveTo   DateTime?
+  reason        String?
+  changedById   String
+  product       Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId, effectiveFrom])
+}
+
+model Supplier {
+  id           String   @id @default(cuid())
+  name         String
+  taxId        String?
+  legalAddress String?
+  actualAddress String?
+  phone        String?
+  email        String?
+  bankingDetails String?
+  paymentTerms String?
+  contactPersons String?  // JSON
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  products     ProductSupplier[]
+  purchaseOrders PurchaseOrder[]
+}
+
+// =============================================================
+// DYNAMIC FORMS
+// =============================================================
+
+enum FormEntityType {
+  PRODUCT
+  ORDER_ITEM
+  CLIENT
+}
+
+model FormTemplate {
+  id          String   @id @default(cuid())
+  name        String
+  entityType  FormEntityType
+  version     Int      @default(1)
+  active      Boolean  @default(true)
+  archivedAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  groups      FieldGroup[]
+  versions    FormTemplateVersion[]
+
+  @@unique([entityType, version])
+  @@index([entityType, active])
+}
+
+model FieldGroup {
+  id            String   @id @default(cuid())
+  templateId    String
+  label         String
+  sortOrder     Int      @default(0)
+  conditionExpr String?  // safe DSL
+  active        Boolean  @default(true)
+
+  template      FormTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  fields        Field[]
+
+  @@index([templateId])
+}
+
+enum FieldType {
+  TEXT
+  TEXTAREA
+  NUMBER
+  DECIMAL
+  DIMENSION
+  QUANTITY
+  MONEY
+  BOOLEAN
+  DATE
+  SELECT
+  MULTISELECT
+  COLOR
+  PHONE
+  EMAIL
+  ADDRESS
+  PHOTO
+  FILE
+}
+
+model Field {
+  id            String   @id @default(cuid())
+  groupId       String
+  key           String   // machine key, e.g. "width"
+  label         String   // Armenian label
+  type          FieldType
+  required      Boolean  @default(false)
+  sortOrder     Int      @default(0)
+  options       String?  // JSON array for select/multiselect
+  validation    String?  // JSON {min, max, pattern, ...}
+  conditionExpr String?  // safe DSL
+  defaultValue  String?
+  unitId        String?  // for dimension/quantity
+  archivedAt    DateTime?
+
+  group         FieldGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, key])
+  @@index([groupId])
+}
+
+// Snapshot of a form template at the moment an order uses it
+model FormTemplateVersion {
+  id           String   @id @default(cuid())
+  templateId   String
+  version      Int
+  snapshotJson String   // full template + groups + fields
+  createdAt    DateTime @default(now())
+  template     FormTemplate @relation(fields: [templateId], references: [id])
+}
+
+// =============================================================
+// BOM ENGINE
+// =============================================================
+
+model BomRule {
+  id            String   @id @default(cuid())
+  productTypeId String   // category or product reference (we use Category id)
+  componentProductId String
+  formulaExpr   String   // safe DSL — e.g. "width * height / 1000000 * coefficient + waste"
+  unitId        String
+  coefficient   Float    @default(1)
+  waste         Float    @default(0)
+  rounding      Int      @default(0)
+  minimum       Int      @default(0)
+  conditionExpr String?
+  version       Int      @default(1)
+  active        Boolean  @default(true)
+  archivedAt    DateTime?
+  createdAt     DateTime @default(now())
+
+  componentProduct Product @relation("BomComponent", fields: [componentProductId], references: [id])
+  logs         BomCalculationLog[]
+
+  @@index([productTypeId])
+  @@index([componentProductId])
+}
+
+// Note: BomRule does not carry a direct relation back to Product to avoid ambiguity.
+// productTypeId references Category.id (loose typing for flexibility).
+
+model BomCalculationLog {
+  id            String   @id @default(cuid())
+  ruleId        String
+  ruleVersion   Int
+  orderItemId   String?
+  inputsJson    String   // {width, height, qty, ...}
+  outputJson    String   // {qty, unit, ...}
+  calculatedAt  DateTime @default(now())
+  rule          BomRule  @relation(fields: [ruleId], references: [id])
+}
+
+// =============================================================
+// INVENTORY
+// =============================================================
+
+enum MovementType {
+  RECEIVE
+  RESERVE
+  RELEASE_RESERVATION
+  ISSUE
+  RETURN
+  WRITE_OFF
+  ADJUSTMENT
+}
+
+model InventoryMovement {
+  id         String       @id @default(cuid())
+  productId  String
+  type       MovementType
+  qty        Int          // positive for additions, negative for issues (we'll store absolute + sign via type)
+  refType    String?      // "ORDER" | "PURCHASE_ORDER" | "MANUAL"
+  refId      String?
+  lot        String?
+  note       String?
+  byUserId   String
+  createdAt  DateTime     @default(now())
+
+  product    Product      @relation(fields: [productId], references: [id])
+  byUser     User         @relation(fields: [byUserId], references: [id])
+
+  @@index([productId, type, createdAt])
+  @@index([refType, refId])
+}
+
+// Derived snapshot (NOT authoritative — recomputed from movements)
+model InventorySnapshot {
+  id        String   @id @default(cuid())
+  productId String   @unique
+  onHand    Int      @default(0)
+  reserved  Int      @default(0)
+  updatedAt DateTime @updatedAt
+}
+
+// =============================================================
+// ORDERS
+// =============================================================
+
+enum OrderStatus {
+  DRAFT
+  CONFIRMED
+  PICKING
+  READY
+  DELIVERED
+  CANCELLED
+}
+
+model Order {
+  id              String     @id @default(cuid())
+  number          String     @unique // human-friendly, e.g. ORD-2026-0001
+  clientId        String
+  status          OrderStatus @default(DRAFT)
+  baseAmount      Int        @default(0)
+  discountAmount  Int        @default(0)
+  taxAmount       Int        @default(0)
+  totalAmount     Int        @default(0)
+  paidAmount      Int        @default(0)
+  outstandingAmount Int      @default(0)
+  costAmount      Int        @default(0) // captured at confirm time
+  grossProfit     Int        @default(0)
+  marginPercent   Int        @default(0) // basis points (100 = 1%)
+  dueDate         DateTime?
+  formVersionId   String?    // snapshot of FormTemplateVersion used
+  note            String?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  createdById     String
+
+  client          Client     @relation(fields: [clientId], references: [id])
+  createdBy       User       @relation("OrderCreatedBy", fields: [createdById], references: [id])
+  items           OrderItem[]
+  payments        OrderPayment[]
+  statusHistory   OrderStatusHistory[]
+  documents       GeneratedDocument[]
+  communications  CommunicationLog[]
+  aiProposals     AiProposal[]
+
+  @@index([clientId, createdAt])
+  @@index([status])
+  @@index([number])
+}
+
+model OrderItem {
+  id              String   @id @default(cuid())
+  orderId         String
+  productId       String
+  productName     String   // snapshot
+  qty             Int
+  unitId          String
+  unitPriceSnapshot Int    // captured at order time
+  lineTotal       Int
+  formVersionId   String?
+  sortOrder       Int      @default(0)
+
+  order           Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product         Product  @relation(fields: [productId], references: [id])
+  parameters      OrderItemParameter[]
+
+  @@index([orderId])
+}
+
+model OrderItemParameter {
+  id          String  @id @default(cuid())
+  orderItemId String
+  fieldKey    String
+  value       String  // JSON-encoded value depending on Field type
+  label       String  // snapshot of label at order time
+
+  orderItem   OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+
+  @@unique([orderItemId, fieldKey])
+  @@index([orderItemId])
+}
+
+model OrderPayment {
+  id          String   @id @default(cuid())
+  orderId     String
+  amount      Int
+  method      String   // bank | card | contract
+  paidAt      DateTime @default(now())
+  note        String?
+  byUserId    String
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+}
+
+model OrderStatusHistory {
+  id        String   @id @default(cuid())
+  orderId   String
+  status    OrderStatus
+  at        DateTime @default(now())
+  byUserId  String?
+  note      String?
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, at])
+}
+
+// =============================================================
+// PROCUREMENT
+// =============================================================
+
+enum PurchaseStatus {
+  DRAFT
+  REQUESTED
+  ORDERED
+  IN_TRANSIT
+  PARTIALLY_RECEIVED
+  RECEIVED
+  CLOSED
+  CANCELLED
+}
+
+model PurchaseRequest {
+  id          String   @id @default(cuid())
+  productId   String
+  qty         Int
+  reason      String?
+  status      String   @default("OPEN")
+  createdBy   String
+  createdAt   DateTime @default(now())
+  purchaseOrderId String?
+
+  @@index([productId])
+}
+
+model PurchaseOrder {
+  id           String         @id @default(cuid())
+  number       String         @unique
+  supplierId   String
+  status       PurchaseStatus @default(DRAFT)
+  totalAmount  Int            @default(0)
+  expectedDate DateTime?
+  actualDate   DateTime?
+  attachments  String?        // JSON array of urls
+  note         String?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  supplier     Supplier       @relation(fields: [supplierId], references: [id])
+  items        PurchaseOrderItem[]
+
+  @@index([supplierId, status])
+}
+
+model PurchaseOrderItem {
+  id         String       @id @default(cuid())
+  poId       String
+  productId  String
+  qty        Int
+  unitId     String
+  unitPrice  Int
+  total      Int
+  receivedQty Int         @default(0)
+  po         PurchaseOrder @relation(fields: [poId], references: [id], onDelete: Cascade)
+
+  @@index([poId])
+}
+
+// =============================================================
+// FINANCE — Loyalty, Debt snapshot (computed)
+// =============================================================
+
+model LoyaltyTier {
+  id               String   @id @default(cuid())
+  name             String
+  thresholdTurnover Int     @default(0) // AMD lifetime
+  discountPercent  Int      @default(0)
+  active           Boolean  @default(true)
+  sortOrder        Int      @default(0)
+  createdAt        DateTime @default(now())
+
+  clients          Client[]
+}
+
+model LoyaltyOverride {
+  id              String   @id @default(cuid())
+  clientId        String
+  discountPercent Int
+  reason          String
+  byUserId        String
+  createdAt       DateTime @default(now())
+
+  client          Client   @relation(fields: [clientId], references: [id])
+  byUser          User     @relation("LoyaltyOverrideBy", fields: [byUserId], references: [id])
+
+  @@index([clientId])
+}
+
+// =============================================================
+// TAX ENGINE — Armenia (versioned, profile-aware)
+// =============================================================
+
+enum TaxType {
+  VAT
+  TURNOVER
+  PROFIT
+  PAYROLL
+  IMPORT
+  FISCAL_DOCUMENT
+  OTHER
+}
+
+enum TaxRegime {
+  STANDARD
+  SIMPLIFIED
+  TURNOVER_TAX
+  FREE_ECONOMIC_ZONE
+  UNKNOWN
+}
+
+enum TaxRuleStatus {
+  DRAFT
+  ACTIVE
+  SUPERSEDED
+  RETIRED
+}
+
+model TaxRule {
+  id            String       @id @default(cuid())
+  type          TaxType
+  regime        TaxRegime    @default(UNKNOWN)
+  name          String
+  rate          Float        @default(0) // percent or fixed depending on formula
+  formulaExpr   String?
+  applicability String?      // JSON describing applicability conditions
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+  officialSource String?
+  verifiedAt    DateTime?
+  version       Int          @default(1)
+  status        TaxRuleStatus @default(DRAFT)
+  createdAt     DateTime     @default(now())
+
+  versions      TaxRuleVersion[]
+
+  @@index([type, status])
+  @@index([regime, status])
+}
+
+model TaxRuleVersion {
+  id            String   @id @default(cuid())
+  ruleId        String
+  version       Int
+  snapshotJson  String
+  changeById    String
+  changeReason  String
+  changedAt     DateTime @default(now())
+  rule          TaxRule  @relation(fields: [ruleId], references: [id])
+  changeBy      User     @relation("TaxRuleChangeBy", fields: [changeById], references: [id])
+}
+
+model TaxProfile {
+  id            String   @id @default(cuid())
+  legalForm     String?  // LLC | JSC | IE | UNKNOWN
+  vatStatus     String   @default("UNKNOWN") // REGISTERED | NOT_REGISTERED | UNKNOWN
+  turnoverBand  String   @default("UNKNOWN")
+  regime        TaxRegime @default(UNKNOWN)
+  importProfile String   @default("UNKNOWN")
+  verifiedAt    DateTime?
+  note          String?
+}
+
+// =============================================================
+// DOCUMENTS
+// =============================================================
+
+enum DocumentType {
+  CUSTOMER_ORDER
+  WAREHOUSE_ORDER
+  INVOICE
+  PAYMENT_RECEIPT
+  DEBT_STATEMENT
+  DELIVERY_NOTE
+  PROCUREMENT_DOCUMENT
+}
+
+model DocumentTemplate {
+  id           String   @id @default(cuid())
+  type         DocumentType
+  name         String
+  version      Int      @default(1)
+  bodyTemplate String   // mustache-like template
+  active       Boolean  @default(true)
+  archivedAt   DateTime?
+  createdAt    DateTime @default(now())
+
+  @@unique([type, version])
+}
+
+model GeneratedDocument {
+  id               String   @id @default(cuid())
+  templateId       String
+  templateVersion  Int
+  type             DocumentType
+  entityType       String   // "ORDER" | "CLIENT" | "PURCHASE_ORDER"
+  entityId         String
+  url              String
+  generatedAt      DateTime @default(now())
+  generatedById    String
+
+  order            Order?   @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  generatedBy      User     @relation("DocCreatedBy", fields: [generatedById], references: [id])
+
+  @@index([entityType, entityId])
+}
+
+// =============================================================
+// COMMUNICATIONS
+// =============================================================
+
+enum CommChannel {
+  EMAIL
+  WHATSAPP
+}
+
+enum CommDirection {
+  OUTBOUND
+  INBOUND
+}
+
+enum CommStatus {
+  PENDING
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+model CommunicationLog {
+  id          String       @id @default(cuid())
+  channel     CommChannel
+  direction   CommDirection @default(OUTBOUND)
+  clientId    String?
+  orderId     String?
+  subject     String?
+  body        String
+  attachments String?      // JSON array
+  status      CommStatus   @default(PENDING)
+  providerMessageId String?
+  error       String?
+  byUserId    String
+  createdAt   DateTime     @default(now())
+
+  client      Client?      @relation(fields: [clientId], references: [id])
+  order       Order?       @relation(fields: [orderId], references: [id])
+  byUser      User         @relation("CommCreatedBy", fields: [byUserId], references: [id])
+
+  @@index([clientId, createdAt])
+  @@index([orderId])
+}
+
+// =============================================================
+// AI PROPOSALS
+// =============================================================
+
+enum AiModule {
+  VOICE_ORDER
+  ORDER_VALIDATION
+  ASK_BUSINESS
+  INVENTORY_FORECAST
+  DEBT_ASSISTANT
+  PRICE_MARGIN
+  OCR_EXTRACTION
+  EMAIL_ASSISTANT
+  WHATSAPP_ASSISTANT
+}
+
+enum AiProposalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  APPLIED
+  EXPIRED
+  REJECTED_BY_GUARDRAIL
+}
+
+model AiProposal {
+  id              String           @id @default(cuid())
+  module          AiModule
+  inputJson       String
+  outputJson      String           // PROPOSAL payload
+  modelUsed       String
+  status          AiProposalStatus @default(PENDING)
+  approvedById    String?
+  approvedAt      DateTime?
+  appliedAt       DateTime?
+  rejectedReason  String?
+  createdAt       DateTime         @default(now())
+
+  order           Order?           @relation(fields: [orderId], references: [id])
+  approvedBy      User?            @relation("AiApprovedBy", fields: [approvedById], references: [id])
+  orderId         String?
+
+  @@index([module, status])
+}
+
+// =============================================================
+// NOTIFICATIONS + AUDIT
+// =============================================================
+
+enum NotificationSeverity {
+  INFO
+  WARNING
+  ERROR
+  CRITICAL
+}
+
+model Notification {
+  id        String               @id @default(cuid())
+  userId    String?
+  type      String               // low_stock | overdue_debt | ...
+  severity  NotificationSeverity @default(INFO)
+  title     String
+  body      String?
+  payload   String?              // JSON
+  readAt    DateTime?
+  createdAt DateTime             @default(now())
+
+  user      User?                @relation(fields: [userId], references: [id])
+
+  @@index([userId, readAt])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String
+  action     String   // "price.override" | "discount.override" | "tax_rule.create" | ...
+  entityType String
+  entityId   String?
+  beforeJson String?
+  afterJson  String?
+  ip         String?
+  userAgent  String?
+  at         DateTime @default(now())
+
+  actor      User     @relation(fields: [actorId], references: [id])
+
+  @@index([actorId, at])
+  @@index([entityType, entityId])
+}
+
+// =============================================================
+// SETTINGS
+// =============================================================
+
+model Setting {
+  id    String @id @default(cuid())
+  key   String @unique
+  value String
+  updatedAt DateTime @updatedAt
+}
