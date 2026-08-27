@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { KpiCard, SectionHeader, EmptyState } from "@/components/shared/primitives";
+import { formatArmenianDateLong } from "@/lib/i18n/date";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -29,7 +30,7 @@ export function OperatorDashboard() {
     <div className="space-y-6">
       <SectionHeader
         title="Օպերատորի վահանակ"
-        description={new Date().toLocaleDateString("hy-AM", { weekday: "long", day: "numeric", month: "long" })}
+        description={formatArmenianDateLong(new Date())}
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { TrendingUp, AlertTriangle, Package, Users, ShoppingCart, Wallet, Activity } from "lucide-react";
 import { DashboardCharts } from "@/components/charts/dashboard-charts";
+import { formatArmenianDateShort } from "@/lib/i18n/date";
 
 async function fetchDashboard() {
   const res = await fetch("/api/dashboard");
@@ -34,7 +35,7 @@ export function AdminDashboard() {
     <div className="space-y-6">
       <SectionHeader
         title="Ադմինիստրատորի վահանակ"
-        description={`Ամսաթիվ՝ ${new Date().toLocaleDateString("hy-AM")}`}
+        description={`Ամսաթիվ՝ ${formatArmenianDateShort(new Date())}`}
       />
 
       {/* KPI grid */}

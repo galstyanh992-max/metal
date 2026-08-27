@@ -138,11 +138,14 @@ export function WorkspaceShell() {
             </Badge>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={() => setPaletteOpen(true)} className="gap-2 text-muted-foreground">
-              <Search className="size-4" />
-              <span className="hidden md:inline">Որոնում</span>
-              <kbd className="hidden md:inline-flex text-[10px] px-1.5 py-0.5 border border-hairline rounded-sm">⌘K</kbd>
-            </Button>
+            <button
+              onClick={() => setPaletteOpen(true)}
+              className="flex items-center gap-2 px-3 h-8 text-sm text-muted-foreground border border-hairline hover:bg-muted/40 transition-colors rounded-sm min-w-[120px] lg:min-w-[200px]"
+            >
+              <Search className="size-3.5 shrink-0" />
+              <span className="hidden md:inline flex-1 text-left text-xs">Որոնում…</span>
+              <kbd className="hidden md:inline-flex text-[9px] px-1 py-0.5 border border-hairline rounded-sm shrink-0">⌘K</kbd>
+            </button>
             <NotificationsBell />
             <Button variant="ghost" size="sm" onClick={() => signOut({ redirect: false })} className="gap-2">
               <LogOut className="size-4" />
