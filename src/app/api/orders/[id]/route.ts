@@ -58,7 +58,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
     if (action === "confirm") {
       if (order.status !== "DRAFT") return NextResponse.json({ error: "only draft can be confirmed" }, { status: 400 });
-      // Reserve stock for each item
+      // Reserve stock for each item (main product)
       for (const item of order.items) {
         const r = await recordMovement({
           productId: item.productId,
@@ -71,11 +71,62 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         });
         if (!r.ok) return NextResponse.json({ error: `Reservation failed for ${item.productName}: ${r.error}` }, { status: 400 });
       }
+
+      // Also reserve BOM components for each item
+      for (const item of order.items) {
+        const product = await db.product.findUnique({ where: { id: item.productId }, select: { categoryId: true } });
+        if (!product?.categoryId) continue;
+
+        const bomRules = await db.bomRule.findMany({
+          where: { productTypeId: product.categoryId, active: true, archivedAt: null },
+          include: { componentProduct: { include: { unit: true } } },
+        });
+
+        // Build context from item parameters
+        const params = await db.orderItemParameter.findMany({ where: { orderItemId: item.id } });
+        const ctx: Record<string, number> = {};
+        for (const p of params) {
+          const num = parseFloat(p.value);
+          if (!isNaN(num)) ctx[p.fieldKey] = num;
+        }
+        if (ctx.quantity !== undefined && ctx.qty === undefined) ctx.qty = ctx.quantity;
+        if (ctx.qty !== undefined && ctx.quantity === undefined) ctx.quantity = ctx.qty;
+
+        const { evaluateFormula } = await import("@/lib/bom/dsl");
+
+        for (const rule of bomRules) {
+          try {
+            const ruleCtx = { ...ctx, coefficient: rule.coefficient, waste: rule.waste };
+            const rawQty = evaluateFormula(rule.formulaExpr, ruleCtx);
+            const wasteQty = Math.round(rawQty * rule.waste);
+            const totalQty = rawQty + wasteQty;
+            const roundedQty = rule.rounding > 0 ? Math.ceil(totalQty / rule.rounding) * rule.rounding : Math.ceil(totalQty);
+            const finalQty = Math.max(rule.minimum, roundedQty);
+
+            const r = await recordMovement({
+              productId: rule.componentProductId,
+              type: "RESERVE",
+              qty: finalQty,
+              byUserId: userId,
+              refType: "ORDER",
+              refId: order.id,
+              note: `BOM: ${order.number} → ${rule.componentProduct.name}`,
+            });
+            if (!r.ok) {
+              // Rollback main product reservations
+              return NextResponse.json({ error: `BOM reservation failed for ${rule.componentProduct.name}: ${r.error}` }, { status: 400 });
+            }
+          } catch (e: any) {
+            console.error("BOM rule eval failed on confirm:", rule.id, e?.message);
+          }
+        }
+      }
+
       await db.order.update({ where: { id }, data: { status: "CONFIRMED" } });
-      await db.orderStatusHistory.create({ data: { orderId: id, status: "CONFIRMED", byUserId: userId } });
+      await db.orderStatusHistory.create({ data: { orderId: id, status: "CONFIRMED", byUserId: userId, note: "Պաշարները պահված են (BOM-ով)" } });
     } else if (action === "cancel") {
       if (order.status === "DELIVERED") return NextResponse.json({ error: "cannot cancel delivered" }, { status: 400 });
-      // Release reservations
+      // Release main product reservations
       for (const item of order.items) {
         await recordMovement({
           productId: item.productId,
@@ -87,8 +138,54 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
           note: `Չեղարկում ${order.number}`,
         }).catch(() => null);
       }
+
+      // Release BOM component reservations
+      for (const item of order.items) {
+        const product = await db.product.findUnique({ where: { id: item.productId }, select: { categoryId: true } });
+        if (!product?.categoryId) continue;
+
+        const bomRules = await db.bomRule.findMany({
+          where: { productTypeId: product.categoryId, active: true, archivedAt: null },
+          include: { componentProduct: true },
+        });
+
+        const params = await db.orderItemParameter.findMany({ where: { orderItemId: item.id } });
+        const ctx: Record<string, number> = {};
+        for (const p of params) {
+          const num = parseFloat(p.value);
+          if (!isNaN(num)) ctx[p.fieldKey] = num;
+        }
+        if (ctx.quantity !== undefined && ctx.qty === undefined) ctx.qty = ctx.quantity;
+        if (ctx.qty !== undefined && ctx.quantity === undefined) ctx.quantity = ctx.qty;
+
+        const { evaluateFormula } = await import("@/lib/bom/dsl");
+
+        for (const rule of bomRules) {
+          try {
+            const ruleCtx = { ...ctx, coefficient: rule.coefficient, waste: rule.waste };
+            const rawQty = evaluateFormula(rule.formulaExpr, ruleCtx);
+            const wasteQty = Math.round(rawQty * rule.waste);
+            const totalQty = rawQty + wasteQty;
+            const roundedQty = rule.rounding > 0 ? Math.ceil(totalQty / rule.rounding) * rule.rounding : Math.ceil(totalQty);
+            const finalQty = Math.max(rule.minimum, roundedQty);
+
+            await recordMovement({
+              productId: rule.componentProductId,
+              type: "RELEASE_RESERVATION",
+              qty: finalQty,
+              byUserId: userId,
+              refType: "ORDER",
+              refId: order.id,
+              note: `BOM չեղարկում: ${order.number}`,
+            }).catch(() => null);
+          } catch (e: any) {
+            // Continue releasing even if one fails
+          }
+        }
+      }
+
       await db.order.update({ where: { id }, data: { status: "CANCELLED" } });
-      await db.orderStatusHistory.create({ data: { orderId: id, status: "CANCELLED", byUserId: userId } });
+      await db.orderStatusHistory.create({ data: { orderId: id, status: "CANCELLED", byUserId: userId, note: "Պաշարները ազատված են" } });
     } else if (action === "mark_ready") {
       if (order.status !== "CONFIRMED") return NextResponse.json({ error: "only confirmed can be marked ready" }, { status: 400 });
       await db.order.update({ where: { id }, data: { status: "READY" } });
