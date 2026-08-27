@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { CheckCircle2, XCircle, Package, Clock, Receipt, User, Loader2 } from "lucide-react";
+import { CheckCircle2, XCircle, Package, Clock, Receipt, User, Loader2, Download, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { StatusPill } from "@/components/shared/primitives";
 
@@ -107,6 +107,25 @@ export function OrderDetailDrawer({ orderId, open, onClose, role }: { orderId: s
             {canCancel && (
               <Button size="sm" variant="outline" className="gap-2 text-destructive" disabled={actionMutation.isPending} onClick={() => actionMutation.mutate("cancel")}>
                 <XCircle className="size-3.5" /> Չեղարկել
+              </Button>
+            )}
+            {role !== "WAREHOUSE" && (
+              <Button size="sm" variant="outline" className="gap-2" asChild>
+                <a href={`/api/orders/${orderId}/pdf?type=CUSTOMER_ORDER`} target="_blank" rel="noopener">
+                  <Download className="size-3.5" /> PDF (Հաճախորդ)
+                </a>
+              </Button>
+            )}
+            <Button size="sm" variant="outline" className="gap-2" asChild>
+              <a href={`/api/orders/${orderId}/pdf?type=WAREHOUSE_ORDER`} target="_blank" rel="noopener">
+                <FileText className="size-3.5" /> PDF (Պահեստ)
+              </a>
+            </Button>
+            {role !== "WAREHOUSE" && (
+              <Button size="sm" variant="outline" className="gap-2" asChild>
+                <a href={`/api/orders/${orderId}/pdf?type=INVOICE`} target="_blank" rel="noopener">
+                  <Receipt className="size-3.5" /> Հաշիվ
+                </a>
               </Button>
             )}
           </div>

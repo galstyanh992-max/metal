@@ -2,12 +2,20 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAction } from "@/lib/rbac";
 
-// Force fresh compile
+// Force fresh compile v2 — added product relation on PurchaseOrderItem
 export async function GET() {
   try {
     await requireAction("procurement.view_purchase_history");
+    // Use findMany with explicit select to avoid include cache issues
     const pos = await db.purchaseOrder.findMany({
-      include: { supplier: true, items: { include: { product: true } } },
+      include: {
+        supplier: true,
+        items: {
+          include: {
+            product: { select: { id: true, name: true, sku: true, unitId: true } },
+          },
+        },
+      },
       orderBy: { createdAt: "desc" },
       take: 50,
     });

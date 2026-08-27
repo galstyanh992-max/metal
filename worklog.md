@@ -2,129 +2,106 @@
 
 ## Project status
 
-**Phase:** P11 — Detail drawers + Dashboard charts + Procurement receive flow COMPLETE
-**Overall:** ~80% complete. All modules now have detail views, charts, and full inventory/procurement flows.
-**Build:** Lint PASS (0 errors). Dev server has transient Turbopack cache corruption (will recover on restart).
-**Last QA:** 2026-08-27 — drawers, charts, and order confirm flow verified via agent-browser
+**Phase:** P11 — PDF + Barcode + QR generation COMPLETE
+**Overall:** ~85% complete. Documents can now be generated as PDFs, barcodes/QR codes for products and orders.
+**Build:** Lint PASS (0 errors). Dev server running stable.
+**Last QA:** 2026-08-28 — PDF/barcode/QR verified via agent-browser
 
 ## Current goals / completed modifications
 
-### This round (webDevReview #2)
+### This round (webDevReview #3)
 
-**NEW FEATURES (5 major):**
+**CRITICAL FIXES:**
+1. **Turbopack recovery** — dev server was down (corrupted .next cache). Fixed by:
+   - Killing stale processes
+   - Restarting via `bash .zscripts/dev.sh` (original dev script)
+   - Server now stable at PID 9153+
 
-1. **Order Detail Drawer** (`order-detail-drawer.tsx`) — full order view with:
-   - Financial summary (base, discount, total, paid, outstanding, cost, profit, margin)
-   - Items list with parameters (width, height, color, etc.)
-   - Payments history table
-   - Status timeline (vertical with copper dots)
-   - Action buttons: Confirm (reserves stock), Cancel (releases reservation), Mark Ready
-   - Role-aware: warehouse sees no financials, operator sees no cost/profit
+2. **Procurement orphaned data bug** — PO items referenced non-existent product (productId from old seed). Fixed by:
+   - Deleting orphaned PurchaseOrderItem and PurchaseOrder records
+   - Procurement API now returns 200
 
-2. **Client Detail Drawer** (`client-detail-drawer.tsx`) — full client profile:
-   - Contact info (phone, email, address, preferred channel, tax ID)
-   - Financial profile: lifetime turnover, total paid, current debt, total orders, avg order value, gross profit, total cost, credit limit with utilization bar
-   - Orders history table with status badges
-   - Comments/notes section
-   - Status pill with auto-computed status (GREEN/YELLOW/ORANGE/RED/CRITICAL)
+**NEW FEATURES (3 major):**
 
-3. **Inventory History Drawer** (`inventory-history-drawer.tsx`) — per-product movement ledger:
-   - Product info (SKU, unit, category)
-   - State summary (on-hand, reserved, available) in 3 stat cards
-   - Movement history table with type icons (RECEIVE/RESERVE/ISSUE/RETURN/WRITE_OFF/ADJUSTMENT)
-   - Color-coded badges per movement type
-   - Source tracking (ORDER, PURCHASE_ORDER, SEED)
+1. **PDF Document Generation** (`src/lib/docs/pdf.ts`) — full PDF generator using pdfkit:
+   - Generates Armenian-localized PDFs for: CUSTOMER_ORDER, WAREHOUSE_ORDER, INVOICE
+   - Industrial precision layout: header with brand, client info, items table, totals, QR code
+   - Role-aware: warehouse PDF excludes prices/totals
+   - QR code embedded in PDF (bottom-right) with order JSON data
+   - Footer with timestamp
 
-4. **Dashboard Charts** (`dashboard-charts.tsx`) — 4 Recharts visualizations:
-   - Sales dynamics (14-day area chart with sales + profit gradients)
-   - Order status distribution (donut pie chart with legend)
-   - Top 5 clients (horizontal bar chart by turnover)
-   - Payment methods (pie chart with percentage labels)
-   - All using Armenian Industrial palette (steel, copper, status colors)
+2. **Barcode Generation** — Code128 barcodes for products:
+   - `GET /api/products/[id]/barcode` returns PNG barcode
+   - Uses bwip-js, renders product SKU/barcode
+   - Products module has "Շտրիխկոդ" button per row → opens barcode viewer Sheet
 
-5. **Procurement Receive Flow** — wired "Ստանալ" (Receive) button on POs:
-   - PATCH `/api/procurement/[id]` with action: "receive"
-   - Creates INVENTORY RECEIVE movement for each item
-   - Updates PO status to RECEIVED with actualDate
-   - Updates PurchaseOrderItem.receivedQty
-   - Audit log entry
-   - Invalidates procurement + inventory + dashboard queries
+3. **QR Code Generation** — generic QR code endpoint:
+   - `GET /api/qr?data=...` returns PNG QR code
+   - Uses qrcode library, 200px size
+   - Embedded in PDFs for order tracking
 
-6. **Order Status Transitions** — PATCH `/api/orders/[id]` with actions:
-   - "confirm" — reserves stock for each item (creates RESERVE movements)
-   - "cancel" — releases reservations (creates RELEASE_RESERVATION movements)
-   - "mark_ready" — transitions to READY status
-   - All with inventory invariant enforcement (cannot reserve more than available)
-   - Status history entries created
+**NEW API ROUTES (3):**
+- `GET /api/orders/[id]/pdf?type=CUSTOMER_ORDER|WAREHOUSE_ORDER|INVOICE` — PDF generation
+- `GET /api/products/[id]/barcode` — barcode PNG
+- `GET /api/qr?data=...` — QR code PNG
 
-**NEW API ROUTES (5 added):**
-- `GET /api/orders/[id]` — full order with items, payments, status history, documents
-- `PATCH /api/orders/[id]` — status transitions with inventory reservation
-- `GET /api/clients/[id]` — full client with computed financial profile + orders
-- `GET /api/inventory/[productId]` — product + movements + state
-- `PATCH /api/procurement/[id]` — receive PO flow
-- `GET /api/dashboard/chart` — daily sales, top clients, status distribution, payment methods
-
-**BUG FIXES:**
-- **FIXED:** Procurement PO creation failed (500) — missing `unitId` on PurchaseOrderItem create
-- **FIXED:** Procurement GET returned 403 instead of 500 on Prisma errors — catch block now distinguishes forbidden vs internal error
-- **FIXED:** Prisma schema — added `product` relation on PurchaseOrderItem (was missing back-reference)
-- **FIXED:** Query invalidation — order/client/procurement mutations now invalidate related queries
+**UI ENHANCEMENTS:**
+- Order detail drawer: 3 PDF download buttons (Customer PDF, Warehouse PDF, Invoice)
+- Products module: "Շտրիխկոդ" button per product → barcode viewer Sheet
+- Barcode viewer: centered barcode image with scan instruction
 
 ### Verification results (agent-browser)
 
 **Tested and PASSED:**
-1. ✅ Dashboard shows 4 charts (sales area, status pie, top clients bar, payment methods pie)
-2. ✅ Orders → click row → Order Detail Drawer opens with full financial summary, items, payments, status timeline
-3. ✅ Order confirm action correctly fails with "Insufficient available stock" (inventory invariant working)
-4. ✅ Clients → click row → Client Detail Drawer opens with financial profile, credit utilization, orders history
-5. ✅ Inventory → click row → History Drawer opens with movement ledger (RECEIVE +500 from seed)
-6. ✅ Lint PASS (0 errors)
-
-**Known issue (transient):**
-- Turbopack cache corruption after `.next` folder deletion — dev server returns 500 on page load. This is a transient issue that resolves when dev server restarts. All code changes are correct and lint passes. The cron job's next run will verify recovery.
+1. ✅ Dev server recovered from Turbopack corruption (HTTP 200)
+2. ✅ Procurement API works (200) after orphaned data cleanup
+3. ✅ Procurement receive flow: created PO → clicked "Ստանալ" → inventory updated (MB-AL-50-BK: 20 units received)
+4. ✅ PDF generation: `GET /api/orders/[id]/pdf?type=CUSTOMER_ORDER` returns 200, content-type application/pdf
+5. ✅ Barcode generation: `GET /api/products/[id]/barcode` returns 200, content-type image/png
+6. ✅ QR generation: `GET /api/qr?data=test` returns 200, content-type image/png
+7. ✅ Order drawer shows PDF buttons (Customer, Warehouse, Invoice)
+8. ✅ Products module shows "Շտրիխկոդ" buttons → opens barcode viewer with image
+9. ✅ Lint PASS (0 errors)
+10. ✅ No runtime errors in dev.log
 
 ## Architecture invariants enforced
 
 - **Money:** AMD integer, decimal.js for math, never binary float ✅
 - **Inventory:** immutable movements, AVAILABLE = ON_HAND − RESERVED, transactional ✅
-  - Order confirm → RESERVE movement (fails if insufficient available)
-  - Order cancel → RELEASE_RESERVATION movement
-  - PO receive → RECEIVE movement
+  - PO receive → RECEIVE movement (verified: 20 units added to MB-AL-50-BK)
 - **AI:** PROPOSAL only, guardrails reject forbidden mutation types ✅
 - **RBAC:** enforced at API + Prisma select layer ✅
-  - Warehouse: no prices, no cost, no profit, no payments in order drawer
-  - Operator: no cost, no profit, no margin in order drawer
+  - Warehouse PDF excludes prices/totals
+  - Warehouse cannot access invoice PDF
 - **Forms:** versioned, old orders use snapshot ✅
 - **Delete:** hard delete only for never-used objects ✅
 - **Audit:** every financial/admin action logged ✅
-- **Tax:** versioned rules, profile-gated, DRAFT status until verified ✅
+- **Tax:** versioned rules, profile-gated ✅
+- **Documents:** PDF generation with template versioning ✅
 
 ## Unresolved issues / risks
 
-1. **Turbopack cache corruption** — dev server returns 500 after `.next` deletion. Transient — resolves on server restart. All code correct, lint passes.
-2. **OllamaCloud API key** — NOT provided. AI falls back to z-ai-web-dev-sdk.
-3. **Email / WhatsApp credentials** — NOT provided. Comms module has placeholders.
-4. **Armenian STT** — NOT provided. Voice order module uses text input.
-5. **Tax profile** — UNKNOWN (legal form, VAT status, turnover).
-6. **Production deployment** — NOT specified.
-7. **Mobile viewport test** — agent-browser cannot resize; relies on Tailwind responsive classes.
-8. **Dynamic Form Builder UI** — schema ready (FormTemplate, FieldGroup, Field), UI not built.
-9. **BOM engine integration** — DSL ready, not wired into order flow.
-10. **PDF generation** — pdfkit installed, templates seeded, generation not implemented.
-11. **Barcode/QR** — bwip-js + qrcode installed, generation not implemented.
+1. **OllamaCloud API key** — NOT provided. AI falls back to z-ai-web-dev-sdk.
+2. **Email / WhatsApp credentials** — NOT provided. Comms module has placeholders.
+3. **Armenian STT** — NOT provided. Voice order module uses text input.
+4. **Tax profile** — UNKNOWN (legal form, VAT status, turnover).
+5. **Production deployment** — NOT specified.
+6. **Mobile viewport test** — agent-browser cannot resize; relies on Tailwind responsive classes.
+7. **Dynamic Form Builder UI** — schema ready (FormTemplate, FieldGroup, Field), UI not built.
+8. **BOM engine integration** — DSL ready, not wired into order flow.
+9. **Email/WhatsApp adapters** — stubs only, no credentials.
 
 ## Priority recommendations for next phase
 
-1. **Fix Turbopack** — verify dev server recovers on next cron run (auto-restart should fix)
-2. **Phase 6: Dynamic Form Builder UI** — visual field editor for admin
-3. **Phase 8: BOM integration** — auto-calculate components in order creation
-4. **Phase 11: PDF generation** — generate documents from templates
-5. **Phase 11: Barcode/QR** — generate for products and pick lists
-6. **Phase 13: Email/WhatsApp** — implement adapters (stub for now)
-7. **Phase 18: Mobile audit** — test on real devices
-8. **Phase 19: Security tests** — RBAC field-level verification
-9. **Phase 20: Release gate** — final audit
+1. **Phase 6: Dynamic Form Builder UI** — visual field editor for admin (schema ready)
+2. **Phase 8: BOM integration** — auto-calculate components in order creation (DSL ready)
+3. **Phase 13: Email/WhatsApp adapters** — implement with stub providers
+4. **Phase 18: Mobile audit** — test on real devices at 320/360/375/390/414px
+5. **Phase 19: Security tests** — RBAC field-level verification (warehouse cannot access price API)
+6. **Phase 20: Release gate** — final audit and release decision
+7. **Client detail drawer PDF** — add debt statement PDF generation
+8. **Procurement PO PDF** — generate procurement document PDF
+9. **Product detail view** — add product detail drawer with price history, suppliers
 
 ## Phase progress
 
@@ -136,19 +113,19 @@
 | 4. Repository Foundation | ✅ PASS | |
 | 5. Database + Auth + RBAC | ✅ PASS | 30+ models |
 | 6. Dynamic Admin Meta-System | ⏳ PENDING | Schema ready, UI not built |
-| 7. Products + Suppliers + Procurement | ✅ PASS | Receive flow wired |
+| 7. Products + Suppliers + Procurement | ✅ PASS | Receive flow + barcodes |
 | 8. Orders + BOM + Inventory | ✅ PARTIAL | Orders+inventory done, BOM pending |
 | 9. Finance + Debt + Loyalty + Profit | ✅ PASS | Full flow |
 | 10. Armenia Tax Engine | ✅ PARTIAL | UI done, profile UNKNOWN |
-| 11. Documents + PDF + Barcode + QR | ⏳ PENDING | Templates seeded, generation pending |
+| 11. Documents + PDF + Barcode + QR | ✅ PASS | PDF + barcode + QR generation |
 | 12. AI Layer | ✅ PARTIAL | Provider + 9 modules |
 | 13. Email + WhatsApp | ⏳ PENDING | Stubs only |
 | 14. Premium Design System | ✅ PASS | Industrial Precision |
 | 15. Operator Workspace | ✅ PASS | |
 | 16. Warehouse Workspace | ✅ PASS | |
-| 17. Admin Dashboard + Reporting | ✅ PASS | 8 KPIs + 4 charts + low stock |
+| 17. Admin Dashboard + Reporting | ✅ PASS | 8 KPIs + 4 charts |
 | 18. Armenian Localization + Mobile + A11y | ⏳ PENDING | Armenian done |
-| 19. Security + Preview + Browser Audit | ✅ PARTIAL | Drawers + charts verified |
+| 19. Security + Preview + Browser Audit | ✅ PARTIAL | Drawers + charts + PDFs verified |
 | 20. Final Release Gate | ⏳ PENDING | |
 
-**Overall: ~80% complete.** Detail drawers, charts, and full inventory/procurement flows now functional. Core ERP is feature-complete for daily operations.
+**Overall: ~85% complete.** PDF/barcode/QR generation added. Core ERP + document generation functional. Remaining: Dynamic Form Builder, BOM integration, Email/WhatsApp, mobile audit.
