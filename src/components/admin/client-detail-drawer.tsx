@@ -5,7 +5,8 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Phone, Mail, MapPin, MessageCircle, Crown, Receipt, ShoppingBag, TrendingUp, AlertTriangle } from "lucide-react";
+import { Phone, Mail, MapPin, MessageCircle, Crown, Receipt, ShoppingBag, TrendingUp, AlertTriangle, Download } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { StatusPill } from "@/components/shared/primitives";
 
 async function fetchClient(id: string) {
@@ -44,7 +45,16 @@ export function ClientDetailDrawer({ clientId, open, onClose, role }: { clientId
                 </div>
               </div>
             </div>
-            <StatusPill status={client.status} />
+            <div className="flex items-center gap-2">
+              {role !== "WAREHOUSE" && fp.currentDebt > 0 && (
+                <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5" asChild>
+                  <a href={`/api/clients/${clientId}/pdf`} target="_blank" rel="noopener">
+                    <Download className="size-3.5" /> Պարտքի տեղեկագիր
+                  </a>
+                </Button>
+              )}
+              <StatusPill status={client.status} />
+            </div>
           </div>
         </SheetHeader>
 

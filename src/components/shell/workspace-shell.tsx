@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard, Users, Package, ShoppingCart, Warehouse as WarehouseIcon,
-  Truck, FileText, Settings, Settings2, LogOut, Menu, Search, Bell, Factory,
+  Truck, FileText, Settings, Settings2, LogOut, Menu, Search, Bell, Factory, Building2,
   ChevronDown, Sparkles, Receipt, Crown, Calculator, Mail, MessageCircle,
   type LucideIcon,
 } from "lucide-react";
@@ -33,6 +33,7 @@ import { CommsModule } from "@/components/admin/comms-module";
 import { SettingsModule } from "@/components/admin/settings-module";
 import { FormBuilderModule } from "@/components/forms/form-builder";
 import { BomRulesModule } from "@/components/admin/bom-rules-module";
+import { SuppliersModule } from "@/components/admin/suppliers-module";
 
 type NavItem = { key: string; label: string; icon: LucideIcon; module: string; roles: string[] };
 
@@ -44,6 +45,7 @@ const NAV: NavItem[] = [
   { key: "inventory", label: "Պահեստ", icon: WarehouseIcon, module: "inventory", roles: ["ADMIN", "WAREHOUSE"] },
   { key: "picks", label: "Ընտրում", icon: Package, module: "picks", roles: ["WAREHOUSE"] },
   { key: "procurement", label: "Մատակարարում", icon: Truck, module: "procurement", roles: ["ADMIN"] },
+  { key: "suppliers", label: "Մատակարարներ", icon: Building2, module: "suppliers", roles: ["ADMIN"] },
   { key: "finance", label: "Ֆինանսներ", icon: Receipt, module: "finance", roles: ["ADMIN"] },
   { key: "loyalty", label: "Հավատարմություն", icon: Crown, module: "loyalty", roles: ["ADMIN"] },
   { key: "tax", label: "Հարկեր", icon: Calculator, module: "tax", roles: ["ADMIN"] },
@@ -90,6 +92,7 @@ export function WorkspaceShell() {
     if (active === "ai") return <AIAssistant role={role} />;
     if (active === "finance" && role === "ADMIN") return <FinanceModule role={role} />;
     if (active === "procurement" && role === "ADMIN") return <ProcurementModule />;
+    if (active === "suppliers" && role === "ADMIN") return <SuppliersModule />;
     if (active === "tax" && role === "ADMIN") return <TaxModule />;
     if (active === "loyalty" && role === "ADMIN") return <LoyaltyModule />;
     if (active === "documents") return <DocumentsModule />;

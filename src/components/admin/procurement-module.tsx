@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Truck, Plus, Loader2, Package, CheckCircle2 } from "lucide-react";
+import { Truck, Plus, Loader2, Package, CheckCircle2, Download } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -106,17 +106,24 @@ export function ProcurementModule() {
                   <TableCell className="text-right tabular-nums">{fmt(p.totalAmount)}</TableCell>
                   <TableCell className="text-xs text-muted-foreground">{new Date(p.createdAt).toLocaleDateString("hy-AM")}</TableCell>
                   <TableCell className="text-right">
-                    {(p.status === "ORDERED" || p.status === "IN_TRANSIT" || p.status === "PARTIALLY_RECEIVED") && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs gap-1.5"
-                        disabled={receiveMutation.isPending}
-                        onClick={() => receiveMutation.mutate(p.id)}
-                      >
-                        <CheckCircle2 className="size-3.5" /> Ստանալ
+                    <div className="flex items-center justify-end gap-1">
+                      <Button size="sm" variant="ghost" className="h-7 text-xs gap-1" asChild>
+                        <a href={`/api/procurement/${p.id}/pdf`} target="_blank" rel="noopener">
+                          <Download className="size-3.5" /> PDF
+                        </a>
                       </Button>
-                    )}
+                      {(p.status === "ORDERED" || p.status === "IN_TRANSIT" || p.status === "PARTIALLY_RECEIVED") && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs gap-1.5"
+                          disabled={receiveMutation.isPending}
+                          onClick={() => receiveMutation.mutate(p.id)}
+                        >
+                          <CheckCircle2 className="size-3.5" /> Ստանալ
+                        </Button>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
