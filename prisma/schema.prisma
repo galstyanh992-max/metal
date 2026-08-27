@@ -222,6 +222,7 @@ model Product {
   inventoryMovements InventoryMovement[]
   bomComponents   BomRule[]   @relation("BomComponent")
   orderItems      OrderItem[]
+  purchaseOrderItems PurchaseOrderItem[]
 
   @@index([categoryId])
   @@index([unitId])
@@ -612,6 +613,7 @@ model PurchaseOrderItem {
   total      Int
   receivedQty Int         @default(0)
   po         PurchaseOrder @relation(fields: [poId], references: [id], onDelete: Cascade)
+  product    Product      @relation(fields: [productId], references: [id])
 
   @@index([poId])
 }

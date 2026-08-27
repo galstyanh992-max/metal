@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { KpiCard, SectionHeader, EmptyState } from "@/components/shared/primitives";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Truck, Plus, Loader2, Package } from "lucide-react";
+import { Truck, Plus, Loader2, Package, CheckCircle2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -46,8 +46,24 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export function ProcurementModule() {
+  const qc = useQueryClient();
   const { data, isLoading } = useQuery({ queryKey: ["procurement"], queryFn: fetchPOs });
   const [createOpen, setCreateOpen] = useState(false);
+
+  const receiveMutation = useMutation({
+    mutationFn: async (poId: string) => {
+      const res = await fetch(`/api/procurement/${poId}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "receive" }) });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.error ?? "failed"); }
+      return res.json();
+    },
+    onSuccess: () => {
+      toast.success("Պաշարը ստացված է — գույքագրումը թարմացված է");
+      qc.invalidateQueries({ queryKey: ["procurement"] });
+      qc.invalidateQueries({ queryKey: ["inventory"] });
+      qc.invalidateQueries({ queryKey: ["dashboard", "admin"] });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Սխալ"),
+  });
 
   const pos = data?.purchaseOrders ?? [];
 
@@ -76,6 +92,7 @@ export function ProcurementModule() {
                 <TableHead className="text-xs uppercase">Կարգավիճակ</TableHead>
                 <TableHead className="text-xs uppercase text-right">Գումար</TableHead>
                 <TableHead className="text-xs uppercase">Ամսաթիվ</TableHead>
+                <TableHead className="text-xs uppercase text-right">Գործողություն</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -88,10 +105,23 @@ export function ProcurementModule() {
                   </TableCell>
                   <TableCell className="text-right tabular-nums">{fmt(p.totalAmount)}</TableCell>
                   <TableCell className="text-xs text-muted-foreground">{new Date(p.createdAt).toLocaleDateString("hy-AM")}</TableCell>
+                  <TableCell className="text-right">
+                    {(p.status === "ORDERED" || p.status === "IN_TRANSIT" || p.status === "PARTIALLY_RECEIVED") && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs gap-1.5"
+                        disabled={receiveMutation.isPending}
+                        onClick={() => receiveMutation.mutate(p.id)}
+                      >
+                        <CheckCircle2 className="size-3.5" /> Ստանալ
+                      </Button>
+                    )}
+                  </TableCell>
                 </TableRow>
               ))}
               {pos.length === 0 && !isLoading && (
-                <TableRow><TableCell colSpan={5}><EmptyState title="Գնման պատվերներ չկան" /></TableCell></TableRow>
+                <TableRow><TableCell colSpan={6}><EmptyState title="Գնման պատվերներ չկան" /></TableCell></TableRow>
               )}
             </TableBody>
           </Table>

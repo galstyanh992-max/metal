@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { TrendingUp, AlertTriangle, Package, Users, ShoppingCart, Wallet, Activity } from "lucide-react";
+import { DashboardCharts } from "@/components/charts/dashboard-charts";
 
 async function fetchDashboard() {
   const res = await fetch("/api/dashboard");
@@ -47,6 +48,9 @@ export function AdminDashboard() {
         <KpiCard label="Ժամկետանց պարտք" value={fmt(f.overdueDebt)} icon={AlertTriangle} sub={`${c.overdueOrders ?? 0} պատվեր`} trend="down" />
         <KpiCard label="Ցածր մնացորդ" value={String(c.lowStockCount ?? 0)} icon={Package} sub="Ապրանքներ" trend="down" />
       </div>
+
+      {/* Charts */}
+      <DashboardCharts />
 
       {/* Low stock table */}
       {data?.lowStock?.length > 0 && (

@@ -6,13 +6,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Plus, ShoppingCart, Loader2 } from "lucide-react";
+import { Plus, ShoppingCart, Loader2, Search } from "lucide-react";
 import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+import { OrderDetailDrawer } from "./order-detail-drawer";
 
 async function fetchOrders() {
   const res = await fetch("/api/orders");
@@ -41,9 +42,29 @@ const STATUS_LABELS: Record<string, string> = {
   CANCELLED: "Չեղարկված",
 };
 
+const STATUS_COLORS: Record<string, string> = {
+  DRAFT: "bg-muted text-muted-foreground",
+  CONFIRMED: "bg-status-yellow/15 text-status-yellow border-status-yellow/30",
+  PICKING: "bg-status-orange/15 text-status-orange border-status-orange/30",
+  READY: "bg-status-green/15 text-status-green border-status-green/30",
+  DELIVERED: "bg-status-green/15 text-status-green border-status-green/30",
+  CANCELLED: "bg-muted text-muted-foreground line-through",
+};
+
 export function OrdersModule({ role }: { role: string }) {
   const { data, isLoading, refetch } = useQuery({ queryKey: ["orders"], queryFn: fetchOrders });
   const [createOpen, setCreateOpen] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+
+  const orders = (data?.orders ?? []).filter((o: any) => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return o.number?.toLowerCase().includes(q) ||
+      o.client?.companyName?.toLowerCase().includes(q) ||
+      o.client?.firstName?.toLowerCase().includes(q) ||
+      o.client?.lastName?.toLowerCase().includes(q);
+  });
 
   return (
     <div className="space-y-6">
@@ -58,6 +79,19 @@ export function OrdersModule({ role }: { role: string }) {
           )
         }
       />
+
+      {/* Search */}
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Որոնում՝ համար, հաճախորդ…"
+            className="pl-9 focus-steel"
+          />
+        </div>
+      </div>
 
       <Card className="border-hairline shadow-none">
         <CardContent className="p-0">
@@ -74,33 +108,31 @@ export function OrdersModule({ role }: { role: string }) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data?.orders?.map((o: any) => (
-                <TableRow key={o.id} className="border-hairline hover:bg-muted/40 cursor-pointer">
+              {orders.map((o: any) => (
+                <TableRow key={o.id} className="border-hairline hover:bg-muted/40 cursor-pointer" onClick={() => setSelectedId(o.id)}>
                   <TableCell className="text-xs font-mono">{o.number}</TableCell>
                   <TableCell className="text-sm font-medium">
                     {o.client?.type === "COMPANY" ? o.client?.companyName : `${o.client?.firstName ?? ""} ${o.client?.lastName ?? ""}`}
                   </TableCell>
                   <TableCell>
-                    <Badge variant="outline" className="text-[10px] uppercase tracking-wider">{STATUS_LABELS[o.status] ?? o.status}</Badge>
+                    <Badge variant="outline" className={`text-[10px] uppercase tracking-wider ${STATUS_COLORS[o.status] ?? ""}`}>{STATUS_LABELS[o.status] ?? o.status}</Badge>
                   </TableCell>
                   <TableCell className="text-right tabular-nums">{o.items?.length ?? 0}</TableCell>
                   {role !== "WAREHOUSE" && (
-                    <TableCell className="text-right tabular-nums font-medium">
-                      {role === "OPERATOR" ? fmt(o.totalAmount) : fmt(o.totalAmount)}
-                    </TableCell>
+                    <TableCell className="text-right tabular-nums font-medium">{fmt(o.totalAmount)}</TableCell>
                   )}
                   {role === "ADMIN" && (
-                    <TableCell className="text-right tabular-nums text-muted-foreground">{fmt(o.grossProfit)}</TableCell>
+                    <TableCell className="text-right tabular-nums text-status-green">{fmt(o.grossProfit)}</TableCell>
                   )}
                   <TableCell className="text-xs text-muted-foreground">
                     {new Date(o.createdAt).toLocaleDateString("hy-AM")}
                   </TableCell>
                 </TableRow>
               ))}
-              {(!data?.orders || data.orders.length === 0) && !isLoading && (
+              {orders.length === 0 && !isLoading && (
                 <TableRow>
                   <TableCell colSpan={role === "ADMIN" ? 7 : 6} className="text-center py-12">
-                    <EmptyState title="Պատվերներ չկան" description="Ստեղծեք նոր պատվեր՝ սկսելու համար" />
+                    <EmptyState title={search ? "Որոնման արդյունքներ չկան" : "Պատվերներ չկան"} description={search ? undefined : "Ստեղծեք նոր պատվեր՝ սկսելու համար"} />
                   </TableCell>
                 </TableRow>
               )}
@@ -110,6 +142,7 @@ export function OrdersModule({ role }: { role: string }) {
       </Card>
 
       {createOpen && <CreateOrderDialog onClose={() => setCreateOpen(false)} onCreated={() => { refetch(); setCreateOpen(false); }} />}
+      <OrderDetailDrawer orderId={selectedId} open={!!selectedId} onClose={() => setSelectedId(null)} role={role} />
     </div>
   );
 }

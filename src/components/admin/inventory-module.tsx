@@ -6,6 +6,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Package, AlertTriangle, Layers, Boxes } from "lucide-react";
+import { useState } from "react";
+import { InventoryHistoryDrawer } from "./inventory-history-drawer";
 
 async function fetchInventory() {
   const res = await fetch("/api/inventory");
@@ -15,6 +17,7 @@ async function fetchInventory() {
 
 export function InventoryModule({ role }: { role: string }) {
   const { data, isLoading } = useQuery({ queryKey: ["inventory"], queryFn: fetchInventory });
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const items = data?.inventory ?? [];
   const totalOnHand = items.reduce((s: number, p: any) => s + p.state.onHand, 0);
@@ -52,7 +55,7 @@ export function InventoryModule({ role }: { role: string }) {
                 const isLow = p.state.available < p.minStock;
                 const isCritical = p.state.available === 0;
                 return (
-                  <TableRow key={p.id} className="border-hairline">
+                  <TableRow key={p.id} className="border-hairline hover:bg-muted/40 cursor-pointer" onClick={() => setSelectedId(p.id)}>
                     <TableCell className="text-sm font-medium">{p.name}</TableCell>
                     <TableCell className="text-xs font-mono text-muted-foreground">{p.sku}</TableCell>
                     <TableCell className="text-right tabular-nums">{p.state.onHand}</TableCell>
@@ -76,6 +79,8 @@ export function InventoryModule({ role }: { role: string }) {
           </Table>
         </CardContent>
       </Card>
+
+      <InventoryHistoryDrawer productId={selectedId} open={!!selectedId} onClose={() => setSelectedId(null)} />
     </div>
   );
 }

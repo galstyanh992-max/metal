@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAction } from "@/lib/rbac";
 
+// Force fresh compile
 export async function GET() {
   try {
     await requireAction("procurement.view_purchase_history");
@@ -12,7 +13,10 @@ export async function GET() {
     });
     return NextResponse.json({ purchaseOrders: pos });
   } catch (e: any) {
-    return NextResponse.json({ error: e?.message ?? "failed" }, { status: 403 });
+    if (e?.name === "NextResponse") return e;
+    const msg = e?.message ?? "failed";
+    const isForbidden = msg === "forbidden";
+    return NextResponse.json({ error: msg }, { status: isForbidden ? 403 : 500 });
   }
 }
 
@@ -35,6 +39,11 @@ export async function POST(req: Request) {
     const count = await db.purchaseOrder.count({ where: { number: { startsWith: `PO-${year}-` } } });
     const number = `PO-${year}-${String(count + 1).padStart(4, "0")}`;
 
+    // Fetch products to get unitId
+    const productIds = items.map((i) => i.productId);
+    const products = await db.product.findMany({ where: { id: { in: productIds } }, select: { id: true, unitId: true } });
+    const productMap = new Map(products.map((p) => [p.id, p]));
+
     const totalAmount = items.reduce((s, i) => s + i.qty * i.unitPrice, 0);
 
     const po = await db.purchaseOrder.create({
@@ -48,6 +57,7 @@ export async function POST(req: Request) {
         items: {
           create: items.map((i) => ({
             productId: i.productId,
+            unitId: productMap.get(i.productId)?.unitId ?? "",
             qty: i.qty,
             unitPrice: i.unitPrice,
             total: i.qty * i.unitPrice,

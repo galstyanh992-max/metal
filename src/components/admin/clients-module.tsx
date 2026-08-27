@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Users, ShoppingCart, AlertTriangle, Plus, Search } from "lucide-react";
 import { useState } from "react";
 import { ClientCreateDialog } from "./client-create-dialog";
+import { ClientDetailDrawer } from "./client-detail-drawer";
 
 async function fetchClients() {
   const res = await fetch("/api/clients");
@@ -20,6 +21,7 @@ export function ClientsModule({ role }: { role: string }) {
   const { data, isLoading } = useQuery({ queryKey: ["clients"], queryFn: fetchClients });
   const [createOpen, setCreateOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const clients = (data?.clients ?? []).filter((c: any) => {
     if (!search) return true;
@@ -75,7 +77,7 @@ export function ClientsModule({ role }: { role: string }) {
             </TableHeader>
             <TableBody>
               {clients.map((c: any) => (
-                <TableRow key={c.id} className="border-hairline hover:bg-muted/40 cursor-pointer">
+                <TableRow key={c.id} className="border-hairline hover:bg-muted/40 cursor-pointer" onClick={() => setSelectedId(c.id)}>
                   <TableCell className="text-sm font-medium">
                     <div className="flex items-center gap-2">
                       <div className="size-7 bg-muted flex items-center justify-center text-xs font-medium shrink-0">
@@ -113,6 +115,7 @@ export function ClientsModule({ role }: { role: string }) {
       </Card>
 
       <ClientCreateDialog open={createOpen} onClose={() => setCreateOpen(false)} />
+      <ClientDetailDrawer clientId={selectedId} open={!!selectedId} onClose={() => setSelectedId(null)} role={role} />
     </div>
   );
 }

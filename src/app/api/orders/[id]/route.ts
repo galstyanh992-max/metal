@@ -1,0 +1,106 @@
+import { NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { requireAction } from "@/lib/rbac";
+import { recordMovement } from "@/lib/inventory/ledger";
+
+export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { role } = await requireAction("order.list");
+    const { id } = await params;
+
+    const order = await db.order.findUnique({
+      where: { id },
+      include: {
+        client: true,
+        items: { include: { product: { include: { unit: true } } } },
+        payments: { orderBy: { paidAt: "desc" } },
+        statusHistory: { orderBy: { at: "asc" } },
+        documents: true,
+        communications: true,
+      },
+    });
+
+    if (!order) return NextResponse.json({ error: "not found" }, { status: 404 });
+
+    // Strip financial fields based on role
+    if (role === "WAREHOUSE") {
+      const { baseAmount, discountAmount, taxAmount, totalAmount, paidAmount, outstandingAmount, costAmount, grossProfit, marginPercent, ...rest } = order as any;
+      return NextResponse.json({
+        order: {
+          ...rest,
+          items: rest.items.map((it: any) => {
+            const { unitPriceSnapshot, lineTotal, ...itemRest } = it;
+            return itemRest;
+          }),
+          payments: [],
+        },
+      });
+    }
+    if (role === "OPERATOR") {
+      const { costAmount, grossProfit, marginPercent, ...rest } = order as any;
+      return NextResponse.json({ order: rest });
+    }
+    return NextResponse.json({ order });
+  } catch (e: any) {
+    return NextResponse.json({ error: e?.message ?? "failed" }, { status: 403 });
+  }
+}
+
+export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { userId, role } = await requireAction("order.confirm");
+    const { id } = await params;
+    const body = await req.json();
+    const { action } = body as { action: "confirm" | "cancel" | "mark_ready" };
+
+    const order = await db.order.findUnique({ where: { id }, include: { items: true } });
+    if (!order) return NextResponse.json({ error: "not found" }, { status: 404 });
+
+    if (action === "confirm") {
+      if (order.status !== "DRAFT") return NextResponse.json({ error: "only draft can be confirmed" }, { status: 400 });
+      // Reserve stock for each item
+      for (const item of order.items) {
+        const r = await recordMovement({
+          productId: item.productId,
+          type: "RESERVE",
+          qty: item.qty,
+          byUserId: userId,
+          refType: "ORDER",
+          refId: order.id,
+          note: `Պատվեր ${order.number}`,
+        });
+        if (!r.ok) return NextResponse.json({ error: `Reservation failed for ${item.productName}: ${r.error}` }, { status: 400 });
+      }
+      await db.order.update({ where: { id }, data: { status: "CONFIRMED" } });
+      await db.orderStatusHistory.create({ data: { orderId: id, status: "CONFIRMED", byUserId: userId } });
+    } else if (action === "cancel") {
+      if (order.status === "DELIVERED") return NextResponse.json({ error: "cannot cancel delivered" }, { status: 400 });
+      // Release reservations
+      for (const item of order.items) {
+        await recordMovement({
+          productId: item.productId,
+          type: "RELEASE_RESERVATION",
+          qty: item.qty,
+          byUserId: userId,
+          refType: "ORDER",
+          refId: order.id,
+          note: `Չեղարկում ${order.number}`,
+        }).catch(() => null);
+      }
+      await db.order.update({ where: { id }, data: { status: "CANCELLED" } });
+      await db.orderStatusHistory.create({ data: { orderId: id, status: "CANCELLED", byUserId: userId } });
+    } else if (action === "mark_ready") {
+      if (order.status !== "CONFIRMED") return NextResponse.json({ error: "only confirmed can be marked ready" }, { status: 400 });
+      await db.order.update({ where: { id }, data: { status: "READY" } });
+      await db.orderStatusHistory.create({ data: { orderId: id, status: "READY", byUserId: userId } });
+    }
+
+    await db.auditLog.create({
+      data: { actorId: userId, action: `order.${action}`, entityType: "Order", entityId: id, afterJson: JSON.stringify({ action }) },
+    });
+
+    return NextResponse.json({ ok: true });
+  } catch (e: any) {
+    return NextResponse.json({ error: e?.message ?? "failed" }, { status: 500 });
+  }
+}
