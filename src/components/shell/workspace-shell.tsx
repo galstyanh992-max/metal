@@ -1,7 +1,7 @@
 "use client";
 
 import { useSession } from "next-auth/react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { signOut } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -24,6 +24,13 @@ import { WarehouseDashboard } from "@/components/warehouse/dashboard";
 import { WarehousePicks } from "@/components/warehouse/picks";
 import { AIAssistant } from "@/components/admin/ai-assistant";
 import { CommandPalette } from "@/components/shell/command-palette";
+import { FinanceModule } from "@/components/admin/finance-module";
+import { ProcurementModule } from "@/components/admin/procurement-module";
+import { TaxModule } from "@/components/admin/tax-module";
+import { LoyaltyModule } from "@/components/admin/loyalty-module";
+import { DocumentsModule } from "@/components/admin/documents-module";
+import { CommsModule } from "@/components/admin/comms-module";
+import { SettingsModule } from "@/components/admin/settings-module";
 
 type NavItem = { key: string; label: string; icon: LucideIcon; module: string; roles: string[] };
 
@@ -51,6 +58,18 @@ export function WorkspaceShell() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
 
+  // Cmd+K shortcut
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setPaletteOpen((o) => !o);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   const items = NAV.filter((n) => n.roles.includes(role));
 
   const renderModule = () => {
@@ -65,6 +84,13 @@ export function WorkspaceShell() {
     if (active === "products") return <ProductsModule role={role} />;
     if (active === "inventory") return <InventoryModule role={role} />;
     if (active === "ai") return <AIAssistant role={role} />;
+    if (active === "finance" && role === "ADMIN") return <FinanceModule role={role} />;
+    if (active === "procurement" && role === "ADMIN") return <ProcurementModule />;
+    if (active === "tax" && role === "ADMIN") return <TaxModule />;
+    if (active === "loyalty" && role === "ADMIN") return <LoyaltyModule />;
+    if (active === "documents") return <DocumentsModule />;
+    if (active === "comms") return <CommsModule />;
+    if (active === "settings" && role === "ADMIN") return <SettingsModule />;
     return <ComingSoon label={items.find((i) => i.key === active)?.label ?? active} />;
   };
 
