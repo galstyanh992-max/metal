@@ -31,6 +31,7 @@ import { LoyaltyModule } from "@/components/admin/loyalty-module";
 import { DocumentsModule } from "@/components/admin/documents-module";
 import { CommsModule } from "@/components/admin/comms-module";
 import { SettingsModule } from "@/components/admin/settings-module";
+import { FormBuilderModule } from "@/components/forms/form-builder";
 
 type NavItem = { key: string; label: string; icon: LucideIcon; module: string; roles: string[] };
 
@@ -48,6 +49,7 @@ const NAV: NavItem[] = [
   { key: "documents", label: "Փաստաթղթեր", icon: FileText, module: "documents", roles: ["ADMIN", "OPERATOR", "WAREHOUSE"] },
   { key: "comms", label: "Հաղորդակցություն", icon: Mail, module: "comms", roles: ["ADMIN", "OPERATOR"] },
   { key: "ai", label: "AI Օգնական", icon: Sparkles, module: "ai", roles: ["ADMIN", "OPERATOR"] },
+  { key: "forms", label: "Դինամիկ ձևեր", icon: FileText, module: "forms", roles: ["ADMIN"] },
   { key: "settings", label: "Կարգավորումներ", icon: Settings, module: "settings", roles: ["ADMIN"] },
 ];
 
@@ -90,6 +92,7 @@ export function WorkspaceShell() {
     if (active === "loyalty" && role === "ADMIN") return <LoyaltyModule />;
     if (active === "documents") return <DocumentsModule />;
     if (active === "comms") return <CommsModule />;
+    if (active === "forms" && role === "ADMIN") return <FormBuilderModule />;
     if (active === "settings" && role === "ADMIN") return <SettingsModule />;
     return <ComingSoon label={items.find((i) => i.key === active)?.label ?? active} />;
   };
