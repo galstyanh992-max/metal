@@ -91,11 +91,12 @@ async function main() {
       { sku: "MOT-CTL-RF", name: "Ռադիո կառավարման վահանակ", categoryId: catMotors.id, unitId: unitPiece.id, salePrice: 18000, purchasePrice: 11000, minStock: 3 },
     ];
     for (const p of products) {
-      await db.product.upsert({
-        where: { sku: p.sku },
-        update: {},
-        create: { ...p, productSupplier: { create: { supplierId: sup1.id } } } as any,
-      });
+      const existing = await db.product.findUnique({ where: { sku: p.sku } });
+      if (existing) continue;
+      const prod = await db.product.create({ data: { ...p } as any });
+      await db.productSupplier.create({
+        data: { productId: prod.id, supplierId: sup1.id, preferred: true },
+      }).catch(() => null);
     }
 
     // Inventory seed — some RECEIVE movements

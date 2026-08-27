@@ -1,31 +1,25 @@
-'use client'
+"use client";
+
+import { useSession } from "next-auth/react";
+import { useState } from "react";
+import { AuthScreen } from "@/components/auth/auth-screen";
+import { WorkspaceShell } from "@/components/shell/workspace-shell";
 
 export default function Home() {
-  return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      minHeight: '100vh',
-      gap: '2rem',
-      padding: '1rem'
-    }}>
-      <div style={{
-        position: 'relative',
-        width: '6rem',
-        height: '6rem'
-      }}>
-        <img
-          src="/logo.svg"
-          alt="Z.ai Logo"
-          style={{
-            width: '100%',
-            height: '100%',
-            objectFit: 'contain'
-          }}
-        />
+  const { data: session, status } = useSession();
+  const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
+
+  if (status === "loading") {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-muted-foreground text-sm">Բեռնվում է…</div>
       </div>
-    </div>
-  )
+    );
+  }
+
+  if (!session) {
+    return <AuthScreen mode={authMode} onModeChange={setAuthMode} />;
+  }
+
+  return <WorkspaceShell />;
 }
