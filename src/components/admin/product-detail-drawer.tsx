@@ -6,11 +6,17 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Package, TrendingUp, Users, Settings2, Barcode, History, DollarSign } from "lucide-react";
+import { Package, TrendingUp, Users, Settings2, Barcode, History, DollarSign, TrendingDown } from "lucide-react";
 import { EmptyState } from "@/components/shared/primitives";
 
 async function fetchProductDetail(id: string) {
   const res = await fetch(`/api/inventory/${id}`);
+  if (!res.ok) throw new Error("failed");
+  return res.json();
+}
+
+async function fetchPriceHistory(id: string) {
+  const res = await fetch(`/api/products/${id}/price-history`);
   if (!res.ok) throw new Error("failed");
   return res.json();
 }
@@ -20,6 +26,12 @@ export function ProductDetailDrawer({ productId, open, onClose, role }: { produc
     queryKey: ["product-detail", productId],
     queryFn: () => fetchProductDetail(productId!),
     enabled: !!productId && open,
+  });
+
+  const { data: priceHistoryData } = useQuery({
+    queryKey: ["price-history", productId],
+    queryFn: () => fetchPriceHistory(productId!),
+    enabled: !!productId && open && role !== "WAREHOUSE",
   });
 
   const product = data?.product;
@@ -101,6 +113,47 @@ export function ProductDetailDrawer({ productId, open, onClose, role }: { produc
                   <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Մատչելի</div>
                   <div className="text-xl font-semibold tabular-nums text-status-green">{data.state.available}</div>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* Price history */}
+          {role !== "WAREHOUSE" && priceHistoryData?.history?.length > 0 && (
+            <div className="space-y-2">
+              <h4 className="text-xs uppercase tracking-wider text-muted-foreground font-medium flex items-center gap-2">
+                <TrendingUp className="size-3.5" /> Գների պատմություն ({priceHistoryData.history.length})
+              </h4>
+              <div className="border border-hairline">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-hairline">
+                      <TableHead className="text-xs uppercase">Ամսաթիվ</TableHead>
+                      <TableHead className="text-xs uppercase text-right">Վաճառք</TableHead>
+                      <TableHead className="text-xs uppercase text-right">Գնում</TableHead>
+                      <TableHead className="text-xs uppercase text-right">Մարժա</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {priceHistoryData.history.slice(0, 5).map((h: any) => {
+                      const margin = h.salePrice > 0 ? Math.round(((h.salePrice - h.purchasePrice) / h.salePrice) * 100) : 0;
+                      return (
+                        <TableRow key={h.id} className="border-hairline">
+                          <TableCell className="text-xs text-muted-foreground">
+                            {new Date(h.effectiveFrom).toLocaleDateString("hy-AM")}
+                            {h.effectiveTo && <span className="text-[9px]"> → {new Date(h.effectiveTo).toLocaleDateString("hy-AM")}</span>}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums text-xs font-medium">{fmt(h.salePrice)}</TableCell>
+                          <TableCell className="text-right tabular-nums text-xs text-muted-foreground">{fmt(h.purchasePrice)}</TableCell>
+                          <TableCell className="text-right tabular-nums text-xs">
+                            <span className={margin > 30 ? "text-status-green" : margin > 15 ? "text-steel" : "text-status-orange"}>
+                              {margin}%
+                            </span>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
               </div>
             </div>
           )}

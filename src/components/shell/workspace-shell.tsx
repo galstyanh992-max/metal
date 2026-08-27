@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard, Users, Package, ShoppingCart, Warehouse as WarehouseIcon,
-  Truck, FileText, Settings, Settings2, LogOut, Menu, Search, Bell, Factory, Building2,
+  Truck, FileText, Settings, Settings2, LogOut, Menu, Search, Bell, Factory, Building2, BarChart3,
   ChevronDown, Sparkles, Receipt, Crown, Calculator, Mail, MessageCircle,
   type LucideIcon,
 } from "lucide-react";
@@ -24,6 +24,7 @@ import { WarehouseDashboard } from "@/components/warehouse/dashboard";
 import { WarehousePicks } from "@/components/warehouse/picks";
 import { AIAssistant } from "@/components/admin/ai-assistant";
 import { CommandPalette } from "@/components/shell/command-palette";
+import { NotificationsBell } from "@/components/shell/notifications-bell";
 import { FinanceModule } from "@/components/admin/finance-module";
 import { ProcurementModule } from "@/components/admin/procurement-module";
 import { TaxModule } from "@/components/admin/tax-module";
@@ -34,6 +35,7 @@ import { SettingsModule } from "@/components/admin/settings-module";
 import { FormBuilderModule } from "@/components/forms/form-builder";
 import { BomRulesModule } from "@/components/admin/bom-rules-module";
 import { SuppliersModule } from "@/components/admin/suppliers-module";
+import { ReportsModule } from "@/components/admin/reports-module";
 
 type NavItem = { key: string; label: string; icon: LucideIcon; module: string; roles: string[] };
 
@@ -50,6 +52,7 @@ const NAV: NavItem[] = [
   { key: "loyalty", label: "Հավատարմություն", icon: Crown, module: "loyalty", roles: ["ADMIN"] },
   { key: "tax", label: "Հարկեր", icon: Calculator, module: "tax", roles: ["ADMIN"] },
   { key: "documents", label: "Փաստաթղթեր", icon: FileText, module: "documents", roles: ["ADMIN", "OPERATOR", "WAREHOUSE"] },
+  { key: "reports", label: "Հաշվետվություններ", icon: BarChart3, module: "reports", roles: ["ADMIN"] },
   { key: "comms", label: "Հաղորդակցություն", icon: Mail, module: "comms", roles: ["ADMIN", "OPERATOR"] },
   { key: "ai", label: "AI Օգնական", icon: Sparkles, module: "ai", roles: ["ADMIN", "OPERATOR"] },
   { key: "forms", label: "Դինամիկ ձևեր", icon: FileText, module: "forms", roles: ["ADMIN"] },
@@ -96,6 +99,7 @@ export function WorkspaceShell() {
     if (active === "tax" && role === "ADMIN") return <TaxModule />;
     if (active === "loyalty" && role === "ADMIN") return <LoyaltyModule />;
     if (active === "documents") return <DocumentsModule />;
+    if (active === "reports" && role === "ADMIN") return <ReportsModule />;
     if (active === "comms") return <CommsModule />;
     if (active === "forms" && role === "ADMIN") return <FormBuilderModule />;
     if (active === "bom" && role === "ADMIN") return <BomRulesModule />;
@@ -139,10 +143,7 @@ export function WorkspaceShell() {
               <span className="hidden md:inline">Որոնում</span>
               <kbd className="hidden md:inline-flex text-[10px] px-1.5 py-0.5 border border-hairline rounded-sm">⌘K</kbd>
             </Button>
-            <Button variant="ghost" size="icon" className="relative">
-              <Bell className="size-4" />
-              <span className="absolute top-1.5 right-1.5 size-1.5 bg-status-red rounded-full" />
-            </Button>
+            <NotificationsBell />
             <Button variant="ghost" size="sm" onClick={() => signOut({ redirect: false })} className="gap-2">
               <LogOut className="size-4" />
               <span className="hidden sm:inline">Ելք</span>
