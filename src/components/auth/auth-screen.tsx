@@ -97,25 +97,6 @@ export function AuthScreen({ mode, onModeChange }: { mode: "signin" | "signup"; 
                   Մուտք
                 </Button>
               </form>
-
-              <div className="relative">
-                <Separator />
-                <span className="absolute left-1/2 -translate-x-1/2 -top-2.5 bg-background px-2 text-[10px] uppercase tracking-wider text-muted-foreground">
-                  Դեմո հաշիվներ
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 gap-1.5 text-xs">
-                <button onClick={() => fillDemo("admin1@blinds.am", "admin123")} className="text-left px-3 py-2 hover:bg-muted transition-colors border border-hairline">
-                  <span className="font-medium">ԱԴՄԻՆ</span> admin1@blinds.am / admin123
-                </button>
-                <button onClick={() => fillDemo("operator@blinds.am", "operator123")} className="text-left px-3 py-2 hover:bg-muted transition-colors border border-hairline">
-                  <span className="font-medium">ՕՊԵՐԱՏՈՐ</span> operator@blinds.am / operator123
-                </button>
-                <button onClick={() => fillDemo("warehouse@blinds.am", "warehouse123")} className="text-left px-3 py-2 hover:bg-muted transition-colors border border-hairline">
-                  <span className="font-medium">ՊԱՀԵՍՏ</span> warehouse@blinds.am / warehouse123
-                </button>
-              </div>
             </CardContent>
           </Card>
         </div>
