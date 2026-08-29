@@ -193,11 +193,9 @@ function SidebarContent({ items, active, onSelect, role, userName, userEmail }: 
     <div className="flex flex-col h-full">
       <div className="h-14 flex items-center px-4 border-b border-hairline">
         <div className="flex items-center gap-2.5">
-          <div className="size-8 bg-primary flex items-center justify-center">
-            <Factory className="size-4 text-copper" />
-          </div>
+          <img src="/logo.jpeg" alt="Arm Roll" className="size-8 object-contain" />
           <div className="leading-tight">
-            <div className="text-sm font-semibold tracking-tight">METAL BLINDS</div>
+            <div className="text-sm font-semibold tracking-tight">ARM ROLL</div>
             <div className="text-[10px] text-muted-foreground tracking-widest uppercase">ERP · ARM</div>
           </div>
         </div>

@@ -13,7 +13,7 @@ const notoArmenian = Noto_Sans_Armenian({
 });
 
 export const metadata: Metadata = {
-  title: "Metal Blinds ERP/CRM — Armenia",
+  title: "Arm Roll ERP/CRM — Armenia",
   description: "Արտադրության և առևտրի կառավարման համակարգ",
 };
 

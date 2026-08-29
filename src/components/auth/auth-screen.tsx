@@ -44,11 +44,9 @@ export function AuthScreen({ mode, onModeChange }: { mode: "signin" | "signup"; 
           }} />
           <div className="relative">
             <div className="flex items-center gap-3">
-              <div className="size-10 bg-copper/20 border border-copper/40 flex items-center justify-center">
-                <Factory className="size-5 text-copper" />
-              </div>
+              <img src="/logo.jpeg" alt="Arm Roll" className="size-10 object-contain" />
               <div>
-                <div className="text-lg font-semibold tracking-tight">METAL BLINDS</div>
+                <div className="text-lg font-semibold tracking-tight">ARM ROLL</div>
                 <div className="text-xs text-primary-foreground/60 tracking-widest uppercase">ERP / CRM — Armenia</div>
               </div>
             </div>
@@ -73,10 +71,8 @@ export function AuthScreen({ mode, onModeChange }: { mode: "signin" | "signup"; 
           <Card className="w-full max-w-sm border-hairline shadow-none">
             <CardHeader className="space-y-3">
               <div className="lg:hidden flex items-center gap-2">
-                <div className="size-8 bg-primary flex items-center justify-center">
-                  <Factory className="size-4 text-copper" />
-                </div>
-                <span className="font-semibold">METAL BLINDS ERP</span>
+                <img src="/logo.jpeg" alt="Arm Roll" className="size-8 object-contain" />
+                <span className="font-semibold">ARM ROLL ERP</span>
               </div>
               <CardTitle className="text-xl">Մուտք համակարգ</CardTitle>
               <p className="text-sm text-muted-foreground">Մուտքագրեք ձեր տվյալները</p>

@@ -41,7 +41,7 @@ export async function generateOrderPdf(orderId: string, type: DocumentType, role
   doc.on("data", (chunk: Buffer) => chunks.push(chunk));
 
   // Header
-  doc.fontSize(20).font("Helvetica-Bold").text("METAL BLINDS", 50, 50, { width: 200 });
+  doc.fontSize(20).font("Helvetica-Bold").text("ARM ROLL", 50, 50, { width: 200 });
   doc.fontSize(8).font("Helvetica").fillColor("#666").text("ERP · ARMENIA", 50, 75, { width: 200 });
   doc.fillColor("#000");
 
@@ -116,7 +116,7 @@ export async function generateOrderPdf(orderId: string, type: DocumentType, role
 
   // Footer
   doc.fontSize(8).fillColor("#999").text(
-    "Metal Blinds ERP · Հայաստան · Ստեղծված է " + new Date().toLocaleString("hy-AM"),
+    "Arm Roll ERP · Հայաստան · Ստեղծված է " + new Date().toLocaleString("hy-AM"),
     50, 820, { align: "center", width: 495 }
   );
 
@@ -174,7 +174,7 @@ export async function generateDebtStatementPdf(clientId: string): Promise<PdfGen
   doc.on("data", (chunk: Buffer) => chunks.push(chunk));
 
   // Header
-  doc.fontSize(20).font("Helvetica-Bold").text("METAL BLINDS", 50, 50, { width: 200 });
+  doc.fontSize(20).font("Helvetica-Bold").text("ARM ROLL", 50, 50, { width: 200 });
   doc.fontSize(8).font("Helvetica").fillColor("#666").text("ERP · ARMENIA", 50, 75, { width: 200 });
   doc.fillColor("#000");
 
@@ -233,7 +233,7 @@ export async function generateDebtStatementPdf(clientId: string): Promise<PdfGen
 
   // Footer
   doc.fontSize(8).fillColor("#999").text(
-    "Metal Blinds ERP · Հայաստան · Ստեղծված է " + new Date().toLocaleString("hy-AM"),
+    "Arm Roll ERP · Հայաստան · Ստեղծված է " + new Date().toLocaleString("hy-AM"),
     50, 820, { align: "center", width: 495 }
   );
 
@@ -264,7 +264,7 @@ export async function generateProcurementPdf(poId: string): Promise<PdfGenResult
   doc.on("data", (chunk: Buffer) => chunks.push(chunk));
 
   // Header
-  doc.fontSize(20).font("Helvetica-Bold").text("METAL BLINDS", 50, 50, { width: 200 });
+  doc.fontSize(20).font("Helvetica-Bold").text("ARM ROLL", 50, 50, { width: 200 });
   doc.fontSize(8).font("Helvetica").fillColor("#666").text("ERP · ARMENIA", 50, 75, { width: 200 });
   doc.fillColor("#000");
 
@@ -318,7 +318,7 @@ export async function generateProcurementPdf(poId: string): Promise<PdfGenResult
 
   // Footer
   doc.fontSize(8).fillColor("#999").text(
-    "Metal Blinds ERP · Հայաստան · Ստեղծված է " + new Date().toLocaleString("hy-AM"),
+    "Arm Roll ERP · Հայաստան · Ստեղծված է " + new Date().toLocaleString("hy-AM"),
     50, 820, { align: "center", width: 495 }
   );
 
