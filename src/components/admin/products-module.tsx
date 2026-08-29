@@ -6,9 +6,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Plus, Barcode } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useState } from "react";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { ProductDetailDrawer } from "./product-detail-drawer";
 
 async function fetchProducts() {
@@ -19,7 +18,6 @@ async function fetchProducts() {
 
 export function ProductsModule({ role }: { role: string }) {
   const { data, isLoading } = useQuery({ queryKey: ["products"], queryFn: fetchProducts });
-  const [barcodeId, setBarcodeId] = useState<string | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
 
   return (
@@ -42,7 +40,6 @@ export function ProductsModule({ role }: { role: string }) {
                 {role !== "WAREHOUSE" && <TableHead className="text-xs uppercase tracking-wider text-right">Վաճառքի գին</TableHead>}
                 {role === "ADMIN" && <TableHead className="text-xs uppercase tracking-wider text-right">Գնման գին</TableHead>}
                 {role === "ADMIN" && <TableHead className="text-xs uppercase tracking-wider text-right">Նվազագույն</TableHead>}
-                <TableHead className="text-xs uppercase tracking-wider text-right">Շտրիխկոդ</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -60,35 +57,15 @@ export function ProductsModule({ role }: { role: string }) {
                   {role !== "WAREHOUSE" && <TableCell className="text-right tabular-nums font-medium">{fmt(p.salePrice)}</TableCell>}
                   {role === "ADMIN" && <TableCell className="text-right tabular-nums text-muted-foreground">{fmt(p.purchasePrice)}</TableCell>}
                   {role === "ADMIN" && <TableCell className="text-right tabular-nums text-muted-foreground">{p.minStock}</TableCell>}
-                  <TableCell className="text-right">
-                    <Button size="sm" variant="ghost" className="h-7 gap-1.5 text-xs" onClick={() => setBarcodeId(p.id)}>
-                      <Barcode className="size-3.5" /> Շտրիխկոդ
-                    </Button>
-                  </TableCell>
                 </TableRow>
               ))}
               {(!data?.products || data.products.length === 0) && !isLoading && (
-                <TableRow><TableCell colSpan={role === "ADMIN" ? 8 : 5}><EmptyState title="Ապրանքներ չկան" /></TableCell></TableRow>
+                <TableRow><TableCell colSpan={role === "ADMIN" ? 7 : 5}><EmptyState title="Ապրանքներ չկան" /></TableCell></TableRow>
               )}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
-
-      {/* Barcode viewer */}
-      <Sheet open={!!barcodeId} onOpenChange={(o) => !o && setBarcodeId(null)}>
-        <SheetContent className="w-full sm:max-w-md flex flex-col items-center justify-center p-8">
-          <SheetHeader className="mb-4">
-            <SheetTitle className="text-center">Շտրիխկոդ</SheetTitle>
-          </SheetHeader>
-          {barcodeId && (
-            <div className="flex flex-col items-center gap-4">
-              <img src={`/api/products/${barcodeId}/barcode`} alt="Barcode" className="border border-hairline" />
-              <p className="text-xs text-muted-foreground">Սկանավորեք՝ ապրանքը պահեստում գտնելու համար</p>
-            </div>
-          )}
-        </SheetContent>
-      </Sheet>
 
       {/* Product detail drawer */}
       <ProductDetailDrawer productId={detailId} open={!!detailId} onClose={() => setDetailId(null)} role={role} />

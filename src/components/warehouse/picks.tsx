@@ -13,7 +13,7 @@ export function WarehousePicks() {
     <div className="space-y-6">
       <SectionHeader
         title="Ընտրման հերթ"
-        description="Սկանավորեք ապրանքի շտրիխկոդը կամ QR-ը"
+        description="Ընտրեք ապրանքը ցանկից"
       />
 
       <Card className="border-hairline shadow-none">
@@ -34,7 +34,7 @@ export function WarehousePicks() {
             </Button>
           </div>
           <div className="text-xs text-muted-foreground">
-            Սկանավորման կետ՝ ընտրված պատվերի ապրանքները համապատասխանեցրեք շտրիխկոդին
+            Ընտրեք պատվերը ցանկից
           </div>
         </CardContent>
       </Card>

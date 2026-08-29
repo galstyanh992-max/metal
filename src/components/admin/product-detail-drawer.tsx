@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Package, TrendingUp, Users, Settings2, Barcode, History, DollarSign, TrendingDown } from "lucide-react";
+import { Package, TrendingUp, Users, Settings2, History, DollarSign, TrendingDown } from "lucide-react";
 import { EmptyState } from "@/components/shared/primitives";
 
 async function fetchProductDetail(id: string) {
@@ -52,13 +52,6 @@ export function ProductDetailDrawer({ productId, open, onClose, role }: { produc
                   {product.sku} · {product.unit?.symbol} · {product.category?.name}
                 </div>
               </div>
-            </div>
-            <div className="flex gap-1">
-              <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5" asChild>
-                <a href={`/api/products/${productId}/barcode`} target="_blank" rel="noopener">
-                  <Barcode className="size-3.5" /> Շտրիխկոդ
-                </a>
-              </Button>
             </div>
           </div>
         </SheetHeader>
