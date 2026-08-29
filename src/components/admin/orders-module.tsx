@@ -69,22 +69,23 @@ export function OrdersModule({ role }: { role: string }) {
   });
 
   return (
-    <div className="space-y-6">
-      <SectionHeader
-        title="Պատվերներ"
-        description="Բոլոր պատվերների ցանկ"
-        action={
-          role !== "WAREHOUSE" && (
-            <Button size="sm" className="gap-2 bg-primary" onClick={() => setCreateOpen(true)}>
-              <Plus className="size-4" /> Նոր պատվեր
-            </Button>
-          )
-        }
-      />
+    <div className="space-y-4">
+      {/* Header bar */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <h2 className="text-lg font-semibold">Պատվերներ</h2>
+          <span className="text-sm text-muted-foreground tabular-nums">{orders.length}</span>
+        </div>
+        {role !== "WAREHOUSE" && (
+          <Button size="sm" className="gap-2 bg-primary" onClick={() => setCreateOpen(true)}>
+            <Plus className="size-4" /> Նոր
+          </Button>
+        )}
+      </div>
 
       {/* Search */}
       <div className="flex items-center gap-2">
-        <div className="relative flex-1 max-w-md">
+        <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
           <Input
             value={search}
@@ -95,53 +96,53 @@ export function OrdersModule({ role }: { role: string }) {
         </div>
       </div>
 
-      <Card className="border-hairline shadow-none">
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow className="border-hairline">
-                <TableHead className="text-xs uppercase tracking-wider">Համար</TableHead>
-                <TableHead className="text-xs uppercase tracking-wider">Հաճախորդ</TableHead>
-                <TableHead className="text-xs uppercase tracking-wider">Կարգավիճակ</TableHead>
-                <TableHead className="text-xs uppercase tracking-wider text-right">Քանակ</TableHead>
-                {role !== "WAREHOUSE" && <TableHead className="text-xs uppercase tracking-wider text-right">Գումար</TableHead>}
-                {role === "ADMIN" && <TableHead className="text-xs uppercase tracking-wider text-right">Շահույթ</TableHead>}
-                <TableHead className="text-xs uppercase tracking-wider">Ամսաթիվ</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {orders.map((o: any) => (
-                <TableRow key={o.id} className="border-hairline hover:bg-muted/40 cursor-pointer" onClick={() => setSelectedId(o.id)}>
-                  <TableCell className="text-xs font-mono">{o.number}</TableCell>
-                  <TableCell className="text-sm font-medium">
-                    {o.client?.type === "COMPANY" ? o.client?.companyName : `${o.client?.firstName ?? ""} ${o.client?.lastName ?? ""}`}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className={`text-[10px] uppercase tracking-wider ${STATUS_COLORS[o.status] ?? ""}`}>{STATUS_LABELS[o.status] ?? o.status}</Badge>
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">{o.items?.length ?? 0}</TableCell>
-                  {role !== "WAREHOUSE" && (
-                    <TableCell className="text-right tabular-nums font-medium">{fmt(o.totalAmount)}</TableCell>
-                  )}
-                  {role === "ADMIN" && (
-                    <TableCell className="text-right tabular-nums text-status-green">{fmt(o.grossProfit)}</TableCell>
-                  )}
-                  <TableCell className="text-xs text-muted-foreground">
-                    {new Date(o.createdAt).toLocaleDateString("hy-AM")}
-                  </TableCell>
-                </TableRow>
-              ))}
-              {orders.length === 0 && !isLoading && (
-                <TableRow>
-                  <TableCell colSpan={role === "ADMIN" ? 7 : 6} className="text-center py-12">
-                    <EmptyState title={search ? "Որոնման արդյունքներ չկան" : "Պատվերներ չկան"} description={search ? undefined : "Ստեղծեք նոր պատվեր՝ սկսելու համար"} />
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      {/* Excel-like table */}
+      <div className="border border-hairline overflow-x-auto bg-card">
+        {/* Headers */}
+        <div className="grid grid-cols-[120px_minmax(180px,1fr)_110px_70px_120px_120px_100px] gap-0 border-b border-hairline bg-muted/30">
+          <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline">Համար</div>
+          <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline">Հաճախորդ</div>
+          <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline">Կարգավիճակ</div>
+          <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-right">Քանակ</div>
+          {role !== "WAREHOUSE" && <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-right">Գումար</div>}
+          {role === "ADMIN" && <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-right">Շահույթ</div>}
+          <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Ամսաթիվ</div>
+        </div>
+
+        {/* Rows */}
+        {orders.map((o: any, idx: number) => (
+          <div
+            key={o.id}
+            className={`grid grid-cols-[120px_minmax(180px,1fr)_110px_70px_120px_120px_100px] gap-0 border-b border-hairline hover:bg-muted/30 cursor-pointer transition-colors ${idx % 2 === 1 ? "bg-muted/10" : ""}`}
+            onClick={() => setSelectedId(o.id)}
+          >
+            <div className="px-3 py-2.5 border-r border-hairline text-xs font-mono flex items-center">{o.number}</div>
+            <div className="px-3 py-2.5 border-r border-hairline text-sm font-medium flex items-center min-w-0">
+              <span className="truncate">{o.client?.type === "COMPANY" ? o.client?.companyName : `${o.client?.firstName ?? ""} ${o.client?.lastName ?? ""}`}</span>
+            </div>
+            <div className="px-3 py-2.5 border-r border-hairline flex items-center">
+              <span className={`inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium border ${STATUS_COLORS[o.status] ?? "bg-muted text-muted-foreground"}`}>
+                {STATUS_LABELS[o.status] ?? o.status}
+              </span>
+            </div>
+            <div className="px-3 py-2.5 border-r border-hairline text-right tabular-nums text-sm flex items-center justify-end">{o.items?.length ?? 0}</div>
+            {role !== "WAREHOUSE" && (
+              <div className="px-3 py-2.5 border-r border-hairline text-right tabular-nums text-sm font-medium flex items-center justify-end">{fmt(o.totalAmount)}</div>
+            )}
+            {role === "ADMIN" && (
+              <div className="px-3 py-2.5 border-r border-hairline text-right tabular-nums text-sm text-status-green flex items-center justify-end">{fmt(o.grossProfit)}</div>
+            )}
+            <div className="px-3 py-2.5 text-xs text-muted-foreground flex items-center">{new Date(o.createdAt).toLocaleDateString("hy-AM")}</div>
+          </div>
+        ))}
+
+        {/* Empty */}
+        {orders.length === 0 && !isLoading && (
+          <div className="px-3 py-12 text-center text-sm text-muted-foreground">
+            {search ? "Որոնման արդյունքներ չկան" : "Պատվերներ չկան"}
+          </div>
+        )}
+      </div>
 
       {createOpen && <CreateOrderDialog onClose={() => setCreateOpen(false)} onCreated={() => { refetch(); setCreateOpen(false); }} />}
       <OrderDetailDrawer orderId={selectedId} open={!!selectedId} onClose={() => setSelectedId(null)} role={role} />

@@ -1,11 +1,8 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { KpiCard, SectionHeader, StatusPill, Money } from "@/components/shared/primitives";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Users, ShoppingCart, AlertTriangle, Plus, Search } from "lucide-react";
 import { useState } from "react";
 import { ClientCreateDialog } from "./client-create-dialog";
@@ -16,6 +13,22 @@ async function fetchClients() {
   if (!res.ok) throw new Error("failed");
   return res.json();
 }
+
+const STATUS_STYLES: Record<string, string> = {
+  GREEN: "bg-status-green/10 text-status-green border-status-green/20",
+  YELLOW: "bg-status-yellow/10 text-status-yellow border-status-yellow/20",
+  ORANGE: "bg-status-orange/10 text-status-orange border-status-orange/20",
+  RED: "bg-status-red/10 text-status-red border-status-red/20",
+  CRITICAL: "bg-status-red/10 text-status-red border-status-red/20",
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  GREEN: "Առողջ",
+  YELLOW: "Պարտք",
+  ORANGE: "Մոտ ժամկետ",
+  RED: "Ժամկետանց",
+  CRITICAL: "Սպառված",
+};
 
 export function ClientsModule({ role }: { role: string }) {
   const { data, isLoading } = useQuery({ queryKey: ["clients"], queryFn: fetchClients });
@@ -31,27 +44,21 @@ export function ClientsModule({ role }: { role: string }) {
   });
 
   return (
-    <div className="space-y-6">
-      <SectionHeader
-        title="Հաճախորդներ"
-        description="Ֆիզիկական և իրավաբանական անձինք"
-        action={
-          <Button size="sm" className="gap-2 bg-primary" onClick={() => setCreateOpen(true)}>
-            <Plus className="size-4" /> Նոր հաճախորդ
-          </Button>
-        }
-      />
-
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <KpiCard label="Ընդհանուր հաճախորդներ" value={String(data?.clients?.length ?? 0)} icon={Users} />
-        <KpiCard label="Պարտքով հաճախորդներ" value={String(data?.clients?.filter((c: any) => c.currentDebt > 0).length ?? 0)} icon={AlertTriangle} />
-        <KpiCard label="Ընդհանուր պարտք" value={fmt(sum(data?.clients, "currentDebt"))} icon={AlertTriangle} />
-        <KpiCard label="Ընդհանուր շրջանառություն" value={fmt(sum(data?.clients, "lifetimeTurnover"))} icon={ShoppingCart} />
+    <div className="space-y-4">
+      {/* Header bar */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <h2 className="text-lg font-semibold">Հաճախորդներ</h2>
+          <span className="text-sm text-muted-foreground tabular-nums">{clients.length}</span>
+        </div>
+        <Button size="sm" className="gap-2 bg-primary" onClick={() => setCreateOpen(true)}>
+          <Plus className="size-4" /> Նոր
+        </Button>
       </div>
 
-      {/* Search bar */}
+      {/* Search */}
       <div className="flex items-center gap-2">
-        <div className="relative flex-1 max-w-md">
+        <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
           <Input
             value={search}
@@ -62,67 +69,64 @@ export function ClientsModule({ role }: { role: string }) {
         </div>
       </div>
 
-      <Card className="border-hairline shadow-none">
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow className="border-hairline">
-                <TableHead className="text-xs uppercase tracking-wider">Անուն / Ընկերություն</TableHead>
-                <TableHead className="text-xs uppercase tracking-wider">Հեռախոս</TableHead>
-                <TableHead className="text-xs uppercase tracking-wider">Կարգավիճակ</TableHead>
-                {role !== "WAREHOUSE" && <TableHead className="text-xs uppercase tracking-wider text-right">Պարտք</TableHead>}
-                {role === "ADMIN" && <TableHead className="text-xs uppercase tracking-wider text-right">Շրջանառություն</TableHead>}
-                <TableHead className="text-xs uppercase tracking-wider text-right">Պատվերներ</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {clients.map((c: any) => (
-                <TableRow key={c.id} className="border-hairline hover:bg-muted/40 cursor-pointer" onClick={() => setSelectedId(c.id)}>
-                  <TableCell className="text-sm font-medium">
-                    <div className="flex items-center gap-2">
-                      <div className="size-7 bg-muted flex items-center justify-center text-xs font-medium shrink-0">
-                        {c.type === "COMPANY" ? "Ը" : (c.firstName?.[0] ?? "?")}
-                      </div>
-                      <div>
-                        <div>{c.type === "COMPANY" ? c.companyName : `${c.firstName} ${c.lastName}`}</div>
-                        {c.type === "COMPANY" && c.taxId && <div className="text-[10px] text-muted-foreground font-mono">ՀՎՀՀ {c.taxId}</div>}
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground tabular-nums">{c.phone}</TableCell>
-                  <TableCell><StatusPill status={c.status} /></TableCell>
-                  {role !== "WAREHOUSE" && (
-                    <TableCell className="text-right tabular-nums">
-                      {c.currentDebt > 0 ? <span className="text-status-red font-medium">{fmt(c.currentDebt)}</span> : <span className="text-muted-foreground">—</span>}
-                    </TableCell>
-                  )}
-                  {role === "ADMIN" && (
-                    <TableCell className="text-right tabular-nums text-muted-foreground">{fmt(c.lifetimeTurnover)}</TableCell>
-                  )}
-                  <TableCell className="text-right tabular-nums">{c.totalOrders}</TableCell>
-                </TableRow>
-              ))}
-              {clients.length === 0 && !isLoading && (
-                <TableRow>
-                  <TableCell colSpan={role === "ADMIN" ? 6 : 5} className="text-center text-sm text-muted-foreground py-12">
-                    {search ? "Որոնման արդյունքներ չկան" : "Հաճախորդներ չկան"}
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      {/* Excel-like table */}
+      <div className="border border-hairline overflow-x-auto bg-card">
+        {/* Column headers */}
+        <div className="grid grid-cols-[minmax(200px,1fr)_140px_100px_120px_120px_80px] gap-0 border-b border-hairline bg-muted/30">
+          <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline">Անուն / Ընկերություն</div>
+          <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline">Հեռախոս</div>
+          <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline">Կարգավիճակ</div>
+          {role !== "WAREHOUSE" && <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-right">Պարտք</div>}
+          {role === "ADMIN" && <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-right">Շրջանառություն</div>}
+          <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground text-right">Պատվերներ</div>
+        </div>
+
+        {/* Rows */}
+        {clients.map((c: any, idx: number) => (
+          <div
+            key={c.id}
+            className={`grid grid-cols-[minmax(200px,1fr)_140px_100px_120px_120px_80px] gap-0 border-b border-hairline hover:bg-muted/30 cursor-pointer transition-colors ${idx % 2 === 1 ? "bg-muted/10" : ""}`}
+            onClick={() => setSelectedId(c.id)}
+          >
+            <div className="px-3 py-2.5 border-r border-hairline flex items-center gap-2 min-w-0">
+              <div className="size-6 bg-muted flex items-center justify-center text-[10px] font-medium shrink-0 rounded-sm">
+                {c.type === "COMPANY" ? "Ը" : (c.firstName?.[0] ?? "?")}
+              </div>
+              <div className="min-w-0">
+                <div className="text-sm font-medium truncate">{c.type === "COMPANY" ? c.companyName : `${c.firstName} ${c.lastName}`}</div>
+                {c.type === "COMPANY" && c.taxId && <div className="text-[10px] text-muted-foreground font-mono">ՀՎՀՀ {c.taxId}</div>}
+              </div>
+            </div>
+            <div className="px-3 py-2.5 border-r border-hairline text-sm text-muted-foreground tabular-nums flex items-center">{c.phone}</div>
+            <div className="px-3 py-2.5 border-r border-hairline flex items-center">
+              <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium border ${STATUS_STYLES[c.status] ?? "bg-muted text-muted-foreground"}`}>
+                {STATUS_LABELS[c.status] ?? c.status}
+              </span>
+            </div>
+            {role !== "WAREHOUSE" && (
+              <div className="px-3 py-2.5 border-r border-hairline text-right tabular-nums text-sm flex items-center justify-end">
+                {c.currentDebt > 0 ? <span className="text-status-red font-medium">{fmt(c.currentDebt)}</span> : <span className="text-muted-foreground">—</span>}
+              </div>
+            )}
+            {role === "ADMIN" && (
+              <div className="px-3 py-2.5 border-r border-hairline text-right tabular-nums text-sm text-muted-foreground flex items-center justify-end">{fmt(c.lifetimeTurnover)}</div>
+            )}
+            <div className="px-3 py-2.5 text-right tabular-nums text-sm flex items-center justify-end">{c.totalOrders}</div>
+          </div>
+        ))}
+
+        {/* Empty state */}
+        {clients.length === 0 && !isLoading && (
+          <div className="px-3 py-12 text-center text-sm text-muted-foreground">
+            {search ? "Որոնման արդյունքներ չկան" : "Հաճախորդներ չկան"}
+          </div>
+        )}
+      </div>
 
       <ClientCreateDialog open={createOpen} onClose={() => setCreateOpen(false)} />
       <ClientDetailDrawer clientId={selectedId} open={!!selectedId} onClose={() => setSelectedId(null)} role={role} />
     </div>
   );
-}
-
-function sum(clients: any[] | undefined, field: string): number {
-  if (!clients) return 0;
-  return clients.reduce((s, c) => s + (c[field] ?? 0), 0);
 }
 
 function fmt(v: number): string {
