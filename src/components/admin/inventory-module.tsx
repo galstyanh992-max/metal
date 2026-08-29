@@ -65,7 +65,7 @@ export function InventoryModule({ role }: { role: string }) {
                     </TableCell>
                     <TableCell className="text-right tabular-nums text-muted-foreground">{p.minStock}</TableCell>
                     <TableCell>
-                      {isCritical ? <Badge variant="destructive" className="text-[10px] uppercase">Քննադատական</Badge>
+                      {isCritical ? <Badge variant="destructive" className="text-[10px] uppercase">Սպառված</Badge>
                         : isLow ? <Badge className="text-[10px] uppercase bg-status-orange/15 text-status-orange border-status-orange/30">Ցածր</Badge>
                         : <Badge variant="outline" className="text-[10px] uppercase bg-status-green/10 text-status-green border-status-green/30">Նորմա</Badge>}
                     </TableCell>

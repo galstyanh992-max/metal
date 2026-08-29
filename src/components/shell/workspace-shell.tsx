@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard, Users, Package, ShoppingCart, Warehouse as WarehouseIcon,
-  Truck, FileText, Settings, Settings2, LogOut, Menu, Search, Bell, Factory, Building2, BarChart3,
+  Truck, FileText, Settings, LogOut, Menu, Search, Bell, Factory, Building2, BarChart3,
   ChevronDown, Sparkles, Receipt, Crown, Calculator, Mail, MessageCircle,
   type LucideIcon,
 } from "lucide-react";
@@ -33,7 +33,6 @@ import { DocumentsModule } from "@/components/admin/documents-module";
 import { CommsModule } from "@/components/admin/comms-module";
 import { SettingsModule } from "@/components/admin/settings-module";
 import { FormBuilderModule } from "@/components/forms/form-builder";
-import { BomRulesModule } from "@/components/admin/bom-rules-module";
 import { SuppliersModule } from "@/components/admin/suppliers-module";
 import { ReportsModule } from "@/components/admin/reports-module";
 
@@ -44,7 +43,7 @@ const NAV: NavItem[] = [
   { key: "clients", label: "Հաճախորդներ", icon: Users, module: "clients", roles: ["ADMIN", "OPERATOR"] },
   { key: "orders", label: "Պատվերներ", icon: ShoppingCart, module: "orders", roles: ["ADMIN", "OPERATOR", "WAREHOUSE"] },
   { key: "products", label: "Ապրանքներ", icon: Package, module: "products", roles: ["ADMIN", "OPERATOR", "WAREHOUSE"] },
-  { key: "inventory", label: "Պահեստ", icon: WarehouseIcon, module: "inventory", roles: ["ADMIN", "WAREHOUSE"] },
+  { key: "inventory", label: "Պահեստ", icon: WarehouseIcon, module: "inventory", roles: ["ADMIN"] },
   { key: "picks", label: "Ընտրում", icon: Package, module: "picks", roles: ["WAREHOUSE"] },
   { key: "procurement", label: "Մատակարարում", icon: Truck, module: "procurement", roles: ["ADMIN"] },
   { key: "suppliers", label: "Մատակարարներ", icon: Building2, module: "suppliers", roles: ["ADMIN"] },
@@ -56,7 +55,6 @@ const NAV: NavItem[] = [
   { key: "comms", label: "Հաղորդակցություն", icon: Mail, module: "comms", roles: ["ADMIN", "OPERATOR"] },
   { key: "ai", label: "AI Օգնական", icon: Sparkles, module: "ai", roles: ["ADMIN", "OPERATOR"] },
   { key: "forms", label: "Դինամիկ ձևեր", icon: FileText, module: "forms", roles: ["ADMIN"] },
-  { key: "bom", label: "BOM Կանոններ", icon: Settings2, module: "bom", roles: ["ADMIN"] },
   { key: "settings", label: "Կարգավորումներ", icon: Settings, module: "settings", roles: ["ADMIN"] },
 ];
 
@@ -117,7 +115,6 @@ export function WorkspaceShell() {
     if (active === "reports" && role === "ADMIN") return <ReportsModule />;
     if (active === "comms") return <CommsModule />;
     if (active === "forms" && role === "ADMIN") return <FormBuilderModule />;
-    if (active === "bom" && role === "ADMIN") return <BomRulesModule />;
     if (active === "settings" && role === "ADMIN") return <SettingsModule />;
     return <ComingSoon label={items.find((i) => i.key === active)?.label ?? active} />;
   };

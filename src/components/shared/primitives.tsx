@@ -16,7 +16,7 @@ export function StatusPill({ status }: { status: string }) {
     YELLOW: "Պարտք",
     ORANGE: "Մոտ ժամկետին",
     RED: "Ժամկետանց",
-    CRITICAL: "Քննադատական",
+    CRITICAL: "Սպառված",
   };
   return (
     <span className={cn("inline-flex items-center gap-1.5 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide", map[status] ?? "bg-muted text-muted-foreground")}>
