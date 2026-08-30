@@ -17,6 +17,7 @@ import {
 import { AdminDashboard } from "@/components/admin/dashboard";
 import { ClientsModule } from "@/components/admin/clients-module";
 import { OrdersModule } from "@/components/admin/orders-module";
+import { ClientsOrdersModule } from "@/components/admin/clients-orders-module";
 import { ProductsModule } from "@/components/admin/products-module";
 import { InventoryModule } from "@/components/admin/inventory-module";
 import { OperatorDashboard } from "@/components/operator/dashboard";
@@ -40,8 +41,7 @@ type NavItem = { key: string; label: string; icon: LucideIcon; module: string; r
 
 const NAV: NavItem[] = [
   { key: "dashboard", label: "Վահանակ", icon: LayoutDashboard, module: "dashboard", roles: ["ADMIN", "OPERATOR", "WAREHOUSE"] },
-  { key: "clients", label: "Հաճախորդներ", icon: Users, module: "clients", roles: ["ADMIN", "OPERATOR"] },
-  { key: "orders", label: "Պատվերներ", icon: ShoppingCart, module: "orders", roles: ["ADMIN", "OPERATOR", "WAREHOUSE"] },
+  { key: "clients-orders", label: "Հաճախորդներ և Պատվերներ", icon: Users, module: "clients-orders", roles: ["ADMIN", "OPERATOR", "WAREHOUSE"] },
   { key: "products", label: "Ապրանքներ", icon: Package, module: "products", roles: ["ADMIN", "OPERATOR", "WAREHOUSE"] },
   { key: "inventory", label: "Պահեստ", icon: WarehouseIcon, module: "inventory", roles: ["ADMIN"] },
   { key: "picks", label: "Ընտրում", icon: Package, module: "picks", roles: ["WAREHOUSE"] },
@@ -101,8 +101,7 @@ export function WorkspaceShell() {
       if (role === "WAREHOUSE") return <WarehouseDashboard />;
     }
     if (role === "WAREHOUSE" && active === "picks") return <WarehousePicks />;
-    if (active === "clients") return <ClientsModule role={role} />;
-    if (active === "orders") return <OrdersModule role={role} />;
+    if (active === "clients-orders") return <ClientsOrdersModule role={role} />;
     if (active === "products") return <ProductsModule role={role} />;
     if (active === "inventory") return <InventoryModule role={role} />;
     if (active === "ai") return <AIAssistant role={role} />;

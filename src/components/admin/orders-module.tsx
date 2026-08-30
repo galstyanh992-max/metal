@@ -150,7 +150,7 @@ export function OrdersModule({ role }: { role: string }) {
   );
 }
 
-function CreateOrderDialog({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+export function CreateOrderDialog({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const { data: clientsData } = useQuery({ queryKey: ["clients"], queryFn: fetchClients });
   const { data: productsData } = useQuery({ queryKey: ["products"], queryFn: fetchProducts });
   const { data: templateData } = useQuery({
