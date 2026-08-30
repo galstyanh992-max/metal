@@ -1,0 +1,11 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "regions": ["fra1"],
+  "buildCommand": "prisma generate && next build",
+  "installCommand": "npm install",
+  "env": {
+    "NEXTAUTH_URL": "https://my-project-three-sandy-91.vercel.app",
+    "NEXTAUTH_SECRET": "dev-secret-change-in-production"
+  }
+}
