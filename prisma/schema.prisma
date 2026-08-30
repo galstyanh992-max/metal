@@ -1,12 +1,12 @@
 // Prisma schema — Arm Roll ERP/CRM Armenia
-// SQLite datasource (single-instance dev)
+// Supabase PostgreSQL datasource
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
