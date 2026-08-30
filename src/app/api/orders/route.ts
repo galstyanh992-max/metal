@@ -46,15 +46,18 @@ export async function POST(req: Request) {
   try {
     const { role, userId } = await requireAction("order.create");
     const body = await req.json();
-    const { clientId, items, note, dueDate } = body as {
+    const { clientId, items, note, dueDate, savePrices } = body as {
       clientId: string;
       items: Array<{
         productId: string;
         qty: number;
         parameters: Record<string, string>;
+        unitPrice?: number;       // optional override (Quick-Fill)
+        savePriceToProduct?: boolean; // persist override back to product
       }>;
       note?: string;
       dueDate?: string;
+      savePrices?: boolean; // global flag — apply all per-item overrides to catalog
     };
 
     if (!clientId || !items?.length) {
@@ -72,11 +75,16 @@ export async function POST(req: Request) {
     let baseAmount = 0;
     let costAmount = 0;
     const orderItemsData: any[] = [];
+    const priceUpdates: Array<{ productId: string; salePrice: number }> = [];
 
     for (const it of items) {
       const p = productMap.get(it.productId);
       if (!p) return NextResponse.json({ error: `product ${it.productId} not found` }, { status: 400 });
-      const lineTotal = p.salePrice * it.qty;
+      // Use override if provided, else fall back to product salePrice
+      const unitPrice = typeof it.unitPrice === "number" && it.unitPrice > 0
+        ? Math.floor(it.unitPrice)
+        : p.salePrice;
+      const lineTotal = unitPrice * it.qty;
       baseAmount += lineTotal;
       costAmount += p.purchasePrice * it.qty;
       orderItemsData.push({
@@ -84,17 +92,21 @@ export async function POST(req: Request) {
         productName: p.name,
         qty: it.qty,
         unitId: p.unitId,
-        unitPriceSnapshot: p.salePrice,
+        unitPriceSnapshot: unitPrice,
         lineTotal,
         sortOrder: orderItemsData.length,
         parameters: {
-          create: Object.entries(it.parameters).map(([key, value]) => ({
+          create: Object.entries(it.parameters ?? {}).map(([key, value]) => ({
             fieldKey: key,
             value: String(value),
             label: key, // simplified — would normally lookup from FormTemplate
           })),
         },
       });
+      // Collect price updates if requested
+      if ((savePrices || it.savePriceToProduct) && unitPrice !== p.salePrice) {
+        priceUpdates.push({ productId: p.id, salePrice: unitPrice });
+      }
     }
 
     // Loyalty discount
@@ -142,7 +154,46 @@ export async function POST(req: Request) {
       },
     });
 
-    return NextResponse.json({ order });
+    // Apply price updates back to catalog (Quick-Fill feature)
+    if (priceUpdates.length > 0) {
+      for (const pu of priceUpdates) {
+        const prev = await db.productPriceHistory.findFirst({
+          where: { productId: pu.productId, effectiveTo: null },
+          orderBy: { effectiveFrom: "desc" },
+        });
+        if (prev) {
+          await db.productPriceHistory.update({
+            where: { id: prev.id },
+            data: { effectiveTo: new Date() },
+          });
+        }
+        await db.product.update({
+          where: { id: pu.productId },
+          data: { salePrice: pu.salePrice },
+        });
+        await db.productPriceHistory.create({
+          data: {
+            productId: pu.productId,
+            salePrice: pu.salePrice,
+            purchasePrice: productMap.get(pu.productId)?.purchasePrice ?? 0,
+            changedById: userId,
+            reason: `Quick-Fill update (order ${number})`,
+          },
+        });
+        await db.auditLog.create({
+          data: {
+            actorId: userId,
+            action: "price.update",
+            entityType: "Product",
+            entityId: pu.productId,
+            beforeJson: JSON.stringify({ salePrice: productMap.get(pu.productId)?.salePrice ?? 0 }),
+            afterJson: JSON.stringify({ salePrice: pu.salePrice }),
+          },
+        });
+      }
+    }
+
+    return NextResponse.json({ order, priceUpdates: priceUpdates.length });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message ?? "failed" }, { status: 500 });
   }

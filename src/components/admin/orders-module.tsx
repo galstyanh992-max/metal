@@ -6,8 +6,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Plus, ShoppingCart, Loader2, Search, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { Plus, ShoppingCart, Loader2, Search, Trash2, Zap } from "lucide-react";
+import { useState, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { OrderDetailDrawer } from "./order-detail-drawer";
 import { DynamicFormRenderer } from "@/components/forms/dynamic-form-renderer";
 import { BomPreview } from "@/components/forms/bom-preview";
+import { QuickFillPanel, quickFillRowsToOrderItems, type QuickFillRow, type QuickFillTotals } from "./quick-fill-panel";
 
 async function fetchOrders() {
   const res = await fetch("/api/orders");
@@ -56,6 +57,7 @@ const STATUS_COLORS: Record<string, string> = {
 export function OrdersModule({ role }: { role: string }) {
   const { data, isLoading, refetch } = useQuery({ queryKey: ["orders"], queryFn: fetchOrders });
   const [createOpen, setCreateOpen] = useState(false);
+  const [quickFillOpen, setQuickFillOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
 
@@ -77,9 +79,14 @@ export function OrdersModule({ role }: { role: string }) {
           <span className="text-sm text-muted-foreground tabular-nums">{orders.length}</span>
         </div>
         {role !== "WAREHOUSE" && (
-          <Button size="sm" className="gap-2 bg-primary" onClick={() => setCreateOpen(true)}>
-            <Plus className="size-4" /> Նոր
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" className="gap-2" onClick={() => setQuickFillOpen(true)}>
+              <Zap className="size-4 text-primary" /> Արագ լցոնում
+            </Button>
+            <Button size="sm" className="gap-2 bg-primary" onClick={() => setCreateOpen(true)}>
+              <Plus className="size-4" /> Նոր
+            </Button>
+          </div>
         )}
       </div>
 
@@ -145,6 +152,7 @@ export function OrdersModule({ role }: { role: string }) {
       </div>
 
       {createOpen && <CreateOrderDialog onClose={() => setCreateOpen(false)} onCreated={() => { refetch(); setCreateOpen(false); }} />}
+      {quickFillOpen && <QuickFillOrderDialog onClose={() => setQuickFillOpen(false)} onCreated={() => { refetch(); setQuickFillOpen(false); }} />}
       <OrderDetailDrawer orderId={selectedId} open={!!selectedId} onClose={() => setSelectedId(null)} role={role} />
     </div>
   );
@@ -274,4 +282,131 @@ export function CreateOrderDialog({ onClose, onCreated }: { onClose: () => void;
 function fmt(v: number | undefined): string {
   if (!v) return "—";
   return new Intl.NumberFormat("hy-AM").format(v) + " դր";
+}
+
+/**
+ * QuickFillOrderDialog — Excel-like order entry.
+ * Shows all products in a grid; user fills qty/meterage/price inline;
+ * real-time total; prices can be saved back to catalog on submit.
+ */
+export function QuickFillOrderDialog({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const { data: clientsData } = useQuery({ queryKey: ["clients"], queryFn: fetchClients });
+  const [clientId, setClientId] = useState("");
+  const [savePrices, setSavePrices] = useState(true);
+  const [rows, setRows] = useState<QuickFillRow[]>([]);
+  const [totals, setTotals] = useState<QuickFillTotals>({
+    totalQty: 0, totalMeterage: 0, totalAmount: 0, selectedCount: 0, priceChanges: 0,
+  });
+
+  const mutation = useMutation({
+    mutationFn: async (payload: any) => {
+      const res = await fetch("/api/orders", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const e = await res.json();
+        throw new Error(e.error ?? "failed");
+      }
+      return res.json();
+    },
+    onSuccess: (data) => {
+      const msg = data?.priceUpdates > 0
+        ? `Պատվերը ստեղծված է · ${data.priceUpdates} գին պահպանված է`
+        : "Պատվերը ստեղծված է";
+      toast.success(msg);
+      onCreated();
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Սխալ"),
+  });
+
+  const submit = () => {
+    if (!clientId) { toast.error("Ընտրեք հաճախորդ"); return; }
+    const orderItems = quickFillRowsToOrderItems(rows);
+    if (orderItems.length === 0) {
+      toast.error("Լցրեք քանակ կամ մետրաժ առնվազն մեկ ապրանքի համար");
+      return;
+    }
+    mutation.mutate({ clientId, items: orderItems, savePrices });
+  };
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-5xl w-[95vw] max-h-[92vh] overflow-hidden flex flex-col p-0 gap-0">
+        <DialogHeader className="px-5 py-4 border-b border-hairline bg-card">
+          <DialogTitle className="flex items-center gap-2">
+            <Zap className="size-4 text-primary" />
+            Արագ պատվեր — լցոնում
+          </DialogTitle>
+          <p className="text-xs text-muted-foreground mt-1">
+            Նշեք ապրանքները, լցրեք քանակը / մետրաժը / գինը։ Գները կպահպանվեն կատալոգում պատվերը հաստատելիս։
+          </p>
+        </DialogHeader>
+
+        {/* Client selector */}
+        <div className="px-5 py-3 border-b border-hairline bg-muted/20 flex items-center gap-3 flex-wrap">
+          <Label className="text-xs uppercase tracking-wider text-muted-foreground shrink-0">Հաճախորդ</Label>
+          <div className="flex-1 min-w-[260px]">
+            <Select value={clientId} onValueChange={setClientId}>
+              <SelectTrigger className="h-9"><SelectValue placeholder="Ընտրեք հաճախորդ" /></SelectTrigger>
+              <SelectContent>
+                {clientsData?.clients?.map((c: any) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.type === "COMPANY" ? c.companyName : `${c.firstName} ${c.lastName}`} — {c.phone}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={savePrices}
+              onChange={(e) => setSavePrices(e.target.checked)}
+              className="size-3.5 accent-primary"
+            />
+            <span>Պահպանել գները կատալոգում</span>
+          </label>
+        </div>
+
+        {/* Quick Fill grid */}
+        <div className="flex-1 overflow-hidden">
+          <QuickFillPanel
+            embedded
+            onChange={(r, t) => { setRows(r); setTotals(t); }}
+          />
+        </div>
+
+        {/* Footer */}
+        <DialogFooter className="px-5 py-3 border-t border-hairline bg-card flex items-center justify-between gap-3">
+          <div className="flex items-center gap-4 text-xs">
+            <div className="flex items-center gap-1.5">
+              <span className="text-muted-foreground">Ընտրված՝</span>
+              <span className="font-semibold tabular-nums">{totals.selectedCount}</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-muted-foreground">Ընդհանուր՝</span>
+              <span className="font-bold tabular-nums text-primary text-sm">
+                {new Intl.NumberFormat("hy-AM").format(totals.totalAmount)} դր
+              </span>
+            </div>
+            {totals.priceChanges > 0 && (
+              <div className="text-status-yellow">
+                Գնի փոփոխություն՝ {totals.priceChanges}
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={onClose}>Չեղարկել</Button>
+            <Button onClick={submit} disabled={mutation.isPending || totals.selectedCount === 0} className="bg-primary gap-2">
+              {mutation.isPending && <Loader2 className="size-4 animate-spin" />}
+              <Zap className="size-4" />
+              Ստեղծել պատվեր ({totals.selectedCount})
+            </Button>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 }

@@ -3,12 +3,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Search, Users, ShoppingCart } from "lucide-react";
+import { Plus, Search, Users, ShoppingCart, Zap } from "lucide-react";
 import { useState } from "react";
 import { ClientCreateDialog } from "./client-create-dialog";
 import { ClientDetailDrawer } from "./client-detail-drawer";
 import { OrderDetailDrawer } from "./order-detail-drawer";
-import { CreateOrderDialog } from "./orders-module";
+import { CreateOrderDialog, QuickFillOrderDialog } from "./orders-module";
 
 async function fetchClients() {
   const res = await fetch("/api/clients");
@@ -47,13 +47,14 @@ const ORDER_STATUS_LABELS: Record<string, string> = {
 
 export function ClientsOrdersModule({ role }: { role: string }) {
   const { data: clientsData, isLoading: clientsLoading } = useQuery({ queryKey: ["clients"], queryFn: fetchClients });
-  const { data: ordersData, isLoading: ordersLoading } = useQuery({ queryKey: ["orders"], queryFn: fetchOrders });
+  const { data: ordersData, isLoading: ordersLoading, refetch: refetchOrders } = useQuery({ queryKey: ["orders"], queryFn: fetchOrders });
   const [tab, setTab] = useState<"clients" | "orders">("clients");
   const [search, setSearch] = useState("");
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [createClientOpen, setCreateClientOpen] = useState(false);
   const [createOrderOpen, setCreateOrderOpen] = useState(false);
+  const [quickFillOpen, setQuickFillOpen] = useState(false);
 
   const clients = (clientsData?.clients ?? []).filter((c: any) => {
     if (!search) return true;
@@ -94,9 +95,16 @@ export function ClientsOrdersModule({ role }: { role: string }) {
           </button>
         </div>
         {role !== "WAREHOUSE" && (
-          <Button size="sm" className="gap-2 bg-primary" onClick={() => tab === "clients" ? setCreateClientOpen(true) : setCreateOrderOpen(true)}>
-            <Plus className="size-4" /> {tab === "clients" ? "Նոր հաճախորդ" : "Նոր պատվեր"}
-          </Button>
+          <div className="flex items-center gap-2">
+            {tab === "orders" && (
+              <Button size="sm" variant="outline" className="gap-2" onClick={() => setQuickFillOpen(true)}>
+                <Zap className="size-4 text-primary" /> Արագ լցոնում
+              </Button>
+            )}
+            <Button size="sm" className="gap-2 bg-primary" onClick={() => tab === "clients" ? setCreateClientOpen(true) : setCreateOrderOpen(true)}>
+              <Plus className="size-4" /> {tab === "clients" ? "Նոր հաճախորդ" : "Նոր պատվեր"}
+            </Button>
+          </div>
         )}
       </div>
 
@@ -212,6 +220,7 @@ export function ClientsOrdersModule({ role }: { role: string }) {
       <ClientCreateDialog open={createClientOpen} onClose={() => setCreateClientOpen(false)} />
       <ClientDetailDrawer clientId={selectedClientId} open={!!selectedClientId} onClose={() => setSelectedClientId(null)} role={role} />
       {createOrderOpen && <CreateOrderDialog onClose={() => setCreateOrderOpen(false)} onCreated={() => setCreateOrderOpen(false)} />}
+      {quickFillOpen && <QuickFillOrderDialog onClose={() => setQuickFillOpen(false)} onCreated={() => { setQuickFillOpen(false); refetchOrders(); }} />}
       <OrderDetailDrawer orderId={selectedOrderId} open={!!selectedOrderId} onClose={() => setSelectedOrderId(null)} role={role} />
     </div>
   );
