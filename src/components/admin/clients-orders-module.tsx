@@ -184,22 +184,17 @@ export function ClientsOrdersModule({ role }: { role: string }) {
               </Button>
             )}
             {tab === "orders" && (
-              <>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="gap-2"
-                  onClick={exportOrders}
-                  disabled={exporting === "orders" || orders.length === 0}
-                  title="Արտահանել Excel ֆորմատով"
-                >
-                  {exporting === "orders" ? <Loader2 className="size-4 animate-spin" /> : <FileSpreadsheet className="size-4 text-status-green" />}
-                  Excel
-                </Button>
-                <Button size="sm" variant="outline" className="gap-2" onClick={() => setQuickFillOpen(true)}>
-                  <Zap className="size-4 text-primary" /> Գրանցել Պատվեր
-                </Button>
-              </>
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-2"
+                onClick={exportOrders}
+                disabled={exporting === "orders" || orders.length === 0}
+                title="Արտահանել Excel ֆորմատով"
+              >
+                {exporting === "orders" ? <Loader2 className="size-4 animate-spin" /> : <FileSpreadsheet className="size-4 text-status-green" />}
+                Excel
+              </Button>
             )}
             <Button size="sm" className="gap-2 bg-primary" onClick={() => tab === "clients" ? setCreateClientOpen(true) : setQuickFillOpen(true)}>
               <Plus className="size-4" /> {tab === "clients" ? "Նոր հաճախորդ" : "Գրանցել Պատվեր"}
