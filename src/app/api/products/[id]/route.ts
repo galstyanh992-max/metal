@@ -100,3 +100,59 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json({ error: e?.message ?? "failed" }, { status: 500 });
   }
 }
+
+/**
+ * DELETE /api/products/[id] — soft-delete (archive) a product.
+ * Sets active=false + archivedAt=now(). Hard-delete only allowed if product has
+ * never been referenced (no orderItems, no inventoryMovements).
+ */
+export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { userId } = await requireAction("product.archive");
+    const { id } = await params;
+
+    const existing = await db.product.findUnique({ where: { id } });
+    if (!existing) {
+      return NextResponse.json({ error: "product not found" }, { status: 404 });
+    }
+
+    // Check if product has been used in orders or inventory
+    const [orderItemCount, movementCount] = await Promise.all([
+      db.orderItem.count({ where: { productId: id } }),
+      db.inventoryMovement.count({ where: { productId: id } }),
+    ]);
+
+    if (orderItemCount === 0 && movementCount === 0) {
+      // Hard delete — never used
+      await db.product.delete({ where: { id } });
+      await db.auditLog.create({
+        data: {
+          actorId: userId,
+          action: "product.delete",
+          entityType: "Product",
+          entityId: id,
+          beforeJson: JSON.stringify({ sku: existing.sku, name: existing.name }),
+        },
+      });
+      return NextResponse.json({ deleted: true, hard: true });
+    }
+
+    // Soft delete — archive
+    await db.product.update({
+      where: { id },
+      data: { active: false, archivedAt: new Date() },
+    });
+    await db.auditLog.create({
+      data: {
+        actorId: userId,
+        action: "product.archive",
+        entityType: "Product",
+        entityId: id,
+        beforeJson: JSON.stringify({ sku: existing.sku, name: existing.name }),
+      },
+    });
+    return NextResponse.json({ deleted: true, hard: false, reason: "Փոխկապակցված գրառումներ կան — արխիվացված է" });
+  } catch (e: any) {
+    return NextResponse.json({ error: e?.message ?? "failed" }, { status: 500 });
+  }
+}

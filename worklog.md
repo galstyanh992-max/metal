@@ -334,3 +334,68 @@ Stage Summary:
 Unresolved risks:
 - Supabase session pooler (port 5432) hit max-clients (15) under stress — need to monitor production usage
 - For larger exports (>1000 rows), should consider server-side streaming export via API route
+
+---
+Task ID: P25
+Agent: main (continuation)
+Task: Product CRUD, inventory enforcement, payment methods, user management, rename
+
+Work Log:
+1. **Renamed «Արագ լցոնում» → «Գրանցել Պատվեր»** everywhere (orders-module, quick-fill-panel, clients-orders-module)
+
+2. **Products module — full CRUD for ADMIN** (products-module.tsx + product-edit-dialog.tsx):
+   - New «Ապրանք» button → opens create dialog
+   - «Խմբագրել» (pencil) button on each row → edit dialog
+   - «Ջնջել» (trash) button → confirmation dialog → DELETE
+   - Created `POST /api/products` (create) and `DELETE /api/products/[id]` (archive or hard-delete)
+   - Existing `PATCH /api/products/[id]` extended with name, minStock
+   - Created `/api/units` and `/api/categories` GET endpoints for dropdowns
+   - Hard delete only if no orderItems/inventoryMovements reference the product; otherwise soft archive
+
+3. **Removed «Նոր պատվեր» from orders tab** — only «Գրանցել Պատվեր» remains (clients-orders-module.tsx)
+
+4. **Client create dialog**: replaced inline «Պատվեր (ըստ ցանկության)» section with post-creation flow — after client is created, «Գրանցել Պատվեր» dialog opens automatically (client-create-dialog.tsx)
+
+5. **Payment method selector** in Quick-Fill order dialog:
+   - 3 buttons: Պարտք (debt) / Առձեռն (cash) / Փոխանցում (transfer)
+   - cash/transfer → order created with status=CONFIRMED, paidAmount=totalAmount, OrderPayment entry created
+   - debt → status=DRAFT, paidAmount=0, outstandingAmount=total
+   - Note field records payment method
+
+6. **Inventory check in POST /api/orders**:
+   - Before creating order, verifies each item has available stock ≥ qty
+   - If insufficient, returns HTTP 409 with `{ stockError: true, details: [...] }`
+   - Each detail includes product name + SKU + available vs requested qty
+   - Quick-Fill dialog shows red banner with «Պատվերը հնարավոր չէ ընդունել — անբավարար պաշար» and bullet list
+
+7. **Inventory module — ADMIN-only mutations**:
+   - Added 3 action buttons per row: Ընդունել (RECEIVE), Գրել (WRITE_OFF), Կարգավորել (ADJUSTMENT)
+   - Created `POST /api/inventory/[productId]` with type/qty/note body
+   - Uses `recordMovement()` from inventory/ledger.ts — preserves immutability + invariants
+   - Non-admin users see read-only message: «Միայն Ադմինիստրատորը կարող է ընդունել, գրել ավելորդ կամ կարգավորել»
+
+8. **Settings module — user management** (settings-module.tsx):
+   - New «Փոխել» button per user → opens UserEditDialog
+   - Editable fields: անուն (name), էլ․ հասցե (email/login), գաղտնաբառ (password), ակտիվ (active)
+   - Show/hide password toggle
+   - Password validation: min 4 chars, must match confirmation
+   - Created `PATCH /api/users` with email uniqueness check + bcrypt hashing
+   - All changes audit-logged
+
+Verification results (2026-08-31):
+- ✅ Products module shows Խմբագրել + Ջնջել buttons per row (verified on production)
+- ✅ Պահեստ module shows Ընդունել + Գրել + Կարգավորել + ԱԴՄԻՆ badge
+- ✅ «Գրանցել Պատվեր» label visible (renamed from Արագ լցոնում)
+- ✅ Production deployed to https://arm-roll-erp.vercel.app
+- ✅ Screenshots: download/products-crud.png, download/warehouse-admin-actions.png
+
+Stage Summary:
+- 8 user requirements all implemented + deployed
+- Admin can fully manage products (CRUD) and warehouse (movements)
+- Payment method captured per order (debt / cash / transfer)
+- Inventory check prevents over-selling with detailed error message
+- User credentials can be changed by admin in Settings
+
+Unresolved risks:
+- Supabase session pooler (port 5432) hit max-clients (15) repeatedly under test load — need to monitor in production
+- For high concurrency, consider Prisma Accelerate or upgrade Supabase pooler

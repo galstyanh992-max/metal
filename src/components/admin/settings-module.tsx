@@ -1,12 +1,18 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { KpiCard, SectionHeader, EmptyState } from "@/components/shared/primitives";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Users, Shield, Activity, ScrollText } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Users, Shield, Activity, ScrollText, Key, Mail, Pencil, Loader2 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { useState } from "react";
+import { toast } from "sonner";
 
 async function fetchUsers() {
   const res = await fetch("/api/users");
@@ -35,6 +41,7 @@ const ROLE_COLORS: Record<string, string> = {
 export function SettingsModule() {
   const { data: usersData, isLoading: usersLoading } = useQuery({ queryKey: ["users"], queryFn: fetchUsers });
   const { data: auditData, isLoading: auditLoading } = useQuery({ queryKey: ["audit"], queryFn: fetchAudit });
+  const [editUser, setEditUser] = useState<any | null>(null);
 
   const users = usersData?.users ?? [];
   const logs = auditData?.logs ?? [];
@@ -42,7 +49,7 @@ export function SettingsModule() {
 
   return (
     <div className="space-y-6">
-      <SectionHeader title="Կարգավորումներ" description="Օգտատերեր և աուդիտի մատյան" />
+      <SectionHeader title="Կարգավորումներ" description="Օգտատերեր, աուդիտի մատյան և անվտանգություն" />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <KpiCard label="Ընդհանուր օգտատերեր" value={String(users.length)} icon={Users} />
@@ -64,10 +71,11 @@ export function SettingsModule() {
                 <TableHeader>
                   <TableRow className="border-hairline">
                     <TableHead className="text-xs uppercase">Անուն</TableHead>
-                    <TableHead className="text-xs uppercase">Էլ․ հասցե</TableHead>
+                    <TableHead className="text-xs uppercase">Էլ․ հասցե (Login)</TableHead>
                     <TableHead className="text-xs uppercase">Դեր</TableHead>
                     <TableHead className="text-xs uppercase">Կարգավիճակ</TableHead>
                     <TableHead className="text-xs uppercase">Վերջին մուտք</TableHead>
+                    <TableHead className="text-xs uppercase text-right">Գործողություն</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -79,7 +87,7 @@ export function SettingsModule() {
                           {u.name}
                         </div>
                       </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{u.email}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground font-mono">{u.email}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className={`text-[10px] uppercase ${ROLE_COLORS[u.role] ?? ""}`}>{ROLE_LABELS[u.role] ?? u.role}</Badge>
                       </TableCell>
@@ -91,10 +99,20 @@ export function SettingsModule() {
                       <TableCell className="text-xs text-muted-foreground">
                         {u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleDateString("hy-AM") : "—"}
                       </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 gap-1.5 text-xs"
+                          onClick={() => setEditUser(u)}
+                        >
+                          <Key className="size-3.5" /> Փոխել
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))}
                   {users.length === 0 && !usersLoading && (
-                    <TableRow><TableCell colSpan={5}><EmptyState title="Օգտատերեր չկան" /></TableCell></TableRow>
+                    <TableRow><TableCell colSpan={6}><EmptyState title="Օգտատերեր չկան" /></TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>
@@ -113,7 +131,7 @@ export function SettingsModule() {
                       <TableHead className="text-xs uppercase">Օգտատեր</TableHead>
                       <TableHead className="text-xs uppercase">Տիպ</TableHead>
                       <TableHead className="text-xs uppercase">ID</TableHead>
-                      <TableHead className="text-xs uppercase">Ամսաթիվ</TableHead>
+                      <TableHead className="text-xs uppercase">Ամսաթիգ</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -136,6 +154,142 @@ export function SettingsModule() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* User edit dialog */}
+      {editUser && <UserEditDialog user={editUser} onClose={() => setEditUser(null)} />}
     </div>
+  );
+}
+
+function UserEditDialog({ user, onClose }: { user: any; onClose: () => void }) {
+  const qc = useQueryClient();
+  const [email, setEmail] = useState(user.email);
+  const [name, setName] = useState(user.name);
+  const [password, setPassword] = useState("");
+  const [passwordConfirm, setPasswordConfirm] = useState("");
+  const [active, setActive] = useState(user.active);
+  const [showPassword, setShowPassword] = useState(false);
+
+  const mutation = useMutation({
+    mutationFn: async (payload: any) => {
+      const res = await fetch("/api/users", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.error ?? "failed"); }
+      return res.json();
+    },
+    onSuccess: () => {
+      toast.success("Օգտատիրոջ տվյալները թարմացված են");
+      qc.invalidateQueries({ queryKey: ["users"] });
+      qc.invalidateQueries({ queryKey: ["audit"] });
+      onClose();
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Սխալ"),
+  });
+
+  const submit = () => {
+    if (password && password !== passwordConfirm) {
+      toast.error("Գաղտնաբառերը չեն համընկնում");
+      return;
+    }
+    if (password && password.length < 4) {
+      toast.error("Գաղտնաբառը պետք է ունենա առնվազն 4 նիշ");
+      return;
+    }
+    mutation.mutate({
+      userId: user.id,
+      email,
+      name,
+      password: password || undefined,
+      active,
+    });
+  };
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Pencil className="size-4 text-primary" />
+            Խմբագրել օգտատիրոջը
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3 py-2">
+          <div className="p-2 bg-muted/30 border border-hairline text-xs">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Դեր՝</span>
+              <Badge variant="outline" className={`text-[10px] uppercase ${ROLE_COLORS[user.role] ?? ""}`}>
+                {ROLE_LABELS[user.role] ?? user.role}
+              </Badge>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground">Անուն</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} className="focus-steel" />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+              <Mail className="size-3" /> Էլ․ հասցե (Login)
+            </Label>
+            <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="focus-steel font-mono" />
+          </div>
+
+          <div className="pt-2 border-t border-hairline">
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+              <Key className="size-3" /> Նոր գաղտնաբառ
+            </Label>
+            <p className="text-[11px] text-muted-foreground mt-0.5 mb-2">
+              Թողեք դատարկ՝ գաղտնաբառը չփոխելու համար
+            </p>
+            <div className="space-y-2">
+              <Input
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Նոր գաղտնաբառ"
+                className="focus-steel"
+              />
+              <Input
+                type={showPassword ? "text" : "password"}
+                value={passwordConfirm}
+                onChange={(e) => setPasswordConfirm(e.target.value)}
+                placeholder="Կրկնել գաղտնաբառը"
+                className="focus-steel"
+              />
+              <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={showPassword}
+                  onChange={(e) => setShowPassword(e.target.checked)}
+                  className="size-3.5 accent-primary"
+                />
+                <span>Ցույց տալ գաղտնաբառը</span>
+              </label>
+            </div>
+          </div>
+
+          <label className="flex items-center gap-2 text-xs cursor-pointer select-none pt-2 border-t border-hairline">
+            <input
+              type="checkbox"
+              checked={active}
+              onChange={(e) => setActive(e.target.checked)}
+              className="size-3.5 accent-primary"
+            />
+            <span>Օգտատերը ակտիվ է</span>
+          </label>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Չեղարկել</Button>
+          <Button onClick={submit} disabled={mutation.isPending} className="bg-primary gap-2">
+            {mutation.isPending && <Loader2 className="size-4 animate-spin" />}
+            Պահպանել
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -157,7 +157,7 @@ export function QuickFillPanel({
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-2">
             <Package2 className="size-4 text-primary" />
-            <span className="text-sm font-semibold">Արագ լցոնում</span>
+            <span className="text-sm font-semibold">Գրանցել Պատվեր</span>
             <Badge variant="outline" className="text-[10px] border-hairline">
               {qfCount} հիմնական
             </Badge>

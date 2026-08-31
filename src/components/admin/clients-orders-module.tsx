@@ -197,12 +197,12 @@ export function ClientsOrdersModule({ role }: { role: string }) {
                   Excel
                 </Button>
                 <Button size="sm" variant="outline" className="gap-2" onClick={() => setQuickFillOpen(true)}>
-                  <Zap className="size-4 text-primary" /> Արագ լցոնում
+                  <Zap className="size-4 text-primary" /> Գրանցել Պատվեր
                 </Button>
               </>
             )}
-            <Button size="sm" className="gap-2 bg-primary" onClick={() => tab === "clients" ? setCreateClientOpen(true) : setCreateOrderOpen(true)}>
-              <Plus className="size-4" /> {tab === "clients" ? "Նոր հաճախորդ" : "Նոր պատվեր"}
+            <Button size="sm" className="gap-2 bg-primary" onClick={() => tab === "clients" ? setCreateClientOpen(true) : setQuickFillOpen(true)}>
+              <Plus className="size-4" /> {tab === "clients" ? "Նոր հաճախորդ" : "Գրանցել Պատվեր"}
             </Button>
           </div>
         )}

@@ -46,7 +46,7 @@ export async function POST(req: Request) {
   try {
     const { role, userId } = await requireAction("order.create");
     const body = await req.json();
-    const { clientId, items, note, dueDate, savePrices } = body as {
+    const { clientId, items, note, dueDate, savePrices, paymentMethod } = body as {
       clientId: string;
       items: Array<{
         productId: string;
@@ -58,6 +58,7 @@ export async function POST(req: Request) {
       note?: string;
       dueDate?: string;
       savePrices?: boolean; // global flag — apply all per-item overrides to catalog
+      paymentMethod?: "debt" | "cash" | "transfer";
     };
 
     if (!clientId || !items?.length) {
@@ -71,6 +72,33 @@ export async function POST(req: Request) {
     const productIds = items.map((i) => i.productId);
     const products = await db.product.findMany({ where: { id: { in: productIds } } });
     const productMap = new Map(products.map((p) => [p.id, p]));
+
+    // ====== INVENTORY CHECK ======
+    // Verify each item has enough available stock. If not, return error with product name.
+    const stockErrors: string[] = [];
+    for (const it of items) {
+      const p = productMap.get(it.productId);
+      if (!p) {
+        stockErrors.push(`Ապրանքը չի գտնվել (ID: ${it.productId})`);
+        continue;
+      }
+      const state = await computeInventoryState(p.id);
+      if (state.available < it.qty) {
+        stockErrors.push(
+          `«${p.name}» (${p.sku}) — պահեստում մատչելի է ${state.available} հատ, պատվերում՝ ${it.qty} հատ`
+        );
+      }
+    }
+    if (stockErrors.length > 0) {
+      return NextResponse.json(
+        {
+          error: "Պատվերը հնարավոր չէ ընդունել",
+          details: stockErrors,
+          stockError: true,
+        },
+        { status: 409 }
+      );
+    }
 
     let baseAmount = 0;
     let costAmount = 0;
@@ -113,7 +141,13 @@ export async function POST(req: Request) {
     const discountPercent = client.loyaltyDiscount ?? 0;
     const discountAmount = Math.round((baseAmount * discountPercent) / 100);
     const totalAmount = baseAmount - discountAmount;
-    const outstandingAmount = totalAmount;
+
+    // Payment method handling:
+    // - cash / transfer → fully paid immediately (paidAmount = totalAmount, outstanding = 0)
+    // - debt (default)  → unpaid (paidAmount = 0, outstanding = totalAmount)
+    const isPaidNow = paymentMethod === "cash" || paymentMethod === "transfer";
+    const paidAmount = isPaidNow ? totalAmount : 0;
+    const outstandingAmount = totalAmount - paidAmount;
     const grossProfit = totalAmount - costAmount;
     const marginPercent = totalAmount > 0 ? Math.round((grossProfit / totalAmount) * 10000) : 0;
 
@@ -125,23 +159,37 @@ export async function POST(req: Request) {
       data: {
         number,
         clientId,
-        status: "DRAFT",
+        status: isPaidNow ? "CONFIRMED" : "DRAFT",
         baseAmount,
         discountAmount,
-        taxAmount: 0, // computed by tax engine separately
+        taxAmount: 0,
         totalAmount,
-        paidAmount: 0,
+        paidAmount,
         outstandingAmount,
-        costAmount: role === "OPERATOR" ? 0 : costAmount, // operator doesn't persist cost visibly
+        costAmount: role === "OPERATOR" ? 0 : costAmount,
         grossProfit: role === "OPERATOR" ? 0 : grossProfit,
         marginPercent: role === "OPERATOR" ? 0 : marginPercent,
         dueDate: dueDate ? new Date(dueDate) : null,
-        note: note ?? null,
+        note: note ?? (paymentMethod ? `Վճարման եղանակ՝ ${paymentMethod === "cash" ? "Առձեռն" : paymentMethod === "transfer" ? "Փոխանցում" : "Պարտք"}` : null),
         createdById: userId,
         items: { create: orderItemsData },
       },
       include: { items: true },
     });
+
+    // If paid now, record a payment entry
+    if (isPaidNow) {
+      await db.orderPayment.create({
+        data: {
+          orderId: order.id,
+          amount: paidAmount,
+          method: paymentMethod === "cash" ? "cash" : "bank",
+          paidAt: new Date(),
+          note: `Արագ վճարում (${paymentMethod === "cash" ? "Առձեռն" : "Փոխանցում"})`,
+          byUserId: userId,
+        },
+      });
+    }
 
     // Audit log
     await db.auditLog.create({

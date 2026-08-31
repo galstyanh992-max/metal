@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Plus, ShoppingCart, Loader2, Search, Trash2, Zap } from "lucide-react";
+import { Plus, ShoppingCart, Loader2, Search, Trash2, Zap, AlertTriangle } from "lucide-react";
 import { useState, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -81,7 +81,7 @@ export function OrdersModule({ role }: { role: string }) {
         {role !== "WAREHOUSE" && (
           <div className="flex items-center gap-2">
             <Button size="sm" variant="outline" className="gap-2" onClick={() => setQuickFillOpen(true)}>
-              <Zap className="size-4 text-primary" /> Արագ լցոնում
+              <Zap className="size-4 text-primary" /> Գրանցել Պատվեր
             </Button>
             <Button size="sm" className="gap-2 bg-primary" onClick={() => setCreateOpen(true)}>
               <Plus className="size-4" /> Նոր
@@ -293,10 +293,12 @@ export function QuickFillOrderDialog({ onClose, onCreated }: { onClose: () => vo
   const { data: clientsData } = useQuery({ queryKey: ["clients"], queryFn: fetchClients });
   const [clientId, setClientId] = useState("");
   const [savePrices, setSavePrices] = useState(true);
+  const [paymentMethod, setPaymentMethod] = useState<"debt" | "cash" | "transfer">("debt");
   const [rows, setRows] = useState<QuickFillRow[]>([]);
   const [totals, setTotals] = useState<QuickFillTotals>({
     totalQty: 0, totalMeterage: 0, totalAmount: 0, selectedCount: 0, priceChanges: 0,
   });
+  const [stockError, setStockError] = useState<string[] | null>(null);
 
   const mutation = useMutation({
     mutationFn: async (payload: any) => {
@@ -307,6 +309,10 @@ export function QuickFillOrderDialog({ onClose, onCreated }: { onClose: () => vo
       });
       if (!res.ok) {
         const e = await res.json();
+        // Inventory check failure — surface details
+        if (e.stockError) {
+          throw Object.assign(new Error(e.error), { stockError: true, details: e.details });
+        }
         throw new Error(e.error ?? "failed");
       }
       return res.json();
@@ -318,17 +324,25 @@ export function QuickFillOrderDialog({ onClose, onCreated }: { onClose: () => vo
       toast.success(msg);
       onCreated();
     },
-    onError: (e: any) => toast.error(e?.message ?? "Սխալ"),
+    onError: (e: any) => {
+      if (e?.stockError && e?.details) {
+        setStockError(e.details);
+        toast.error(`Պահեստի սխալ՝ ${e.details.length} ապրանք`);
+      } else {
+        toast.error(e?.message ?? "Սխալ");
+      }
+    },
   });
 
   const submit = () => {
+    setStockError(null);
     if (!clientId) { toast.error("Ընտրեք հաճախորդ"); return; }
     const orderItems = quickFillRowsToOrderItems(rows);
     if (orderItems.length === 0) {
       toast.error("Լցրեք քանակ կամ մետրաժ առնվազն մեկ ապրանքի համար");
       return;
     }
-    mutation.mutate({ clientId, items: orderItems, savePrices });
+    mutation.mutate({ clientId, items: orderItems, savePrices, paymentMethod });
   };
 
   return (
@@ -344,7 +358,7 @@ export function QuickFillOrderDialog({ onClose, onCreated }: { onClose: () => vo
           </p>
         </DialogHeader>
 
-        {/* Client selector */}
+        {/* Client + payment selector */}
         <div className="px-5 py-2.5 border-b border-hairline bg-muted/20 flex items-center gap-3 flex-wrap shrink-0">
           <Label className="text-xs uppercase tracking-wider text-muted-foreground shrink-0">Հաճախորդ</Label>
           <div className="flex-1 min-w-[260px]">
@@ -359,6 +373,25 @@ export function QuickFillOrderDialog({ onClose, onCreated }: { onClose: () => vo
               </SelectContent>
             </Select>
           </div>
+          <div className="flex items-center gap-1.5 border border-hairline bg-card">
+            {([
+              { v: "debt", label: "Պարտք" },
+              { v: "cash", label: "Առձեռն" },
+              { v: "transfer", label: "Փոխանցում" },
+            ] as const).map((opt) => (
+              <button
+                key={opt.v}
+                onClick={() => setPaymentMethod(opt.v)}
+                className={`px-3 py-1 text-xs font-medium transition-colors ${
+                  paymentMethod === opt.v
+                    ? "bg-primary text-primary-foreground"
+                    : "hover:bg-muted/40 text-muted-foreground"
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
           <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
             <input
               type="checkbox"
@@ -366,9 +399,34 @@ export function QuickFillOrderDialog({ onClose, onCreated }: { onClose: () => vo
               onChange={(e) => setSavePrices(e.target.checked)}
               className="size-3.5 accent-primary"
             />
-            <span>Պահպանել գները կատալոգում</span>
+            <span>Պահպանել գները</span>
           </label>
         </div>
+
+        {/* Stock error banner (if any) */}
+        {stockError && (
+          <div className="px-5 py-3 border-b border-status-red/30 bg-status-red/5 shrink-0">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="size-4 text-status-red shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-semibold text-status-red uppercase tracking-wider">
+                  Պատվերը հնարավոր չէ ընդունել — անբավարար պաշար
+                </div>
+                <ul className="mt-1 space-y-0.5 text-xs text-status-red/90">
+                  {stockError.map((err, i) => (
+                    <li key={i}>• {err}</li>
+                  ))}
+                </ul>
+              </div>
+              <button
+                onClick={() => setStockError(null)}
+                className="text-status-red/60 hover:text-status-red text-xs px-1"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Quick Fill grid — scrolls inside, footer sticks to bottom */}
         <div className="flex-1 overflow-hidden min-h-0">
