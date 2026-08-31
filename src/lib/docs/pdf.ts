@@ -3,15 +3,51 @@ import bwipjs from "bwip-js";
 import QRCode from "qrcode";
 import { db } from "@/lib/db";
 import type { DocumentType } from "@prisma/client";
+import { readFileSync } from "fs";
+import { join } from "path";
 
 /**
  * PDF document generator using pdfkit.
  * Generates Armenian-localized documents with industrial precision layout.
+ * Uses Noto Sans Armenian TTF font for proper Armenian Unicode rendering.
  */
 
 export interface PdfGenResult {
   buffer: Buffer;
   filename: string;
+}
+
+// Load Armenian font files (from public/fonts)
+// Vercel: process.cwd() points to the standalone build dir, public/ is copied there
+const FONTS_DIR = join(process.cwd(), "public", "fonts");
+let REGULAR_FONT: Buffer | null = null;
+let BOLD_FONT: Buffer | null = null;
+try {
+  REGULAR_FONT = readFileSync(join(FONTS_DIR, "NotoSansArmenian-Regular.ttf"));
+  BOLD_FONT = readFileSync(join(FONTS_DIR, "NotoSansArmenian-Bold.ttf"));
+} catch (e) {
+  // Fallback: try alternative path (local dev with cwd = project root)
+  try {
+    REGULAR_FONT = readFileSync(join(process.cwd(), "src", "public", "fonts", "NotoSansArmenian-Regular.ttf"));
+    BOLD_FONT = readFileSync(join(process.cwd(), "src", "public", "fonts", "NotoSansArmenian-Bold.ttf"));
+  } catch (e2) {
+    console.error("Failed to load Armenian fonts:", e2);
+  }
+}
+
+// Font name constants used by pdfkit
+const FONT_REG = "NotoArmenian";
+const FONT_BOLD = "NotoArmenian-Bold";
+
+/**
+ * Register Armenian fonts on a PDFDocument instance.
+ * Falls back to Helvetica only if Armenian font files are missing (rare).
+ */
+function registerFonts(doc: PDFKit.PDFDocument) {
+  if (REGULAR_FONT && BOLD_FONT) {
+    doc.registerFont(FONT_REG, REGULAR_FONT);
+    doc.registerFont(FONT_BOLD, BOLD_FONT);
+  }
 }
 
 const DOC_TYPE_LABELS: Record<string, string> = {
@@ -37,26 +73,27 @@ export async function generateOrderPdf(orderId: string, type: DocumentType, role
   if (!order) throw new Error("Order not found");
 
   const doc = new PDFDocument({ size: "A4", margin: 50 });
+  registerFonts(doc);
   const chunks: Buffer[] = [];
   doc.on("data", (chunk: Buffer) => chunks.push(chunk));
 
   // Header
-  doc.fontSize(20).font("Helvetica-Bold").text("ARM ROLL", 50, 50, { width: 200 });
-  doc.fontSize(8).font("Helvetica").fillColor("#666").text("ERP · ARMENIA", 50, 75, { width: 200 });
+  doc.fontSize(20).font(FONT_BOLD).text("ARM ROLL", 50, 50, { width: 200 });
+  doc.fontSize(8).font(FONT_REG).fillColor("#666").text("ERP · ARMENIA", 50, 75, { width: 200 });
   doc.fillColor("#000");
 
-  doc.fontSize(16).font("Helvetica-Bold").text(DOC_TYPE_LABELS[type] ?? type, 350, 50, { align: "right", width: 200 });
-  doc.fontSize(10).font("Helvetica").text(order.number, 350, 72, { align: "right", width: 200 });
+  doc.fontSize(16).font(FONT_BOLD).text(DOC_TYPE_LABELS[type] ?? type, 350, 50, { align: "right", width: 200 });
+  doc.fontSize(10).font(FONT_REG).text(order.number, 350, 72, { align: "right", width: 200 });
   doc.text(new Date(order.createdAt).toLocaleDateString("hy-AM"), 350, 86, { align: "right", width: 200 });
 
   doc.moveTo(50, 105).lineTo(545, 105).strokeColor("#999").lineWidth(0.5).stroke();
 
   // Client info
-  doc.fontSize(9).font("Helvetica-Bold").fillColor("#666").text("ՀԱՃԱԽՈՐԴ", 50, 120);
-  doc.fontSize(11).font("Helvetica").fillColor("#000");
+  doc.fontSize(9).font(FONT_BOLD).fillColor("#666").text("ՀԱՃԱԽՈՐԴ", 50, 120);
+  doc.fontSize(11).font(FONT_REG).fillColor("#000");
   const clientName = order.client?.type === "COMPANY" ? order.client?.companyName : `${order.client?.firstName ?? ""} ${order.client?.lastName ?? ""}`;
   doc.text(clientName ?? "", 50, 135);
-  doc.fontSize(9).font("Helvetica").fillColor("#666");
+  doc.fontSize(9).font(FONT_REG).fillColor("#666");
   doc.text(order.client?.phone ?? "", 50, 152);
   if (order.client?.email) doc.text(order.client.email, 50, 166);
   if (order.client?.primaryAddress) doc.text(order.client.primaryAddress, 50, 180);
@@ -65,7 +102,7 @@ export async function generateOrderPdf(orderId: string, type: DocumentType, role
 
   // Items table
   const tableTop = 210;
-  doc.fontSize(9).font("Helvetica-Bold").fillColor("#666");
+  doc.fontSize(9).font(FONT_BOLD).fillColor("#666");
   doc.text("#", 50, tableTop, { width: 30 });
   doc.text("ԱՊՐԱՆՔ", 85, tableTop, { width: 200 });
   doc.text("ՔԱՆԱԿ", 360, tableTop, { width: 50, align: "right" });
@@ -78,7 +115,7 @@ export async function generateOrderPdf(orderId: string, type: DocumentType, role
 
   let y = tableTop + 25;
   order.items.forEach((item, idx) => {
-    doc.fontSize(9).font("Helvetica").fillColor("#000");
+    doc.fontSize(9).font(FONT_REG).fillColor("#000");
     doc.text(String(idx + 1), 50, y, { width: 30 });
     doc.text(item.productName, 85, y, { width: 200 });
     doc.text(`${item.qty} ${item.product?.unit?.symbol ?? ""}`, 360, y, { width: 50, align: "right" });
@@ -94,10 +131,10 @@ export async function generateOrderPdf(orderId: string, type: DocumentType, role
     y += 10;
     doc.moveTo(350, y).lineTo(545, y).strokeColor("#999").lineWidth(0.5).stroke();
     y += 10;
-    doc.fontSize(10).font("Helvetica").text("Ընդհանուր՝", 350, y, { width: 130, align: "right" });
-    doc.font("Helvetica-Bold").text(`${order.totalAmount.toLocaleString("hy-AM")} դր`, 480, y, { width: 65, align: "right" });
+    doc.fontSize(10).font(FONT_REG).text("Ընդհանուր՝", 350, y, { width: 130, align: "right" });
+    doc.font(FONT_BOLD).text(`${order.totalAmount.toLocaleString("hy-AM")} դր`, 480, y, { width: 65, align: "right" });
     y += 20;
-    doc.font("Helvetica").fillColor("#666").fontSize(9);
+    doc.font(FONT_REG).fillColor("#666").fontSize(9);
     doc.text(`Վճարված՝ ${order.paidAmount.toLocaleString("hy-AM")} դր`, 350, y, { width: 195, align: "right" });
     y += 14;
     doc.text(`Մնացորդ՝ ${order.outstandingAmount.toLocaleString("hy-AM")} դր`, 350, y, { width: 195, align: "right" });
@@ -170,24 +207,25 @@ export async function generateDebtStatementPdf(clientId: string): Promise<PdfGen
   if (!client) throw new Error("Client not found");
 
   const doc = new PDFDocument({ size: "A4", margin: 50 });
+  registerFonts(doc);
   const chunks: Buffer[] = [];
   doc.on("data", (chunk: Buffer) => chunks.push(chunk));
 
   // Header
-  doc.fontSize(20).font("Helvetica-Bold").text("ARM ROLL", 50, 50, { width: 200 });
-  doc.fontSize(8).font("Helvetica").fillColor("#666").text("ERP · ARMENIA", 50, 75, { width: 200 });
+  doc.fontSize(20).font(FONT_BOLD).text("ARM ROLL", 50, 50, { width: 200 });
+  doc.fontSize(8).font(FONT_REG).fillColor("#666").text("ERP · ARMENIA", 50, 75, { width: 200 });
   doc.fillColor("#000");
 
-  doc.fontSize(16).font("Helvetica-Bold").text("ՊԱՐՏՔԻ ՏԵՂԵԿԱԳԻՐ", 350, 50, { align: "right", width: 200 });
-  doc.fontSize(10).font("Helvetica").text(new Date().toLocaleDateString("hy-AM"), 350, 72, { align: "right", width: 200 });
+  doc.fontSize(16).font(FONT_BOLD).text("ՊԱՐՏՔԻ ՏԵՂԵԿԱԳԻՐ", 350, 50, { align: "right", width: 200 });
+  doc.fontSize(10).font(FONT_REG).text(new Date().toLocaleDateString("hy-AM"), 350, 72, { align: "right", width: 200 });
 
   doc.moveTo(50, 95).lineTo(545, 95).strokeColor("#999").lineWidth(0.5).stroke();
 
   // Client info
   const clientName = client.type === "COMPANY" ? client.companyName : `${client.firstName} ${client.lastName}`;
-  doc.fontSize(9).font("Helvetica-Bold").fillColor("#666").text("ՀԱՃԱԽՈՐԴ", 50, 110);
-  doc.fontSize(12).font("Helvetica").fillColor("#000").text(clientName, 50, 125);
-  doc.fontSize(9).font("Helvetica").fillColor("#666");
+  doc.fontSize(9).font(FONT_BOLD).fillColor("#666").text("ՀԱՃԱԽՈՐԴ", 50, 110);
+  doc.fontSize(12).font(FONT_REG).fillColor("#000").text(clientName, 50, 125);
+  doc.fontSize(9).font(FONT_REG).fillColor("#666");
   doc.text(client.phone, 50, 142);
   if (client.email) doc.text(client.email, 50, 156);
   if (client.type === "COMPANY" && client.taxId) doc.text(`ՀՎՀՀ: ${client.taxId}`, 50, 170);
@@ -196,13 +234,13 @@ export async function generateDebtStatementPdf(clientId: string): Promise<PdfGen
   const totalDebt = client.orders.reduce((s, o) => s + o.outstandingAmount, 0);
   const totalOrders = client.orders.length;
   doc.fillColor("#000");
-  doc.fontSize(11).font("Helvetica-Bold").text("ԸՆԴՀԱՆՈՒՐ ՊԱՐՏՔ:", 350, 125, { width: 195, align: "right" });
+  doc.fontSize(11).font(FONT_BOLD).text("ԸՆԴՀԱՆՈՒՐ ՊԱՐՏՔ:", 350, 125, { width: 195, align: "right" });
   doc.fontSize(14).fillColor("#c00").text(`${totalDebt.toLocaleString("hy-AM")} դր`, 350, 140, { width: 195, align: "right" });
-  doc.fontSize(9).font("Helvetica").fillColor("#666").text(`${totalOrders} չվճարված պատվեր`, 350, 160, { width: 195, align: "right" });
+  doc.fontSize(9).font(FONT_REG).fillColor("#666").text(`${totalOrders} չվճարված պատվեր`, 350, 160, { width: 195, align: "right" });
 
   // Orders table
   const tableTop = 200;
-  doc.fontSize(9).font("Helvetica-Bold").fillColor("#666");
+  doc.fontSize(9).font(FONT_BOLD).fillColor("#666");
   doc.text("#", 50, tableTop, { width: 30 });
   doc.text("ՊԱՏՎԵՐ", 85, tableTop, { width: 100 });
   doc.text("ԱՄՍԱԹԻՎ", 200, tableTop, { width: 80 });
@@ -214,13 +252,13 @@ export async function generateDebtStatementPdf(clientId: string): Promise<PdfGen
 
   let y = tableTop + 25;
   client.orders.forEach((order, idx) => {
-    doc.fontSize(9).font("Helvetica").fillColor("#000");
+    doc.fontSize(9).font(FONT_REG).fillColor("#000");
     doc.text(String(idx + 1), 50, y, { width: 30 });
     doc.text(order.number, 85, y, { width: 100 });
     doc.text(new Date(order.createdAt).toLocaleDateString("hy-AM"), 200, y, { width: 80 });
     doc.text(`${order.totalAmount.toLocaleString("hy-AM")} դր`, 320, y, { width: 80, align: "right" });
     doc.text(`${order.paidAmount.toLocaleString("hy-AM")} դր`, 410, y, { width: 60, align: "right" });
-    doc.font("Helvetica-Bold").fillColor("#c00").text(`${order.outstandingAmount.toLocaleString("hy-AM")} դր`, 480, y, { width: 65, align: "right" });
+    doc.font(FONT_BOLD).fillColor("#c00").text(`${order.outstandingAmount.toLocaleString("hy-AM")} դր`, 480, y, { width: 65, align: "right" });
     y += 18;
   });
 
@@ -228,7 +266,7 @@ export async function generateDebtStatementPdf(clientId: string): Promise<PdfGen
   y += 10;
   doc.moveTo(350, y).lineTo(545, y).strokeColor("#999").lineWidth(0.5).stroke();
   y += 10;
-  doc.fontSize(11).font("Helvetica-Bold").fillColor("#000").text("ՄԱՔՐ ՊԱՐՏՔ՝", 350, y, { width: 130, align: "right" });
+  doc.fontSize(11).font(FONT_BOLD).fillColor("#000").text("ՄԱՔՐ ՊԱՐՏՔ՝", 350, y, { width: 130, align: "right" });
   doc.fontSize(14).fillColor("#c00").text(`${totalDebt.toLocaleString("hy-AM")} դր`, 480, y, { width: 65, align: "right" });
 
   // Footer
@@ -260,36 +298,37 @@ export async function generateProcurementPdf(poId: string): Promise<PdfGenResult
   if (!po) throw new Error("Purchase order not found");
 
   const doc = new PDFDocument({ size: "A4", margin: 50 });
+  registerFonts(doc);
   const chunks: Buffer[] = [];
   doc.on("data", (chunk: Buffer) => chunks.push(chunk));
 
   // Header
-  doc.fontSize(20).font("Helvetica-Bold").text("ARM ROLL", 50, 50, { width: 200 });
-  doc.fontSize(8).font("Helvetica").fillColor("#666").text("ERP · ARMENIA", 50, 75, { width: 200 });
+  doc.fontSize(20).font(FONT_BOLD).text("ARM ROLL", 50, 50, { width: 200 });
+  doc.fontSize(8).font(FONT_REG).fillColor("#666").text("ERP · ARMENIA", 50, 75, { width: 200 });
   doc.fillColor("#000");
 
-  doc.fontSize(16).font("Helvetica-Bold").text("ԳՆՄԱՆ ՓԱՍՏԱԹՈՒԹԹ", 350, 50, { align: "right", width: 200 });
-  doc.fontSize(10).font("Helvetica").text(po.number, 350, 72, { align: "right", width: 200 });
+  doc.fontSize(16).font(FONT_BOLD).text("ԳՆՄԱՆ ՓԱՍՏԱԹՈՒԹԹ", 350, 50, { align: "right", width: 200 });
+  doc.fontSize(10).font(FONT_REG).text(po.number, 350, 72, { align: "right", width: 200 });
   doc.text(new Date(po.createdAt).toLocaleDateString("hy-AM"), 350, 86, { align: "right", width: 200 });
 
   doc.moveTo(50, 105).lineTo(545, 105).strokeColor("#999").lineWidth(0.5).stroke();
 
   // Supplier info
-  doc.fontSize(9).font("Helvetica-Bold").fillColor("#666").text("ՄԱՏԱԿԱՐԱՐ", 50, 120);
-  doc.fontSize(11).font("Helvetica").fillColor("#000").text(po.supplier?.name ?? "—", 50, 135);
-  doc.fontSize(9).font("Helvetica").fillColor("#666");
+  doc.fontSize(9).font(FONT_BOLD).fillColor("#666").text("ՄԱՏԱԿԱՐԱՐ", 50, 120);
+  doc.fontSize(11).font(FONT_REG).fillColor("#000").text(po.supplier?.name ?? "—", 50, 135);
+  doc.fontSize(9).font(FONT_REG).fillColor("#666");
   if (po.supplier?.phone) doc.text(po.supplier.phone, 50, 152);
   if (po.supplier?.email) doc.text(po.supplier.email, 50, 166);
   if (po.supplier?.taxId) doc.text(`ՀՎՀՀ: ${po.supplier.taxId}`, 50, 180);
 
   // Status
   doc.fillColor("#000");
-  doc.fontSize(9).font("Helvetica-Bold").fillColor("#666").text("ԿԱՐԳԱՎԻՃԱԿ", 350, 120, { width: 195, align: "right" });
-  doc.fontSize(12).font("Helvetica-Bold").fillColor(po.status === "RECEIVED" ? "#0a0" : "#c80").text(po.status, 350, 135, { width: 195, align: "right" });
+  doc.fontSize(9).font(FONT_BOLD).fillColor("#666").text("ԿԱՐԳԱՎԻՃԱԿ", 350, 120, { width: 195, align: "right" });
+  doc.fontSize(12).font(FONT_BOLD).fillColor(po.status === "RECEIVED" ? "#0a0" : "#c80").text(po.status, 350, 135, { width: 195, align: "right" });
 
   // Items table
   const tableTop = 210;
-  doc.fontSize(9).font("Helvetica-Bold").fillColor("#666");
+  doc.fontSize(9).font(FONT_BOLD).fillColor("#666");
   doc.text("#", 50, tableTop, { width: 30 });
   doc.text("ԱՊՐԱՆՔ", 85, tableTop, { width: 200 });
   doc.text("ՔԱՆԱԿ", 340, tableTop, { width: 50, align: "right" });
@@ -300,7 +339,7 @@ export async function generateProcurementPdf(poId: string): Promise<PdfGenResult
 
   let y = tableTop + 25;
   po.items.forEach((item, idx) => {
-    doc.fontSize(9).font("Helvetica").fillColor("#000");
+    doc.fontSize(9).font(FONT_REG).fillColor("#000");
     doc.text(String(idx + 1), 50, y, { width: 30 });
     doc.text(item.product?.name ?? "—", 85, y, { width: 200 });
     doc.text(`${item.qty} ${item.product?.unit?.symbol ?? ""}`, 340, y, { width: 50, align: "right" });
@@ -313,7 +352,7 @@ export async function generateProcurementPdf(poId: string): Promise<PdfGenResult
   y += 10;
   doc.moveTo(350, y).lineTo(545, y).strokeColor("#999").lineWidth(0.5).stroke();
   y += 10;
-  doc.fontSize(11).font("Helvetica-Bold").fillColor("#000").text("ԸՆԴՀԱՆՈՒՐ՝", 350, y, { width: 130, align: "right" });
+  doc.fontSize(11).font(FONT_BOLD).fillColor("#000").text("ԸՆԴՀԱՆՈՒՐ՝", 350, y, { width: 130, align: "right" });
   doc.fontSize(14).text(`${po.totalAmount.toLocaleString("hy-AM")} դր`, 480, y, { width: 65, align: "right" });
 
   // Footer
