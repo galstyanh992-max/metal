@@ -11,6 +11,7 @@ import { useState } from "react";
 import { ProductDetailDrawer } from "./product-detail-drawer";
 import { ProductEditDialog } from "./product-edit-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { ModuleFooter, MODULE_FOOTERS } from "@/components/shared/module-footer";
 import { toast } from "sonner";
 
 async function fetchProducts() {
@@ -182,6 +183,8 @@ export function ProductsModule({ role }: { role: string }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ModuleFooter {...MODULE_FOOTERS.products} />
     </div>
   );
 }

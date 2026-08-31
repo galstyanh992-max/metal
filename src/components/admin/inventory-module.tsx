@@ -12,6 +12,7 @@ import { Package, AlertTriangle, Layers, Boxes, Plus, Minus, Sliders, Loader2 } 
 import { useState } from "react";
 import { InventoryHistoryDrawer } from "./inventory-history-drawer";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { ModuleFooter, MODULE_FOOTERS } from "@/components/shared/module-footer";
 import { toast } from "sonner";
 
 async function fetchInventory() {
@@ -150,6 +151,8 @@ export function InventoryModule({ role }: { role: string }) {
           }}
         />
       )}
+
+      <ModuleFooter {...MODULE_FOOTERS.inventory} />
     </div>
   );
 }

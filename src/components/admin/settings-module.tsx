@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Users, Shield, Activity, ScrollText, Key, Mail, Pencil, Loader2 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { ModuleFooter, MODULE_FOOTERS } from "@/components/shared/module-footer";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -157,6 +158,8 @@ export function SettingsModule() {
 
       {/* User edit dialog */}
       {editUser && <UserEditDialog user={editUser} onClose={() => setEditUser(null)} />}
+
+      <ModuleFooter {...MODULE_FOOTERS.settings} />
     </div>
   );
 }

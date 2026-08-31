@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { TrendingUp, AlertTriangle, Package, Users, ShoppingCart, Wallet, Activity } from "lucide-react";
 import { DashboardCharts } from "@/components/charts/dashboard-charts";
 import { formatArmenianDateShort } from "@/lib/i18n/date";
+import { ModuleFooter, MODULE_FOOTERS } from "@/components/shared/module-footer";
 
 async function fetchDashboard() {
   const res = await fetch("/api/dashboard");
@@ -90,6 +91,8 @@ export function AdminDashboard() {
           </CardContent>
         </Card>
       )}
+
+      <ModuleFooter {...MODULE_FOOTERS.dashboard} />
     </div>
   );
 }

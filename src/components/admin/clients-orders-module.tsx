@@ -10,6 +10,7 @@ import { ClientDetailDrawer } from "./client-detail-drawer";
 import { OrderDetailDrawer } from "./order-detail-drawer";
 import { CreateOrderDialog, QuickFillOrderDialog } from "./orders-module";
 import { exportToExcel, fmtAMD, fmtDate } from "@/lib/export/excel";
+import { ModuleFooter, MODULE_FOOTERS } from "@/components/shared/module-footer";
 
 async function fetchClients() {
   const res = await fetch("/api/clients");
@@ -317,6 +318,8 @@ export function ClientsOrdersModule({ role }: { role: string }) {
       {createOrderOpen && <CreateOrderDialog onClose={() => setCreateOrderOpen(false)} onCreated={() => setCreateOrderOpen(false)} />}
       {quickFillOpen && <QuickFillOrderDialog onClose={() => setQuickFillOpen(false)} onCreated={() => { setQuickFillOpen(false); refetchOrders(); }} />}
       <OrderDetailDrawer orderId={selectedOrderId} open={!!selectedOrderId} onClose={() => setSelectedOrderId(null)} role={role} />
+
+      <ModuleFooter {...MODULE_FOOTERS.clientsOrders} />
     </div>
   );
 }

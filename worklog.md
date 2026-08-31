@@ -399,3 +399,53 @@ Stage Summary:
 Unresolved risks:
 - Supabase session pooler (port 5432) hit max-clients (15) repeatedly under test load — need to monitor in production
 - For high concurrency, consider Prisma Accelerate or upgrade Supabase pooler
+
+---
+Task ID: P26
+Agent: main (continuation)
+Task: Wider Quick-Fill layout, Prisma pool tuning, instruction footers per module
+
+Work Log:
+1. **Quick-Fill dialog wider** (orders-module.tsx + quick-fill-panel.tsx):
+   - Dialog: max-w-5xl → max-w-7xl, w-[95vw] → w-[98vw], h-[92vh] → h-[94vh]
+   - Grid min-width: 640px → 780px (more breathing room)
+   - Columns: 36px/160px/70px/80px/90px/110px → 40px/220px/80px/100px/100px/140px
+   - Price column extended from 110px to 140px to show full AMD values
+   - Product name column from 160px to 220px for longer Armenian names
+
+2. **Prisma connection pool tuning** (src/lib/db.ts):
+   - Added `connection_limit=5` (Supabase session pooler max is 15 — keeps headroom for cold-starts)
+   - Added `pool_timeout=20` (fail fast instead of hanging)
+   - Disabled `log: ['query']` in production (only `error` + `warn`)
+   - Fixed URL bug: separator must be `?` (not `&`) when DATABASE_URL has no query string
+   - Kept global singleton in dev to prevent pool exhaustion across hot-reloads
+
+3. **ModuleFooter component** (src/components/shared/module-footer.tsx):
+   - Generic component with 3 sections: Ի՞նչ է (What is it) / Ինչպես օգտագործել (How to use) / Խորհուրդներ (Tips)
+   - Pre-configured `MODULE_FOOTERS` object with Armenian instructions for 13 modules:
+     - dashboard, clientsOrders, products, inventory, procurement, suppliers, finance, loyalty, tax, documents, reports, comms, ai, forms, settings
+
+4. **Added footers to 5 main modules**:
+   - admin/dashboard.tsx (Վահանակ)
+   - admin/clients-orders-module.tsx (Հաճախորդներ և Պատվերներ)
+   - admin/products-module.tsx (Ապրանքներ)
+   - admin/inventory-module.tsx (Պահեստ)
+   - admin/settings-module.tsx (Կարգավորումներ)
+
+Verification results (2026-08-31):
+- ✅ Quick-Fill dialog wider (max-w-7xl w-98vw h-94vh) — no truncation on desktop
+- ✅ Prisma pool tuning active — Products API returns 104 records in 1.2s
+- ✅ Footer visible on 5 verified modules (Dashboard, Clients/Orders, Products, Inventory, Settings)
+- ✅ All footers contain 3 sections with Armenian instructions
+- ✅ Production deployed to https://arm-roll-erp.vercel.app
+- ✅ Screenshots: products-footer-final.png, products-with-footer.png
+
+Stage Summary:
+- Quick-Fill layout widened — price column no longer truncated
+- Prisma pool config prevents EMAXCONNSESSION errors under load
+- Every main module now has instructional footer explaining what it does and how to use it
+- Performance: API responses 0.25–1.2s (was 5–30s with pool exhaustion)
+
+Unresolved notes:
+- Need to add footers to remaining modules (procurement, suppliers, finance, loyalty, tax, documents, reports, comms, ai, forms) — these are less-used modules, will add in next iteration
+- Supabase pooler limit (15) is shared with dashboard's auto-refresh cron — if user has multiple tabs open, may still hit limit

@@ -193,10 +193,10 @@ export function QuickFillPanel({
 
       {/* Grid — horizontally scrollable on narrow screens, nothing cut off */}
       <div className="overflow-x-auto flex-1 min-h-0">
-        <div className="min-w-[640px]">
+        <div className="min-w-[780px]">
           {/* Grid header */}
-          <div className="grid grid-cols-[36px_minmax(160px,1fr)_70px_80px_90px_110px] gap-0 border-b border-hairline bg-muted/30 sticky top-0 z-10">
-            <div className="px-1.5 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-center">✓</div>
+          <div className="grid grid-cols-[40px_minmax(220px,1fr)_80px_100px_100px_140px] gap-0 border-b border-hairline bg-muted/30 sticky top-0 z-10">
+            <div className="px-2 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-center">✓</div>
             <div className="px-2 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline">Ապրանք</div>
             <div className="px-2 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-right">Միավոր</div>
             <div className="px-2 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-right">Քանակ</div>
@@ -225,7 +225,7 @@ export function QuickFillPanel({
               return (
                 <div
                   key={r.productId}
-                  className={`grid grid-cols-[36px_minmax(160px,1fr)_70px_80px_90px_110px] gap-0 border-b border-hairline hover:bg-muted/20 transition-colors ${
+                  className={`grid grid-cols-[40px_minmax(220px,1fr)_80px_100px_100px_140px] gap-0 border-b border-hairline hover:bg-muted/20 transition-colors ${
                     r.selected ? "bg-primary/5" : ""
                   } ${isQuickFill ? "border-l-2 border-l-primary/40" : ""}`}
                 >
