@@ -333,23 +333,23 @@ export function QuickFillOrderDialog({ onClose, onCreated }: { onClose: () => vo
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-5xl w-[95vw] max-h-[92vh] overflow-hidden flex flex-col p-0 gap-0">
-        <DialogHeader className="px-5 py-4 border-b border-hairline bg-card">
-          <DialogTitle className="flex items-center gap-2">
+      <DialogContent className="max-w-5xl w-[95vw] h-[92vh] overflow-hidden flex flex-col p-0 gap-0">
+        <DialogHeader className="px-5 py-3 border-b border-hairline bg-card shrink-0">
+          <DialogTitle className="flex items-center gap-2 text-base">
             <Zap className="size-4 text-primary" />
             Արագ պատվեր — լցոնում
           </DialogTitle>
-          <p className="text-xs text-muted-foreground mt-1">
+          <p className="text-xs text-muted-foreground mt-0.5">
             Նշեք ապրանքները, լցրեք քանակը / մետրաժը / գինը։ Գները կպահպանվեն կատալոգում պատվերը հաստատելիս։
           </p>
         </DialogHeader>
 
         {/* Client selector */}
-        <div className="px-5 py-3 border-b border-hairline bg-muted/20 flex items-center gap-3 flex-wrap">
+        <div className="px-5 py-2.5 border-b border-hairline bg-muted/20 flex items-center gap-3 flex-wrap shrink-0">
           <Label className="text-xs uppercase tracking-wider text-muted-foreground shrink-0">Հաճախորդ</Label>
           <div className="flex-1 min-w-[260px]">
             <Select value={clientId} onValueChange={setClientId}>
-              <SelectTrigger className="h-9"><SelectValue placeholder="Ընտրեք հաճախորդ" /></SelectTrigger>
+              <SelectTrigger className="h-8"><SelectValue placeholder="Ընտրեք հաճախորդ" /></SelectTrigger>
               <SelectContent>
                 {clientsData?.clients?.map((c: any) => (
                   <SelectItem key={c.id} value={c.id}>
@@ -370,20 +370,32 @@ export function QuickFillOrderDialog({ onClose, onCreated }: { onClose: () => vo
           </label>
         </div>
 
-        {/* Quick Fill grid */}
-        <div className="flex-1 overflow-hidden">
+        {/* Quick Fill grid — scrolls inside, footer sticks to bottom */}
+        <div className="flex-1 overflow-hidden min-h-0">
           <QuickFillPanel
             embedded
             onChange={(r, t) => { setRows(r); setTotals(t); }}
           />
         </div>
 
-        {/* Footer */}
-        <DialogFooter className="px-5 py-3 border-t border-hairline bg-card flex items-center justify-between gap-3">
+        {/* Footer (always visible) */}
+        <DialogFooter className="px-5 py-2.5 border-t-2 border-primary/30 bg-primary/5 flex items-center justify-between gap-3 shrink-0">
           <div className="flex items-center gap-4 text-xs">
             <div className="flex items-center gap-1.5">
               <span className="text-muted-foreground">Ընտրված՝</span>
               <span className="font-semibold tabular-nums">{totals.selectedCount}</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-muted-foreground">Քանակ՝</span>
+              <span className="font-semibold tabular-nums">
+                {new Intl.NumberFormat("hy-AM").format(totals.totalQty)} հատ
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-muted-foreground">Մետրաժ՝</span>
+              <span className="font-semibold tabular-nums">
+                {new Intl.NumberFormat("hy-AM").format(totals.totalMeterage)} մ
+              </span>
             </div>
             <div className="flex items-center gap-1.5">
               <span className="text-muted-foreground">Ընդհանուր՝</span>
@@ -392,7 +404,7 @@ export function QuickFillOrderDialog({ onClose, onCreated }: { onClose: () => vo
               </span>
             </div>
             {totals.priceChanges > 0 && (
-              <div className="text-status-yellow">
+              <div className="text-status-yellow font-medium">
                 Գնի փոփոխություն՝ {totals.priceChanges}
               </div>
             )}

@@ -96,7 +96,7 @@ export function QuickFillPanel({
     });
   }, [rows, search, showSelectedOnly]);
 
-  // Compute totals
+  // Compute totals — if meterage > 0, use it; else use qty
   const totals = useMemo<QuickFillTotals>(() => {
     let totalQty = 0;
     let totalMeterage = 0;
@@ -108,7 +108,9 @@ export function QuickFillPanel({
       selectedCount++;
       totalQty += r.qty || 0;
       totalMeterage += r.meterage || 0;
-      const lineTotal = (r.useMeterage ? r.meterage : r.qty) * r.unitPrice;
+      // Use meterage if filled, else qty (allows both fields to be fillable)
+      const qtyForCalc = r.meterage > 0 ? r.meterage : r.qty;
+      const lineTotal = qtyForCalc * r.unitPrice;
       totalAmount += lineTotal;
       if (r.unitPrice !== r.salePriceOriginal) priceChanges++;
     }
@@ -212,7 +214,9 @@ export function QuickFillPanel({
         {visibleRows.map((r) => {
           // Find absolute index in rows array
           const absIdx = rows.findIndex((x) => x.productId === r.productId);
-          const lineTotal = (r.useMeterage ? r.meterage : r.qty) * r.unitPrice;
+          // If meterage > 0 use it, else qty
+          const qtyForCalc = r.meterage > 0 ? r.meterage : r.qty;
+          const lineTotal = qtyForCalc * r.unitPrice;
           const isQuickFill = r.sku.startsWith("QF-");
           const priceChanged = r.unitPrice !== r.salePriceOriginal;
           return (
@@ -242,7 +246,7 @@ export function QuickFillPanel({
               <div className="px-2 py-2 border-r border-hairline text-right">
                 <span className="text-xs text-muted-foreground">{r.unitSymbol}</span>
               </div>
-              {/* Qty */}
+              {/* Qty — always enabled */}
               <div className="px-1.5 py-1.5 border-r border-hairline">
                 <Input
                   type="number"
@@ -250,11 +254,10 @@ export function QuickFillPanel({
                   value={r.qty || ""}
                   onChange={(e) => updateRow(absIdx, { qty: Number(e.target.value) || 0, selected: r.selected || !!e.target.value })}
                   placeholder="0"
-                  disabled={r.useMeterage && r.meterage > 0}
                   className="h-7 text-xs text-right tabular-nums px-1.5 focus-steel"
                 />
               </div>
-              {/* Meterage */}
+              {/* Meterage — always enabled, even for piece items */}
               <div className="px-1.5 py-1.5 border-r border-hairline">
                 <Input
                   type="number"
@@ -262,9 +265,8 @@ export function QuickFillPanel({
                   step="0.01"
                   value={r.meterage || ""}
                   onChange={(e) => updateRow(absIdx, { meterage: Number(e.target.value) || 0, selected: r.selected || !!e.target.value })}
-                  placeholder={r.useMeterage ? "0.00" : "—"}
-                  disabled={!r.useMeterage || (r.qty > 0 && !r.useMeterage)}
-                  className={`h-7 text-xs text-right tabular-nums px-1.5 focus-steel ${!r.useMeterage ? "bg-muted/30 text-muted-foreground/50" : ""}`}
+                  placeholder="0.00"
+                  className={`h-7 text-xs text-right tabular-nums px-1.5 focus-steel ${!r.useMeterage ? "bg-muted/20" : ""}`}
                 />
               </div>
               {/* Price */}
@@ -290,39 +292,41 @@ export function QuickFillPanel({
         })}
       </div>
 
-      {/* Footer — totals */}
-      <div className="border-t-2 border-primary/30 bg-primary/5 p-3">
-        <div className="grid grid-cols-4 gap-3">
-          <div className="space-y-0.5">
-            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Ընտրված</div>
-            <div className="text-sm font-semibold tabular-nums">{totals.selectedCount} ապրանք</div>
-          </div>
-          <div className="space-y-0.5">
-            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Քանակ</div>
-            <div className="text-sm font-semibold tabular-nums">{fmt(totals.totalQty)} հատ</div>
-          </div>
-          <div className="space-y-0.5">
-            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Մետրաժ</div>
-            <div className="text-sm font-semibold tabular-nums">{fmt(totals.totalMeterage)} մ</div>
-          </div>
-          <div className="space-y-0.5">
-            <div className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-              <Calculator className="size-3" /> Ընդհանուր
+      {/* Footer — totals (hidden when embedded, parent shows its own footer) */}
+      {!embedded && (
+        <div className="border-t-2 border-primary/30 bg-primary/5 p-3">
+          <div className="grid grid-cols-4 gap-3">
+            <div className="space-y-0.5">
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Ընտրված</div>
+              <div className="text-sm font-semibold tabular-nums">{totals.selectedCount} ապրանք</div>
             </div>
-            <div className="text-base font-bold tabular-nums text-primary">
-              {fmt(totals.totalAmount)} դր
+            <div className="space-y-0.5">
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Քանակ</div>
+              <div className="text-sm font-semibold tabular-nums">{fmt(totals.totalQty)} հատ</div>
+            </div>
+            <div className="space-y-0.5">
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Մետրաժ</div>
+              <div className="text-sm font-semibold tabular-nums">{fmt(totals.totalMeterage)} մ</div>
+            </div>
+            <div className="space-y-0.5">
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                <Calculator className="size-3" /> Ընդհանուր
+              </div>
+              <div className="text-base font-bold tabular-nums text-primary">
+                {fmt(totals.totalAmount)} դր
+              </div>
             </div>
           </div>
+          {totals.priceChanges > 0 && (
+            <div className="mt-2 pt-2 border-t border-hairline flex items-center gap-2 text-[11px] text-status-yellow">
+              <TrendingUp className="size-3.5" />
+              <span>
+                <strong>{totals.priceChanges}</strong> ապրանքի գինը փոխվել է — կպահպանվի կատալոգում պատվերը հաստատելիս
+              </span>
+            </div>
+          )}
         </div>
-        {totals.priceChanges > 0 && (
-          <div className="mt-2 pt-2 border-t border-hairline flex items-center gap-2 text-[11px] text-status-yellow">
-            <TrendingUp className="size-3.5" />
-            <span>
-              <strong>{totals.priceChanges}</strong> ապրանքի գինը փոխվել է — կպահպանվի կատալոգում պատվերը հաստատելիս
-            </span>
-          </div>
-        )}
-      </div>
+      )}
     </div>
   );
 }
@@ -333,15 +337,20 @@ export function QuickFillPanel({
 export function quickFillRowsToOrderItems(rows: QuickFillRow[]) {
   return rows
     .filter((r) => r.selected && (r.qty > 0 || r.meterage > 0))
-    .map((r) => ({
-      productId: r.productId,
-      qty: r.useMeterage ? Math.max(1, Math.round(r.meterage)) : r.qty,
-      parameters: {
-        quantity: String(r.useMeterage ? r.meterage : r.qty),
-        ...(r.useMeterage ? { meterage: String(r.meterage) } : {}),
-        unitPrice: String(r.unitPrice),
-      },
-      unitPrice: r.unitPrice,
-      savePriceToProduct: r.unitPrice !== r.salePriceOriginal,
-    }));
+    .map((r) => {
+      // If meterage filled, use it as primary qty (allows decimal); else integer qty
+      const useMeterage = r.meterage > 0;
+      const qty = useMeterage ? Math.max(1, Math.round(r.meterage)) : r.qty;
+      return {
+        productId: r.productId,
+        qty,
+        parameters: {
+          quantity: String(useMeterage ? r.meterage : r.qty),
+          ...(useMeterage ? { meterage: String(r.meterage) } : {}),
+          unitPrice: String(r.unitPrice),
+        },
+        unitPrice: r.unitPrice,
+        savePriceToProduct: r.unitPrice !== r.salePriceOriginal,
+      };
+    });
 }

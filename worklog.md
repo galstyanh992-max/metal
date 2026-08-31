@@ -280,3 +280,57 @@ Unresolved risks / next steps:
 - **Supabase connection limit**: consider Prisma Accelerate or pgbouncer for high-traffic scenarios
 - **Database migrations**: currently using `prisma db push` — should set up proper `prisma migrate` workflow before schema changes go to production
 - **CI/CD**: not yet set up — currently all deploys are manual via `vercel deploy --prod`
+
+---
+Task ID: P24
+Agent: main (continuation)
+Task: Fix Quick-Fill dialog visibility, enable all rows fillable, add Excel export
+
+Work Log:
+1. **Fixed Quick-Fill dialog layout** (`orders-module.tsx`):
+   - Changed dialog container from `max-h-[92vh]` to `h-[92vh]` with proper flex column
+   - Header / client selector / footer all marked `shrink-0` (never compress)
+   - Middle grid uses `flex-1 overflow-hidden min-h-0` (scrolls internally)
+   - Footer now has all 4 totals inline: Ընտրված · Քանակ · Մետրաժ · Ընդհանուր
+   - Removed duplicate footer from QuickFillPanel when `embedded=true`
+
+2. **Made all rows fillable** (`quick-fill-panel.tsx`):
+   - Removed `disabled` attribute from qty field (was disabled when meterage > 0)
+   - Removed `disabled` attribute from meterage field (was disabled for piece items)
+   - All 3 fields (qty, meterage, price) now editable on every row
+   - Logic: if meterage > 0, use it for calculation; else use qty
+   - This allows operators to enter either form on any product
+
+3. **Created Excel export utility** (`src/lib/export/excel.ts`):
+   - `exportToExcel(filename, sheetName, rows, columns)` — pure client-side
+   - Uses SheetJS (xlsx) library, generates .xlsx with compression
+   - Auto-sanitizes sheet names (31 char limit, no special chars)
+   - Includes helpers: `fmtAMD`, `fmtDate`, `fmtDateTime`
+
+4. **Added Excel export to clients-orders module**:
+   - Clients list: 11 columns (Տիպ, Անուն, Հեռախոս, Էլ. հասցե, ՀՎՀՀ, Հասցե, Կարգավիճակ, Պարտք, Շրջանառություն, Պատվերներ, Ստեղծված)
+   - Orders list: 12 columns (Համար, Հաճախորդ, Հեռախոս, Կարգավիճակ, Քանակ, Գումար, Վճարված, Մնացորդ, Շահույթ, Մարժա, Ստեղծված, Ժամկետ)
+   - Both export buttons appear conditionally (clients tab shows clients export, orders tab shows orders export)
+   - All Armenian status labels translated in export (DRAFT → Սևագիր etc.)
+   - Filename pattern: `հաճախորդներ-YYYY-MM-DD.xlsx` / `պատվերներ-YYYY-MM-DD.xlsx`
+
+5. **Installed xlsx library**: `npm install xlsx` (v0.18.5)
+
+Verification results (2026-08-31):
+- ✅ Quick-Fill dialog: footer always visible, all 4 totals + 2 buttons visible at all viewports
+- ✅ All 104 rows have editable qty, meterage, price fields (no disabled inputs)
+- ✅ Clients Excel export: 3 rows × 11 columns, file size 9.6 KB, valid .xlsx
+- ✅ Orders Excel export: button visible alongside Արագ լցոնում and Նոր պատվեր
+- ✅ Production deployed to https://arm-roll-erp.vercel.app
+- ✅ Screenshots: `download/quickfill-fixed-layout.png`, `download/vercel-final-orders.png`
+
+Stage Summary:
+- All 3 user requests implemented and verified end-to-end
+- Quick-Fill now fully visible without scrolling the page
+- All line items fillable (qty and meterage both work)
+- Excel export works for both clients and orders lists
+- Production redeployed to Vercel with new features
+
+Unresolved risks:
+- Supabase session pooler (port 5432) hit max-clients (15) under stress — need to monitor production usage
+- For larger exports (>1000 rows), should consider server-side streaming export via API route

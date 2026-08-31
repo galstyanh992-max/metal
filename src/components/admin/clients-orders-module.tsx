@@ -3,12 +3,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Search, Users, ShoppingCart, Zap } from "lucide-react";
+import { Plus, Search, Users, ShoppingCart, Zap, FileSpreadsheet, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { ClientCreateDialog } from "./client-create-dialog";
 import { ClientDetailDrawer } from "./client-detail-drawer";
 import { OrderDetailDrawer } from "./order-detail-drawer";
 import { CreateOrderDialog, QuickFillOrderDialog } from "./orders-module";
+import { exportToExcel, fmtAMD, fmtDate } from "@/lib/export/excel";
 
 async function fetchClients() {
   const res = await fetch("/api/clients");
@@ -72,6 +73,79 @@ export function ClientsOrdersModule({ role }: { role: string }) {
       o.client?.lastName?.toLowerCase().includes(q);
   });
 
+  const [exporting, setExporting] = useState<"clients" | "orders" | null>(null);
+
+  const exportClients = () => {
+    setExporting("clients");
+    try {
+      exportToExcel(
+        `հաճախորդներ-${new Date().toISOString().slice(0, 10)}.xlsx`,
+        "Հաճախորդներ",
+        clients,
+        [
+          { header: "Տիպ", width: 12, get: c => c.type === "COMPANY" ? "Ընկերություն" : "Անհատ" },
+          {
+            header: "Անուն / Ընկերություն",
+            width: 32,
+            get: c => c.type === "COMPANY" ? c.companyName : `${c.firstName ?? ""} ${c.lastName ?? ""}`.trim(),
+          },
+          { header: "Հեռախոս", width: 16, get: c => c.phone ?? "" },
+          { header: "Էլ. հասցե", width: 24, get: c => c.email ?? "" },
+          { header: "ՀՎՀՀ", width: 14, get: c => c.taxId ?? "" },
+          { header: "Հասցե", width: 30, get: c => c.primaryAddress ?? c.actualAddress ?? c.legalAddress ?? "" },
+          {
+            header: "Կարգավիճակ",
+            width: 14,
+            get: c => ({ GREEN: "Առողջ", YELLOW: "Պարտք", ORANGE: "Մոտ ժամկետ", RED: "Ժամկետանց", CRITICAL: "Սպառված" }[c.status as string] ?? c.status),
+          },
+          { header: "Պարտք (դր)", width: 14, get: c => c.currentDebt ?? 0 },
+          { header: "Շրջանառություն (դր)", width: 16, get: c => c.lifetimeTurnover ?? 0 },
+          { header: "Պատվերներ", width: 10, get: c => c.totalOrders ?? 0 },
+          { header: "Ստեղծված", width: 12, get: c => fmtDate(c.createdAt) },
+        ],
+      );
+    } finally {
+      setExporting(null);
+    }
+  };
+
+  const exportOrders = () => {
+    setExporting("orders");
+    try {
+      exportToExcel(
+        `պատվերներ-${new Date().toISOString().slice(0, 10)}.xlsx`,
+        "Պատվերներ",
+        orders,
+        [
+          { header: "Համար", width: 16, get: o => o.number ?? "" },
+          {
+            header: "Հաճախորդ",
+            width: 30,
+            get: o => o.client?.type === "COMPANY"
+              ? o.client?.companyName ?? ""
+              : `${o.client?.firstName ?? ""} ${o.client?.lastName ?? ""}`.trim(),
+          },
+          { header: "Հեռախոս", width: 16, get: o => o.client?.phone ?? "" },
+          {
+            header: "Կարգավիճակ",
+            width: 14,
+            get: o => ({ DRAFT: "Սևագիր", CONFIRMED: "Հաստատված", PICKING: "Ընտրման մեջ", READY: "Պատրաստ", DELIVERED: "Հանձնված", CANCELLED: "Չեղարկված" }[o.status as string] ?? o.status),
+          },
+          { header: "Պարտադիր քանակ", width: 10, get: o => o.items?.length ?? 0 },
+          { header: "Գումար (դր)", width: 14, get: o => o.totalAmount ?? 0 },
+          { header: "Վճարված (դր)", width: 14, get: o => o.paidAmount ?? 0 },
+          { header: "Մնացորդ (դր)", width: 14, get: o => o.outstandingAmount ?? 0 },
+          { header: "Շահույթ (դր)", width: 14, get: o => o.grossProfit ?? 0 },
+          { header: "Մարժա (%)", width: 10, get: o => o.marginPercent ? (o.marginPercent / 100).toFixed(2) : "0" },
+          { header: "Ստեղծված", width: 12, get: o => fmtDate(o.createdAt) },
+          { header: "Ժամկետ", width: 12, get: o => fmtDate(o.dueDate) },
+        ],
+      );
+    } finally {
+      setExporting(null);
+    }
+  };
+
   return (
     <div className="space-y-4">
       {/* Header with tabs */}
@@ -96,10 +170,36 @@ export function ClientsOrdersModule({ role }: { role: string }) {
         </div>
         {role !== "WAREHOUSE" && (
           <div className="flex items-center gap-2">
-            {tab === "orders" && (
-              <Button size="sm" variant="outline" className="gap-2" onClick={() => setQuickFillOpen(true)}>
-                <Zap className="size-4 text-primary" /> Արագ լցոնում
+            {tab === "clients" && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-2"
+                onClick={exportClients}
+                disabled={exporting === "clients" || clients.length === 0}
+                title="Արտահանել Excel ֆորմատով"
+              >
+                {exporting === "clients" ? <Loader2 className="size-4 animate-spin" /> : <FileSpreadsheet className="size-4 text-status-green" />}
+                Excel
               </Button>
+            )}
+            {tab === "orders" && (
+              <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-2"
+                  onClick={exportOrders}
+                  disabled={exporting === "orders" || orders.length === 0}
+                  title="Արտահանել Excel ֆորմատով"
+                >
+                  {exporting === "orders" ? <Loader2 className="size-4 animate-spin" /> : <FileSpreadsheet className="size-4 text-status-green" />}
+                  Excel
+                </Button>
+                <Button size="sm" variant="outline" className="gap-2" onClick={() => setQuickFillOpen(true)}>
+                  <Zap className="size-4 text-primary" /> Արագ լցոնում
+                </Button>
+              </>
             )}
             <Button size="sm" className="gap-2 bg-primary" onClick={() => tab === "clients" ? setCreateClientOpen(true) : setCreateOrderOpen(true)}>
               <Plus className="size-4" /> {tab === "clients" ? "Նոր հաճախորդ" : "Նոր պատվեր"}
