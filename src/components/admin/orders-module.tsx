@@ -289,9 +289,19 @@ function fmt(v: number | undefined): string {
  * Shows all products in a grid; user fills qty/meterage/price inline;
  * real-time total; prices can be saved back to catalog on submit.
  */
-export function QuickFillOrderDialog({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+export function QuickFillOrderDialog({
+  onClose,
+  onCreated,
+  initialClientId,
+  initialClientName,
+}: {
+  onClose: () => void;
+  onCreated: () => void;
+  initialClientId?: string;
+  initialClientName?: string;
+}) {
   const { data: clientsData } = useQuery({ queryKey: ["clients"], queryFn: fetchClients });
-  const [clientId, setClientId] = useState("");
+  const [clientId, setClientId] = useState(initialClientId ?? "");
   const [savePrices, setSavePrices] = useState(true);
   const [paymentMethod, setPaymentMethod] = useState<"debt" | "cash" | "transfer">("debt");
   const [rows, setRows] = useState<QuickFillRow[]>([]);
@@ -362,16 +372,23 @@ export function QuickFillOrderDialog({ onClose, onCreated }: { onClose: () => vo
         <div className="px-5 py-2.5 border-b border-hairline bg-muted/20 flex items-center gap-3 flex-wrap shrink-0">
           <Label className="text-xs uppercase tracking-wider text-muted-foreground shrink-0">Հաճախորդ</Label>
           <div className="flex-1 min-w-[260px]">
-            <Select value={clientId} onValueChange={setClientId}>
-              <SelectTrigger className="h-8"><SelectValue placeholder="Ընտրեք հաճախորդ" /></SelectTrigger>
-              <SelectContent>
-                {clientsData?.clients?.map((c: any) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.type === "COMPANY" ? c.companyName : `${c.firstName} ${c.lastName}`} — {c.phone}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {initialClientId && initialClientName ? (
+              <div className="h-8 px-3 flex items-center bg-card border border-hairline text-sm font-medium">
+                {initialClientName}
+                <span className="ml-2 text-[10px] text-status-green uppercase tracking-wider">նորաստեղծ</span>
+              </div>
+            ) : (
+              <Select value={clientId} onValueChange={setClientId}>
+                <SelectTrigger className="h-8"><SelectValue placeholder="Ընտրեք հաճախորդ" /></SelectTrigger>
+                <SelectContent>
+                  {clientsData?.clients?.map((c: any) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.type === "COMPANY" ? c.companyName : `${c.firstName} ${c.lastName}`} — {c.phone}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
           <div className="flex items-center gap-1.5 border border-hairline bg-card">
             {([

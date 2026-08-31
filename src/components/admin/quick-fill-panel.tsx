@@ -191,105 +191,110 @@ export function QuickFillPanel({
         </div>
       </div>
 
-      {/* Grid header */}
-      <div className="grid grid-cols-[36px_minmax(140px,1fr)_70px_80px_90px_100px] gap-0 border-b border-hairline bg-muted/30 sticky top-0 z-10">
-        <div className="px-1.5 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-center">✓</div>
-        <div className="px-2 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline">Ապրանք</div>
-        <div className="px-2 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-right">Միավոր</div>
-        <div className="px-2 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-right">Քանակ</div>
-        <div className="px-2 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-right">Մետրաժ</div>
-        <div className="px-2 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground text-right">Գին (դր)</div>
-      </div>
-
-      {/* Rows */}
-      <div className="overflow-y-auto" style={{ maxHeight: embedded ? "320px" : "400px" }}>
-        {isLoading && (
-          <div className="p-6 text-center text-xs text-muted-foreground">Բեռնվում է…</div>
-        )}
-        {!isLoading && visibleRows.length === 0 && (
-          <div className="p-6 text-center text-xs text-muted-foreground">
-            {search ? "Որոնման արդյունքներ չկան" : "Ապրանքներ չկան"}
+      {/* Grid — horizontally scrollable on narrow screens, nothing cut off */}
+      <div className="overflow-x-auto flex-1 min-h-0">
+        <div className="min-w-[640px]">
+          {/* Grid header */}
+          <div className="grid grid-cols-[36px_minmax(160px,1fr)_70px_80px_90px_110px] gap-0 border-b border-hairline bg-muted/30 sticky top-0 z-10">
+            <div className="px-1.5 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-center">✓</div>
+            <div className="px-2 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline">Ապրանք</div>
+            <div className="px-2 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-right">Միավոր</div>
+            <div className="px-2 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-right">Քանակ</div>
+            <div className="px-2 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-right">Մետրաժ</div>
+            <div className="px-2 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground text-right">Գին (դր)</div>
           </div>
-        )}
-        {visibleRows.map((r) => {
-          // Find absolute index in rows array
-          const absIdx = rows.findIndex((x) => x.productId === r.productId);
-          // If meterage > 0 use it, else qty
-          const qtyForCalc = r.meterage > 0 ? r.meterage : r.qty;
-          const lineTotal = qtyForCalc * r.unitPrice;
-          const isQuickFill = r.sku.startsWith("QF-");
-          const priceChanged = r.unitPrice !== r.salePriceOriginal;
-          return (
-            <div
-              key={r.productId}
-              className={`grid grid-cols-[36px_minmax(140px,1fr)_70px_80px_90px_100px] gap-0 border-b border-hairline hover:bg-muted/20 transition-colors ${
-                r.selected ? "bg-primary/5" : ""
-              } ${isQuickFill ? "border-l-2 border-l-primary/40" : ""}`}
-            >
-              {/* Checkbox */}
-              <div className="px-1.5 py-2 border-r border-hairline flex items-center justify-center">
-                <Checkbox
-                  checked={r.selected}
-                  onCheckedChange={(v) => updateRow(absIdx, { selected: !!v })}
-                  className="size-3.5"
-                />
+
+          {/* Rows */}
+          <div className="overflow-y-auto" style={{ maxHeight: embedded ? "calc(92vh - 280px)" : "400px" }}>
+            {isLoading && (
+              <div className="p-6 text-center text-xs text-muted-foreground">Բեռնվում է…</div>
+            )}
+            {!isLoading && visibleRows.length === 0 && (
+              <div className="p-6 text-center text-xs text-muted-foreground">
+                {search ? "Որոնման արդյունքներ չկան" : "Ապրանքներ չկան"}
               </div>
-              {/* Name + SKU */}
-              <div className="px-2 py-2 border-r border-hairline min-w-0">
-                <div className="text-xs font-medium truncate flex items-center gap-1.5">
-                  {isQuickFill && <span className="size-1.5 rounded-full bg-primary shrink-0" />}
-                  {r.name}
-                </div>
-                <div className="text-[10px] text-muted-foreground font-mono">{r.sku}</div>
-              </div>
-              {/* Unit */}
-              <div className="px-2 py-2 border-r border-hairline text-right">
-                <span className="text-xs text-muted-foreground">{r.unitSymbol}</span>
-              </div>
-              {/* Qty — always enabled */}
-              <div className="px-1.5 py-1.5 border-r border-hairline">
-                <Input
-                  type="number"
-                  min={0}
-                  value={r.qty || ""}
-                  onChange={(e) => updateRow(absIdx, { qty: Number(e.target.value) || 0, selected: r.selected || !!e.target.value })}
-                  placeholder="0"
-                  className="h-7 text-xs text-right tabular-nums px-1.5 focus-steel"
-                />
-              </div>
-              {/* Meterage — always enabled, even for piece items */}
-              <div className="px-1.5 py-1.5 border-r border-hairline">
-                <Input
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={r.meterage || ""}
-                  onChange={(e) => updateRow(absIdx, { meterage: Number(e.target.value) || 0, selected: r.selected || !!e.target.value })}
-                  placeholder="0.00"
-                  className={`h-7 text-xs text-right tabular-nums px-1.5 focus-steel ${!r.useMeterage ? "bg-muted/20" : ""}`}
-                />
-              </div>
-              {/* Price */}
-              <div className="px-1.5 py-1.5 relative">
-                <Input
-                  type="number"
-                  min={0}
-                  value={r.unitPrice || ""}
-                  onChange={(e) => updateRow(absIdx, { unitPrice: Number(e.target.value) || 0, selected: r.selected || !!e.target.value })}
-                  placeholder="0"
-                  className={`h-7 text-xs text-right tabular-nums px-1.5 focus-steel ${
-                    priceChanged ? "border-status-yellow/50 bg-status-yellow/5" : ""
-                  }`}
-                />
-                {priceChanged && (
-                  <div className="absolute -bottom-0.5 right-1 text-[9px] text-status-yellow font-medium" title={`Բնօրինակ՝ ${fmt(r.salePriceOriginal)} դր`}>
-                    ↑{fmt(r.salePriceOriginal)}
+            )}
+            {visibleRows.map((r) => {
+              // Find absolute index in rows array
+              const absIdx = rows.findIndex((x) => x.productId === r.productId);
+              // If meterage > 0 use it, else qty
+              const qtyForCalc = r.meterage > 0 ? r.meterage : r.qty;
+              const lineTotal = qtyForCalc * r.unitPrice;
+              const isQuickFill = r.sku.startsWith("QF-");
+              const priceChanged = r.unitPrice !== r.salePriceOriginal;
+              return (
+                <div
+                  key={r.productId}
+                  className={`grid grid-cols-[36px_minmax(160px,1fr)_70px_80px_90px_110px] gap-0 border-b border-hairline hover:bg-muted/20 transition-colors ${
+                    r.selected ? "bg-primary/5" : ""
+                  } ${isQuickFill ? "border-l-2 border-l-primary/40" : ""}`}
+                >
+                  {/* Checkbox */}
+                  <div className="px-1.5 py-2 border-r border-hairline flex items-center justify-center">
+                    <Checkbox
+                      checked={r.selected}
+                      onCheckedChange={(v) => updateRow(absIdx, { selected: !!v })}
+                      className="size-3.5"
+                    />
                   </div>
-                )}
-              </div>
-            </div>
-          );
-        })}
+                  {/* Name + SKU */}
+                  <div className="px-2 py-2 border-r border-hairline min-w-0">
+                    <div className="text-xs font-medium truncate flex items-center gap-1.5">
+                      {isQuickFill && <span className="size-1.5 rounded-full bg-primary shrink-0" />}
+                      {r.name}
+                    </div>
+                    <div className="text-[10px] text-muted-foreground font-mono">{r.sku}</div>
+                  </div>
+                  {/* Unit */}
+                  <div className="px-2 py-2 border-r border-hairline text-right">
+                    <span className="text-xs text-muted-foreground">{r.unitSymbol}</span>
+                  </div>
+                  {/* Qty — always enabled */}
+                  <div className="px-1.5 py-1.5 border-r border-hairline">
+                    <Input
+                      type="number"
+                      min={0}
+                      value={r.qty || ""}
+                      onChange={(e) => updateRow(absIdx, { qty: Number(e.target.value) || 0, selected: r.selected || !!e.target.value })}
+                      placeholder="0"
+                      className="h-7 text-xs text-right tabular-nums px-1.5 focus-steel"
+                    />
+                  </div>
+                  {/* Meterage — always enabled, even for piece items */}
+                  <div className="px-1.5 py-1.5 border-r border-hairline">
+                    <Input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={r.meterage || ""}
+                      onChange={(e) => updateRow(absIdx, { meterage: Number(e.target.value) || 0, selected: r.selected || !!e.target.value })}
+                      placeholder="0.00"
+                      className={`h-7 text-xs text-right tabular-nums px-1.5 focus-steel ${!r.useMeterage ? "bg-muted/20" : ""}`}
+                    />
+                  </div>
+                  {/* Price */}
+                  <div className="px-1.5 py-1.5 relative">
+                    <Input
+                      type="number"
+                      min={0}
+                      value={r.unitPrice || ""}
+                      onChange={(e) => updateRow(absIdx, { unitPrice: Number(e.target.value) || 0, selected: r.selected || !!e.target.value })}
+                      placeholder="0"
+                      className={`h-7 text-xs text-right tabular-nums px-1.5 focus-steel ${
+                        priceChanged ? "border-status-yellow/50 bg-status-yellow/5" : ""
+                      }`}
+                    />
+                    {priceChanged && (
+                      <div className="absolute -bottom-0.5 right-1 text-[9px] text-status-yellow font-medium" title={`Բնօրինակ՝ ${fmt(r.salePriceOriginal)} դր`}>
+                        ↑{fmt(r.salePriceOriginal)}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
       {/* Footer — totals (hidden when embedded, parent shows its own footer) */}

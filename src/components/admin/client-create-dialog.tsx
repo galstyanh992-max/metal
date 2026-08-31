@@ -177,6 +177,8 @@ export function ClientCreateDialog({ open, onClose, onCreated }: { open: boolean
       {/* After client is created — offer to register order */}
       {quickFillForClientId && (
         <QuickFillOrderDialog
+          initialClientId={quickFillForClientId}
+          initialClientName={quickFillForClientName}
           onClose={() => {
             setQuickFillForClientId(null);
             onCreated?.();
