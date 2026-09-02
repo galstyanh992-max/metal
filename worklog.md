@@ -498,3 +498,56 @@ Stage Summary:
 - Real-time calculation: Տոկոս = քանակ × գումար; Որոշում = running total
 - Result can be saved as product's new salePrice with audit trail
 - Reproduces user's example exactly: 3.17 × 14500 = 45,965 դր
+
+---
+Task ID: P28
+Agent: main (continuation)
+Task: Quick-Fill full visibility + favorite products (show main first)
+
+Work Log:
+1. **Prisma schema updated**: added `isFavorite Boolean @default(false)` field to Product model
+   - Ran `prisma db push` to apply to Supabase (added column to existing 104 products)
+
+2. **Products API sorting** (api/products/route.ts):
+   - Changed orderBy from `{ name: "asc" }` to `[{ isFavorite: "desc" }, { name: "asc" }]`
+   - Favorites now appear at the top of the catalog automatically
+
+3. **New API endpoint**: `POST /api/products/[id]/favorite`
+   - Toggles `isFavorite` flag (ADMIN only)
+   - Accepts `{ isFavorite?: boolean }` body; if omitted, toggles current value
+   - Writes audit log entry (action=product.toggle_favorite)
+
+4. **Products module UI** (products-module.tsx):
+   - Added ★ column at the start of the table
+   - Each row shows ⭐ (if favorited) or ☆ (if not)
+   - ADMIN can click star to toggle (calls favorite API)
+   - Non-admin sees read-only ⭐ indicator
+   - Updated column span to 9 (was 8) to include ★ column
+
+5. **Quick-Fill panel UI** (quick-fill-panel.tsx):
+   - Added ★ column to grid header
+   - Each row has clickable star (☆/⭐) for favorite toggle
+   - Optimistic update — star toggles immediately, rolls back on error
+   - Favorites are sorted to top automatically (in addition to QF-* prefix sorting)
+   - Favorited rows get subtle yellow background highlight (`bg-status-yellow/5`)
+   - New "Միայն հիմնականները (N)" filter button in toolbar — shows count of favorites
+   - When filter active, button becomes primary (filled) style
+   - Reset button also clears favoritesOnly filter
+
+6. **Layout improvement**: Grid min-width increased from 780px to 820px to accommodate new ★ column without truncation
+
+Verification results (2026-09-02):
+- ✅ ★ column visible in Products table (header + per row)
+- ✅ Clicked ☆ on first row → became ⭐, moved to top after reload
+- ✅ Quick-Fill panel shows "Միայն հիմնականները (1)" filter button
+- ✅ Click filter → only 1 favorited product visible (others hidden)
+- ✅ Star toggle in Quick-Fill works (optimistic update)
+- ✅ Production deployed to https://arm-roll-erp.vercel.app
+- ✅ Screenshots: products-with-favorites.png, products-first-favorited.png, quickfill-with-favorites-filter.png, quickfill-favorites-only.png
+
+Stage Summary:
+- All Quick-Fill fields visible (★ + ✓ + Ապրանք + Միավոր + Քանակ + Մետրաժ + Գին)
+- ADMIN can mark any product as "հիմնական" (main) from Products module or Quick-Fill panel
+- Favorited products sort to top automatically in catalog and order entry
+- "Միայն հիմնականները" filter lets user focus on frequently-ordered items
+- Favorites persist in DB (isFavorite column) and are shared across all users/sessions

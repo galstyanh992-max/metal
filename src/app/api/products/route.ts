@@ -8,7 +8,10 @@ export async function GET() {
     const products = await db.product.findMany({
       where: { active: true, archivedAt: null },
       include: { unit: true, category: true },
-      orderBy: { name: "asc" },
+      orderBy: [
+        { isFavorite: "desc" }, // նախ հիմնականները
+        { name: "asc" },
+      ],
     });
 
     if (role === "WAREHOUSE") {

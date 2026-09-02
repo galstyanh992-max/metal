@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Plus, Pencil, Trash2, Loader2, Package, Calculator } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Package, Calculator, Star } from "lucide-react";
 import { useState } from "react";
 import { ProductDetailDrawer } from "./product-detail-drawer";
 import { ProductEditDialog } from "./product-edit-dialog";
@@ -55,6 +55,23 @@ export function ProductsModule({ role }: { role: string }) {
     onError: (e: any) => toast.error(e?.message ?? "Սխալ"),
   });
 
+  const favMutation = useMutation({
+    mutationFn: async ({ id, isFavorite }: { id: string; isFavorite: boolean }) => {
+      const res = await fetch(`/api/products/${id}/favorite`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ isFavorite }),
+      });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.error ?? "failed"); }
+      return res.json();
+    },
+    onSuccess: (data) => {
+      toast.success(data.isFavorite ? "⭐ Նշված է որպես հիմնական" : "Հանված է հիմնականներից");
+      qc.invalidateQueries({ queryKey: ["products"] });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Սխալ"),
+  });
+
   const productToDelete = products.find((p: any) => p.id === deleteId);
 
   return (
@@ -74,6 +91,7 @@ export function ProductsModule({ role }: { role: string }) {
           <Table>
             <TableHeader>
               <TableRow className="border-hairline">
+                <TableHead className="text-xs uppercase tracking-wider w-8">★</TableHead>
                 <TableHead className="text-xs uppercase tracking-wider">Ապրանք</TableHead>
                 <TableHead className="text-xs uppercase tracking-wider">SKU</TableHead>
                 <TableHead className="text-xs uppercase tracking-wider">Կատեգորիա</TableHead>
@@ -87,6 +105,19 @@ export function ProductsModule({ role }: { role: string }) {
             <TableBody>
               {products.map((p: any) => (
                 <TableRow key={p.id} className="border-hairline hover:bg-muted/40 cursor-pointer" onClick={() => setDetailId(p.id)}>
+                  <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
+                    {role === "ADMIN" ? (
+                      <button
+                        onClick={() => favMutation.mutate({ id: p.id, isFavorite: !p.isFavorite })}
+                        className="text-base leading-none hover:scale-125 transition-transform"
+                        title={p.isFavorite ? "Հանել հիմնականներից" : "Նշել որպես հիմնական"}
+                      >
+                        {p.isFavorite ? "⭐" : "☆"}
+                      </button>
+                    ) : (
+                      p.isFavorite ? "⭐" : ""
+                    )}
+                  </TableCell>
                   <TableCell className="text-sm font-medium">
                     <div className="flex flex-col">
                       <span>{p.name}</span>
@@ -135,7 +166,7 @@ export function ProductsModule({ role }: { role: string }) {
                 </TableRow>
               ))}
               {(!data?.products || data.products.length === 0) && !isLoading && (
-                <TableRow><TableCell colSpan={role === "ADMIN" ? 8 : 5}><EmptyState title="Ապրանքներ չկան" /></TableCell></TableRow>
+                <TableRow><TableCell colSpan={role === "ADMIN" ? 9 : 6}><EmptyState title="Ապրանքներ չկան" /></TableCell></TableRow>
               )}
             </TableBody>
           </Table>
