@@ -6,10 +6,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Plus, Pencil, Trash2, Loader2, Package } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Package, Calculator } from "lucide-react";
 import { useState } from "react";
 import { ProductDetailDrawer } from "./product-detail-drawer";
 import { ProductEditDialog } from "./product-edit-dialog";
+import { ProductCostCalculator } from "./product-cost-calculator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { ModuleFooter, MODULE_FOOTERS } from "@/components/shared/module-footer";
 import { toast } from "sonner";
@@ -30,6 +31,7 @@ export function ProductsModule({ role }: { role: string }) {
   const { data, isLoading } = useQuery({ queryKey: ["products"], queryFn: fetchProducts });
   const [detailId, setDetailId] = useState<string | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
+  const [calcId, setCalcId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const qc = useQueryClient();
@@ -104,6 +106,15 @@ export function ProductsModule({ role }: { role: string }) {
                           variant="ghost"
                           size="sm"
                           className="h-7 w-7 p-0"
+                          onClick={() => setCalcId(p.id)}
+                          title="Կազմել գին (BOM հաշվարկ)"
+                        >
+                          <Calculator className="size-3.5 text-primary" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 p-0"
                           onClick={() => setEditId(p.id)}
                           title="Խմբագրել"
                         >
@@ -148,6 +159,13 @@ export function ProductsModule({ role }: { role: string }) {
           productId={editId}
           onClose={() => setEditId(null)}
           onSaved={() => { qc.invalidateQueries({ queryKey: ["products"] }); setEditId(null); }}
+        />
+      )}
+      {role === "ADMIN" && calcId && (
+        <ProductCostCalculator
+          productId={calcId}
+          onClose={() => setCalcId(null)}
+          onSaved={() => { qc.invalidateQueries({ queryKey: ["products"] }); }}
         />
       )}
 
