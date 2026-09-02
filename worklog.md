@@ -551,3 +551,79 @@ Stage Summary:
 - Favorited products sort to top automatically in catalog and order entry
 - "Միայն հիմնականները" filter lets user focus on frequently-ordered items
 - Favorites persist in DB (isFavorite column) and are shared across all users/sessions
+
+---
+Task ID: P29
+Agent: main (continuation)
+Task: Make Quick-Fill dialog much larger and more readable
+
+Work Log:
+1. **Dialog container expanded** (orders-module.tsx):
+   - max-w-7xl → max-w-[1600px]
+   - h-[94vh] → h-[95vh]
+   - Header padding: px-5 py-3 → px-6 py-4
+   - Title text-base → text-lg, icon size-4 → size-5
+
+2. **Quick-Fill grid enlarged** (quick-fill-panel.tsx):
+   - Grid min-width: 820px → 1000px
+   - Column widths:
+     - Checkbox: 36px → 44px
+     - Star: 36px → 44px
+     - Name: minmax(220px,1fr) → minmax(280px,1fr)
+     - Unit: 80px → 100px
+     - Qty: 100px → 120px
+     - Meterage: 100px → 120px
+     - Price: 140px → 160px
+   - Header padding: px-1.5 py-2 → px-2 py-3
+   - Header font: text-[10px] → text-[11px]
+
+3. **Row cells enlarged**:
+   - Row padding: py-2 → py-2.5
+   - Name: text-xs → text-sm, dot indicator size-1.5 → size-2, gap-1.5 → gap-2
+   - SKU: text-[10px] → text-xs with mt-0.5
+   - Unit text: text-xs → text-sm
+   - Input height: h-7 → h-9, font text-xs → text-sm, padding px-1.5 → px-2
+   - Star size: text-base → text-lg
+   - Checkbox size: size-3.5 → size-4
+
+4. **Toolbar enlarged**:
+   - Padding: p-3 → p-4
+   - Title: text-sm → text-lg, icon size-4 → size-5
+   - Badges: text-[10px] → text-xs with px-2 py-1
+   - Buttons: h-7 → h-9, text-xs → text-sm, icons size-3.5 → size-4
+   - Search input: h-8 → h-10, text-xs → text-sm, pl-8 → pl-10
+
+5. **Footer (totals) enlarged**:
+   - Padding: p-3 → p-4
+   - Label: text-[10px] → text-xs
+   - Values: text-sm → text-lg (semibold)
+   - Total amount: text-base → text-xl (bold)
+
+6. **Dialog footer** (orders-module.tsx):
+   - Padding: px-5 py-2.5 → px-6 py-4
+   - Total amounts: text-sm → text-base, Ընդհանուր text-base → text-lg
+   - Buttons: default size → lg, icons size-4 → size-5
+   - Spacing gap-4 → gap-6
+
+7. **Client + payment selector enlarged**:
+   - Padding: px-5 py-2.5 → px-6 py-3
+   - Min width: 260px → 300px
+   - Select trigger: h-8 → h-10, text added text-sm
+   - Payment buttons: px-3 py-1 text-xs → px-4 py-2 text-sm
+   - Checkbox: size-3.5 → size-4
+
+Verification results (2026-09-02):
+- ✅ Dialog opens at near full-screen size (1600px max, 95vh height)
+- ✅ All 7 columns visible: ✓ ★ Ապրանք Միավոր Քանակ Մետրաժ Գին
+- ✅ Star visible on first 3 rows (⭐), rest show ☆
+- ✅ Header text and row text significantly larger
+- ✅ Input fields are 9 units tall (was 7) — much easier to click
+- ✅ Footer totals in large font (text-lg, text-xl for grand total)
+- ✅ Production deployed to https://arm-roll-erp.vercel.app
+- ✅ Screenshots: quickfill-large-panel.png, quickfill-large-final.png
+
+Stage Summary:
+- Quick-Fill panel is now much larger and fully readable
+- All cells, headers, and inputs use larger font/padding
+- Dialog fills 98% of viewport width (up to 1600px) and 95% of height
+- 3 products currently marked as ⭐ favorites (Լամին, Կլիպս, Ադապտեր 60-70) — shown at top

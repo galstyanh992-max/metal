@@ -357,29 +357,29 @@ export function QuickFillOrderDialog({
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-7xl w-[98vw] h-[94vh] overflow-hidden flex flex-col p-0 gap-0">
-        <DialogHeader className="px-5 py-3 border-b border-hairline bg-card shrink-0">
-          <DialogTitle className="flex items-center gap-2 text-base">
-            <Zap className="size-4 text-primary" />
+      <DialogContent className="max-w-[1600px] w-[98vw] h-[95vh] overflow-hidden flex flex-col p-0 gap-0">
+        <DialogHeader className="px-6 py-4 border-b border-hairline bg-card shrink-0">
+          <DialogTitle className="flex items-center gap-2 text-lg">
+            <Zap className="size-5 text-primary" />
             Արագ պատվեր — լցոնում
           </DialogTitle>
-          <p className="text-xs text-muted-foreground mt-0.5">
+          <p className="text-sm text-muted-foreground mt-1">
             Նշեք ապրանքները, լցրեք քանակը / մետրաժը / գինը։ Գները կպահպանվեն կատալոգում պատվերը հաստատելիս։
           </p>
         </DialogHeader>
 
         {/* Client + payment selector */}
-        <div className="px-5 py-2.5 border-b border-hairline bg-muted/20 flex items-center gap-3 flex-wrap shrink-0">
+        <div className="px-6 py-3 border-b border-hairline bg-muted/20 flex items-center gap-4 flex-wrap shrink-0">
           <Label className="text-xs uppercase tracking-wider text-muted-foreground shrink-0">Հաճախորդ</Label>
-          <div className="flex-1 min-w-[260px]">
+          <div className="flex-1 min-w-[300px]">
             {initialClientId && initialClientName ? (
-              <div className="h-8 px-3 flex items-center bg-card border border-hairline text-sm font-medium">
+              <div className="h-10 px-3 flex items-center bg-card border border-hairline text-sm font-medium">
                 {initialClientName}
                 <span className="ml-2 text-[10px] text-status-green uppercase tracking-wider">նորաստեղծ</span>
               </div>
             ) : (
               <Select value={clientId} onValueChange={setClientId}>
-                <SelectTrigger className="h-8"><SelectValue placeholder="Ընտրեք հաճախորդ" /></SelectTrigger>
+                <SelectTrigger className="h-10 text-sm"><SelectValue placeholder="Ընտրեք հաճախորդ" /></SelectTrigger>
                 <SelectContent>
                   {clientsData?.clients?.map((c: any) => (
                     <SelectItem key={c.id} value={c.id}>
@@ -390,7 +390,7 @@ export function QuickFillOrderDialog({
               </Select>
             )}
           </div>
-          <div className="flex items-center gap-1.5 border border-hairline bg-card">
+          <div className="flex items-center gap-1 border border-hairline bg-card">
             {([
               { v: "debt", label: "Պարտք" },
               { v: "cash", label: "Առձեռն" },
@@ -399,7 +399,7 @@ export function QuickFillOrderDialog({
               <button
                 key={opt.v}
                 onClick={() => setPaymentMethod(opt.v)}
-                className={`px-3 py-1 text-xs font-medium transition-colors ${
+                className={`px-4 py-2 text-sm font-medium transition-colors ${
                   paymentMethod === opt.v
                     ? "bg-primary text-primary-foreground"
                     : "hover:bg-muted/40 text-muted-foreground"
@@ -409,12 +409,12 @@ export function QuickFillOrderDialog({
               </button>
             ))}
           </div>
-          <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
+          <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
             <input
               type="checkbox"
               checked={savePrices}
               onChange={(e) => setSavePrices(e.target.checked)}
-              className="size-3.5 accent-primary"
+              className="size-4 accent-primary"
             />
             <span>Պահպանել գները</span>
           </label>
@@ -454,41 +454,41 @@ export function QuickFillOrderDialog({
         </div>
 
         {/* Footer (always visible) */}
-        <DialogFooter className="px-5 py-2.5 border-t-2 border-primary/30 bg-primary/5 flex items-center justify-between gap-3 shrink-0">
-          <div className="flex items-center gap-4 text-xs">
-            <div className="flex items-center gap-1.5">
+        <DialogFooter className="px-6 py-4 border-t-2 border-primary/30 bg-primary/5 flex items-center justify-between gap-4 shrink-0">
+          <div className="flex items-center gap-6 text-sm">
+            <div className="flex items-center gap-2">
               <span className="text-muted-foreground">Ընտրված՝</span>
-              <span className="font-semibold tabular-nums">{totals.selectedCount}</span>
+              <span className="font-semibold tabular-nums text-base">{totals.selectedCount}</span>
             </div>
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-2">
               <span className="text-muted-foreground">Քանակ՝</span>
-              <span className="font-semibold tabular-nums">
+              <span className="font-semibold tabular-nums text-base">
                 {new Intl.NumberFormat("hy-AM").format(totals.totalQty)} հատ
               </span>
             </div>
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-2">
               <span className="text-muted-foreground">Մետրաժ՝</span>
-              <span className="font-semibold tabular-nums">
+              <span className="font-semibold tabular-nums text-base">
                 {new Intl.NumberFormat("hy-AM").format(totals.totalMeterage)} մ
               </span>
             </div>
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-2">
               <span className="text-muted-foreground">Ընդհանուր՝</span>
-              <span className="font-bold tabular-nums text-primary text-sm">
+              <span className="font-bold tabular-nums text-primary text-lg">
                 {new Intl.NumberFormat("hy-AM").format(totals.totalAmount)} դր
               </span>
             </div>
             {totals.priceChanges > 0 && (
-              <div className="text-status-yellow font-medium">
+              <div className="text-status-yellow font-medium text-sm">
                 Գնի փոփոխություն՝ {totals.priceChanges}
               </div>
             )}
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={onClose}>Չեղարկել</Button>
-            <Button onClick={submit} disabled={mutation.isPending || totals.selectedCount === 0} className="bg-primary gap-2">
-              {mutation.isPending && <Loader2 className="size-4 animate-spin" />}
-              <Zap className="size-4" />
+            <Button variant="outline" size="lg" onClick={onClose}>Չեղարկել</Button>
+            <Button onClick={submit} size="lg" disabled={mutation.isPending || totals.selectedCount === 0} className="bg-primary gap-2">
+              {mutation.isPending && <Loader2 className="size-5 animate-spin" />}
+              <Zap className="size-5" />
               Ստեղծել պատվեր ({totals.selectedCount})
             </Button>
           </div>

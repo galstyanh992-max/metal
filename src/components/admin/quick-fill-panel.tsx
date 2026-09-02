@@ -197,75 +197,75 @@ export function QuickFillPanel({
   return (
     <div className={`flex flex-col ${embedded ? "" : "border border-hairline bg-card"}`}>
       {/* Toolbar */}
-      <div className="border-b border-hairline p-3 space-y-2 bg-muted/20">
+      <div className="border-b border-hairline p-4 space-y-3 bg-muted/20">
         <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-2">
-            <Package2 className="size-4 text-primary" />
-            <span className="text-sm font-semibold">Գրանցել Պատվեր</span>
-            <Badge variant="outline" className="text-[10px] border-hairline">
+          <div className="flex items-center gap-3">
+            <Package2 className="size-5 text-primary" />
+            <span className="text-lg font-semibold">Գրանցել Պատվեր</span>
+            <Badge variant="outline" className="text-xs border-hairline px-2 py-1">
               {qfCount} հիմնական
             </Badge>
-            <Badge variant="outline" className="text-[10px] border-hairline">
+            <Badge variant="outline" className="text-xs border-hairline px-2 py-1">
               {rows.length} ընդհանուր
             </Badge>
           </div>
           <div className="flex items-center gap-2">
             <Button
               variant={favoritesOnly ? "default" : "outline"}
-              size="sm"
-              className="h-7 gap-1.5 text-xs"
+              size="default"
+              className="h-9 gap-2 text-sm"
               onClick={() => setFavoritesOnly((v) => !v)}
               title="Ցույց տալ միայն հիմնական նշված ապրանքները"
             >
-              <Star className={`size-3.5 ${favoritesOnly ? "fill-current" : ""}`} />
+              <Star className={`size-4 ${favoritesOnly ? "fill-current" : ""}`} />
               Միայն հիմնականները ({rows.filter((r) => r.isFavorite).length})
             </Button>
             <Button
               variant="outline"
-              size="sm"
-              className="h-7 gap-1.5 text-xs"
+              size="default"
+              className="h-9 gap-2 text-sm"
               onClick={() => setShowSelectedOnly((v) => !v)}
             >
-              <Checkbox checked={showSelectedOnly} className="size-3" />
+              <Checkbox checked={showSelectedOnly} className="size-4" />
               Միայն ընտրվածները ({totals.selectedCount})
             </Button>
-            <Button variant="ghost" size="sm" className="h-7 gap-1.5 text-xs" onClick={reset}>
-              <RotateCcw className="size-3.5" /> Մաքրել
+            <Button variant="ghost" size="default" className="h-9 gap-2 text-sm" onClick={reset}>
+              <RotateCcw className="size-4" /> Մաքրել
             </Button>
           </div>
         </div>
         <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Որոնում՝ անուն, SKU…"
-            className="h-8 pl-8 text-xs focus-steel"
+            className="h-10 pl-10 text-sm focus-steel"
           />
         </div>
       </div>
 
-      {/* Grid — horizontally scrollable on narrow screens, nothing cut off */}
+      {/* Grid — wide layout, nothing cut off, large readable cells */}
       <div className="overflow-x-auto flex-1 min-h-0">
-        <div className="min-w-[820px]">
+        <div className="min-w-[1000px]">
           {/* Grid header */}
-          <div className="grid grid-cols-[36px_36px_minmax(220px,1fr)_80px_100px_100px_140px] gap-0 border-b border-hairline bg-muted/30 sticky top-0 z-10">
-            <div className="px-1.5 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-center">✓</div>
-            <div className="px-1.5 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-center">★</div>
-            <div className="px-2 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline">Ապրանք</div>
-            <div className="px-2 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-right">Միավոր</div>
-            <div className="px-2 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-right">Քանակ</div>
-            <div className="px-2 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-right">Մետրաժ</div>
-            <div className="px-2 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground text-right">Գին (դր)</div>
+          <div className="grid grid-cols-[44px_44px_minmax(280px,1fr)_100px_120px_120px_160px] gap-0 border-b border-hairline bg-muted/30 sticky top-0 z-10">
+            <div className="px-2 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-center">✓</div>
+            <div className="px-2 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-center">★</div>
+            <div className="px-3 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline">Ապրանք</div>
+            <div className="px-2 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-right">Միավոր</div>
+            <div className="px-2 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-right">Քանակ</div>
+            <div className="px-2 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-right">Մետրաժ</div>
+            <div className="px-2 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground text-right">Գին (դր)</div>
           </div>
 
           {/* Rows */}
-          <div className="overflow-y-auto" style={{ maxHeight: embedded ? "calc(92vh - 280px)" : "400px" }}>
+          <div className="overflow-y-auto" style={{ maxHeight: embedded ? "calc(95vh - 320px)" : "600px" }}>
             {isLoading && (
-              <div className="p-6 text-center text-xs text-muted-foreground">Բեռնվում է…</div>
+              <div className="p-8 text-center text-sm text-muted-foreground">Բեռնվում է…</div>
             )}
             {!isLoading && visibleRows.length === 0 && (
-              <div className="p-6 text-center text-xs text-muted-foreground">
+              <div className="p-8 text-center text-sm text-muted-foreground">
                 {search ? "Որոնման արդյունքներ չկան" : "Ապրանքներ չկան"}
               </div>
             )}
@@ -280,53 +280,53 @@ export function QuickFillPanel({
               return (
                 <div
                   key={r.productId}
-                  className={`grid grid-cols-[36px_36px_minmax(220px,1fr)_80px_100px_100px_140px] gap-0 border-b border-hairline hover:bg-muted/20 transition-colors ${
+                  className={`grid grid-cols-[44px_44px_minmax(280px,1fr)_100px_120px_120px_160px] gap-0 border-b border-hairline hover:bg-muted/20 transition-colors ${
                     r.selected ? "bg-primary/5" : ""
                   } ${isQuickFill ? "border-l-2 border-l-primary/40" : ""} ${r.isFavorite ? "bg-status-yellow/5" : ""}`}
                 >
                   {/* Checkbox */}
-                  <div className="px-1.5 py-2 border-r border-hairline flex items-center justify-center">
+                  <div className="px-2 py-2.5 border-r border-hairline flex items-center justify-center">
                     <Checkbox
                       checked={r.selected}
                       onCheckedChange={(v) => updateRow(absIdx, { selected: !!v })}
-                      className="size-3.5"
+                      className="size-4"
                     />
                   </div>
                   {/* Star (favorite toggle) */}
-                  <div className="px-1.5 py-2 border-r border-hairline flex items-center justify-center">
+                  <div className="px-2 py-2.5 border-r border-hairline flex items-center justify-center">
                     <button
                       onClick={() => favMutation.mutate({ productId: r.productId, isFavorite: !r.isFavorite })}
-                      className={`text-base leading-none hover:scale-125 transition-transform ${r.isFavorite ? "" : "text-muted-foreground/40 hover:text-status-yellow"}`}
+                      className={`text-lg leading-none hover:scale-125 transition-transform ${r.isFavorite ? "" : "text-muted-foreground/40 hover:text-status-yellow"}`}
                       title={r.isFavorite ? "Հանել հիմնականներից" : "Նշել որպես հիմնական"}
                     >
                       {r.isFavorite ? "⭐" : "☆"}
                     </button>
                   </div>
                   {/* Name + SKU */}
-                  <div className="px-2 py-2 border-r border-hairline min-w-0">
-                    <div className="text-xs font-medium truncate flex items-center gap-1.5">
-                      {isQuickFill && <span className="size-1.5 rounded-full bg-primary shrink-0" />}
+                  <div className="px-3 py-2.5 border-r border-hairline min-w-0">
+                    <div className="text-sm font-medium truncate flex items-center gap-2">
+                      {isQuickFill && <span className="size-2 rounded-full bg-primary shrink-0" />}
                       {r.name}
                     </div>
-                    <div className="text-[10px] text-muted-foreground font-mono">{r.sku}</div>
+                    <div className="text-xs text-muted-foreground font-mono mt-0.5">{r.sku}</div>
                   </div>
                   {/* Unit */}
-                  <div className="px-2 py-2 border-r border-hairline text-right">
-                    <span className="text-xs text-muted-foreground">{r.unitSymbol}</span>
+                  <div className="px-2 py-2.5 border-r border-hairline text-right">
+                    <span className="text-sm text-muted-foreground">{r.unitSymbol}</span>
                   </div>
                   {/* Qty — always enabled */}
-                  <div className="px-1.5 py-1.5 border-r border-hairline">
+                  <div className="px-2 py-2 border-r border-hairline">
                     <Input
                       type="number"
                       min={0}
                       value={r.qty || ""}
                       onChange={(e) => updateRow(absIdx, { qty: Number(e.target.value) || 0, selected: r.selected || !!e.target.value })}
                       placeholder="0"
-                      className="h-7 text-xs text-right tabular-nums px-1.5 focus-steel"
+                      className="h-9 text-sm text-right tabular-nums px-2 focus-steel"
                     />
                   </div>
                   {/* Meterage — always enabled, even for piece items */}
-                  <div className="px-1.5 py-1.5 border-r border-hairline">
+                  <div className="px-2 py-2 border-r border-hairline">
                     <Input
                       type="number"
                       min={0}
@@ -334,23 +334,23 @@ export function QuickFillPanel({
                       value={r.meterage || ""}
                       onChange={(e) => updateRow(absIdx, { meterage: Number(e.target.value) || 0, selected: r.selected || !!e.target.value })}
                       placeholder="0.00"
-                      className={`h-7 text-xs text-right tabular-nums px-1.5 focus-steel ${!r.useMeterage ? "bg-muted/20" : ""}`}
+                      className={`h-9 text-sm text-right tabular-nums px-2 focus-steel ${!r.useMeterage ? "bg-muted/20" : ""}`}
                     />
                   </div>
                   {/* Price */}
-                  <div className="px-1.5 py-1.5 relative">
+                  <div className="px-2 py-2 relative">
                     <Input
                       type="number"
                       min={0}
                       value={r.unitPrice || ""}
                       onChange={(e) => updateRow(absIdx, { unitPrice: Number(e.target.value) || 0, selected: r.selected || !!e.target.value })}
                       placeholder="0"
-                      className={`h-7 text-xs text-right tabular-nums px-1.5 focus-steel ${
+                      className={`h-9 text-sm text-right tabular-nums px-2 focus-steel ${
                         priceChanged ? "border-status-yellow/50 bg-status-yellow/5" : ""
                       }`}
                     />
                     {priceChanged && (
-                      <div className="absolute -bottom-0.5 right-1 text-[9px] text-status-yellow font-medium" title={`Բնօրինակ՝ ${fmt(r.salePriceOriginal)} դր`}>
+                      <div className="absolute -bottom-0.5 right-2 text-[10px] text-status-yellow font-medium" title={`Բնօրինակ՝ ${fmt(r.salePriceOriginal)} դր`}>
                         ↑{fmt(r.salePriceOriginal)}
                       </div>
                     )}
@@ -364,32 +364,32 @@ export function QuickFillPanel({
 
       {/* Footer — totals (hidden when embedded, parent shows its own footer) */}
       {!embedded && (
-        <div className="border-t-2 border-primary/30 bg-primary/5 p-3">
-          <div className="grid grid-cols-4 gap-3">
-            <div className="space-y-0.5">
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Ընտրված</div>
-              <div className="text-sm font-semibold tabular-nums">{totals.selectedCount} ապրանք</div>
+        <div className="border-t-2 border-primary/30 bg-primary/5 p-4">
+          <div className="grid grid-cols-4 gap-4">
+            <div className="space-y-1">
+              <div className="text-xs uppercase tracking-wider text-muted-foreground">Ընտրված</div>
+              <div className="text-lg font-semibold tabular-nums">{totals.selectedCount} ապրանք</div>
             </div>
-            <div className="space-y-0.5">
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Քանակ</div>
-              <div className="text-sm font-semibold tabular-nums">{fmt(totals.totalQty)} հատ</div>
+            <div className="space-y-1">
+              <div className="text-xs uppercase tracking-wider text-muted-foreground">Քանակ</div>
+              <div className="text-lg font-semibold tabular-nums">{fmt(totals.totalQty)} հատ</div>
             </div>
-            <div className="space-y-0.5">
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Մետրաժ</div>
-              <div className="text-sm font-semibold tabular-nums">{fmt(totals.totalMeterage)} մ</div>
+            <div className="space-y-1">
+              <div className="text-xs uppercase tracking-wider text-muted-foreground">Մետրաժ</div>
+              <div className="text-lg font-semibold tabular-nums">{fmt(totals.totalMeterage)} մ</div>
             </div>
-            <div className="space-y-0.5">
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                <Calculator className="size-3" /> Ընդհանուր
+            <div className="space-y-1">
+              <div className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                <Calculator className="size-3.5" /> Ընդհանուր
               </div>
-              <div className="text-base font-bold tabular-nums text-primary">
+              <div className="text-xl font-bold tabular-nums text-primary">
                 {fmt(totals.totalAmount)} դր
               </div>
             </div>
           </div>
           {totals.priceChanges > 0 && (
-            <div className="mt-2 pt-2 border-t border-hairline flex items-center gap-2 text-[11px] text-status-yellow">
-              <TrendingUp className="size-3.5" />
+            <div className="mt-3 pt-2 border-t border-hairline flex items-center gap-2 text-sm text-status-yellow">
+              <TrendingUp className="size-4" />
               <span>
                 <strong>{totals.priceChanges}</strong> ապրանքի գինը փոխվել է — կպահպանվի կատալոգում պատվերը հաստատելիս
               </span>
