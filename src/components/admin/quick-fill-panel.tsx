@@ -245,45 +245,44 @@ export function QuickFillPanel({
         </div>
       </div>
 
-      {/* Grid — wide layout, nothing cut off, large readable cells */}
-      <div className="overflow-x-auto flex-1 min-h-0">
-        <div className="min-w-[1000px]">
-          {/* Grid header */}
-          <div className="grid grid-cols-[44px_44px_minmax(280px,1fr)_100px_120px_120px_160px] gap-0 border-b border-hairline bg-muted/30 sticky top-0 z-10">
-            <div className="px-2 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-center">✓</div>
-            <div className="px-2 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-center">★</div>
-            <div className="px-3 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline">Ապրանք</div>
-            <div className="px-2 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-right">Միավոր</div>
-            <div className="px-2 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-right">Քանակ</div>
-            <div className="px-2 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-right">Մետրաժ</div>
-            <div className="px-2 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground text-right">Գին (դր)</div>
-          </div>
+      {/* Grid — full width, no horizontal scroll, responsive columns */}
+      <div className="flex-1 min-h-0 overflow-hidden">
+        {/* Grid header */}
+        <div className="grid grid-cols-[44px_44px_1fr_70px_90px_90px_120px] gap-0 border-b border-hairline bg-muted/30 sticky top-0 z-10">
+          <div className="px-2 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-center">✓</div>
+          <div className="px-2 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-center">★</div>
+          <div className="px-3 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline">Ապրանք</div>
+          <div className="px-2 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-right">Միավ.</div>
+          <div className="px-2 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-right">Քանակ</div>
+          <div className="px-2 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-right">Մետրաժ</div>
+          <div className="px-2 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground text-right">Գին (դր)</div>
+        </div>
 
-          {/* Rows */}
-          <div className="overflow-y-auto" style={{ maxHeight: embedded ? "calc(95vh - 320px)" : "600px" }}>
-            {isLoading && (
-              <div className="p-8 text-center text-sm text-muted-foreground">Բեռնվում է…</div>
-            )}
-            {!isLoading && visibleRows.length === 0 && (
-              <div className="p-8 text-center text-sm text-muted-foreground">
-                {search ? "Որոնման արդյունքներ չկան" : "Ապրանքներ չկան"}
-              </div>
-            )}
-            {visibleRows.map((r) => {
-              // Find absolute index in rows array
-              const absIdx = rows.findIndex((x) => x.productId === r.productId);
-              // If meterage > 0 use it, else qty
-              const qtyForCalc = r.meterage > 0 ? r.meterage : r.qty;
-              const lineTotal = qtyForCalc * r.unitPrice;
-              const isQuickFill = r.sku.startsWith("QF-");
-              const priceChanged = r.unitPrice !== r.salePriceOriginal;
-              return (
-                <div
-                  key={r.productId}
-                  className={`grid grid-cols-[44px_44px_minmax(280px,1fr)_100px_120px_120px_160px] gap-0 border-b border-hairline hover:bg-muted/20 transition-colors ${
-                    r.selected ? "bg-primary/5" : ""
-                  } ${isQuickFill ? "border-l-2 border-l-primary/40" : ""} ${r.isFavorite ? "bg-status-yellow/5" : ""}`}
-                >
+        {/* Rows */}
+        <div className="overflow-y-auto" style={{ maxHeight: embedded ? "calc(95vh - 380px)" : "600px" }}>
+          {isLoading && (
+            <div className="p-8 text-center text-sm text-muted-foreground">Բեռնվում է…</div>
+          )}
+          {!isLoading && visibleRows.length === 0 && (
+            <div className="p-8 text-center text-sm text-muted-foreground">
+              {search ? "Որոնման արդյունքներ չկան" : "Ապրանքներ չկան"}
+            </div>
+          )}
+          {visibleRows.map((r) => {
+            // Find absolute index in rows array
+            const absIdx = rows.findIndex((x) => x.productId === r.productId);
+            // If meterage > 0 use it, else qty
+            const qtyForCalc = r.meterage > 0 ? r.meterage : r.qty;
+            const lineTotal = qtyForCalc * r.unitPrice;
+            const isQuickFill = r.sku.startsWith("QF-");
+            const priceChanged = r.unitPrice !== r.salePriceOriginal;
+            return (
+              <div
+                key={r.productId}
+                className={`grid grid-cols-[44px_44px_1fr_70px_90px_90px_120px] gap-0 border-b border-hairline hover:bg-muted/20 transition-colors ${
+                  r.selected ? "bg-primary/5" : ""
+                } ${isQuickFill ? "border-l-2 border-l-primary/40" : ""} ${r.isFavorite ? "bg-status-yellow/5" : ""}`}
+              >
                   {/* Checkbox */}
                   <div className="px-2 py-2.5 border-r border-hairline flex items-center justify-center">
                     <Checkbox
@@ -359,7 +358,6 @@ export function QuickFillPanel({
               );
             })}
           </div>
-        </div>
       </div>
 
       {/* Footer — totals (hidden when embedded, parent shows its own footer) */}

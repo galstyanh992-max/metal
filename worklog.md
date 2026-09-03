@@ -627,3 +627,51 @@ Stage Summary:
 - All cells, headers, and inputs use larger font/padding
 - Dialog fills 98% of viewport width (up to 1600px) and 95% of height
 - 3 products currently marked as ⭐ favorites (Լամին, Կլիպս, Ադապտեր 60-70) — shown at top
+
+---
+Task ID: P30
+Agent: main (continuation)
+Task: Fix Client create dialog — inline order entry + remove horizontal scroll from Quick-Fill
+
+Work Log:
+1. **Rewrote ClientCreateDialog** (client-create-dialog.tsx):
+   - Made dialog full-width: max-w-[1400px] w-[96vw] max-h-[94vh]
+   - Two-step flow:
+     - Step 1: Fill client info → click "Ստեղծել հաճախորդ" (works now, properly triggers mutation)
+     - Step 2: Client created → order section appears automatically (showOrderSection = true)
+   - Order section inside the same dialog (no separate modal):
+     - Shows confirmation banner "Ստեղծված է" in header
+     - Client name + phone displayed
+     - Payment method toggle (Պարտք / Առձեռն / Փոխանցում)
+     - "Պահպանել գները" checkbox
+     - Inline QuickFillPanel embedded (same as in Գրանցել Պատվեր dialog)
+     - Footer shows live totals + "Ստեղծել պատվեր (N)" button
+   - After client is created, all client fields become disabled (read-only)
+   - Toggle "Փակել պատվերի բաժինը" / "Բացել պատվերի բաժինը" to collapse order section
+   - "Ավարտել" button to close without order
+   - Fixed: button onClick now properly awaits mutation (was not awaiting before)
+
+2. **Removed horizontal scroll from Quick-Fill panel** (quick-fill-panel.tsx):
+   - Removed `min-w-[1000px]` constraint
+   - Removed outer `overflow-x-auto` wrapper
+   - Changed grid template from fixed widths to `1fr` for the Ապրանք column
+   - New grid: `44px 44px 1fr 70px 90px 90px 120px` (uses available width)
+   - Header text shortened: "Միավոր" → "Միավ.", "Ապրանք" stays full
+   - Now fits any screen width ≥ 600px without horizontal scrolling
+
+Verification results (2026-09-03):
+- ✅ Clicked "Նոր հաճախորդ" → dialog opens (1400px wide, 94vh tall)
+- ✅ Filled Անուն/Ազգանուն/Հեռախոս → click "Ստեղծել հաճախորդ"
+- ✅ Client created successfully → header shows "Ստեղծված է" badge
+- ✅ Order section auto-opened with Պարտք/Առձեռն/Փոխանցում toggle
+- ✅ Inline QuickFillPanel visible with all 104 products
+- ✅ Products sorted with ⭐ favorites first (Լամին with price 800)
+- ✅ Horizontal scroll check: hasHScroll = false (no horizontal scroll!)
+- ✅ Production deployed to https://arm-roll-erp.vercel.app
+- ✅ Screenshots: client-create-new.png, client-create-with-order-section.png
+
+Stage Summary:
+- Client creation now actually works (button properly triggers mutation)
+- After client created, can immediately register order in the same dialog (no separate modal)
+- Quick-Fill panel uses full width without horizontal scrolling
+- All client fields become read-only after creation to prevent accidental edits
