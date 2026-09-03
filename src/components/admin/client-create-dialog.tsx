@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, User, Building2, Zap, ChevronDown, ChevronRight } from "lucide-react";
+import { Loader2, User, Building2, ChevronDown, ChevronRight } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { QuickFillPanel, quickFillRowsToOrderItems, type QuickFillRow, type QuickFillTotals } from "./quick-fill-panel";
@@ -24,8 +24,8 @@ export function ClientCreateDialog({ open, onClose, onCreated }: { open: boolean
   const [preferredChannel, setPreferredChannel] = useState("whatsapp");
   const [creditLimit, setCreditLimit] = useState("0");
 
-  // Inline Quick-Fill for new order
-  const [showOrderSection, setShowOrderSection] = useState(false);
+  // Inline Quick-Fill for new order — open by default
+  const [showOrderSection, setShowOrderSection] = useState(true);
   const [paymentMethod, setPaymentMethod] = useState<"debt" | "cash" | "transfer">("debt");
   const [savePrices, setSavePrices] = useState(true);
   const [rows, setRows] = useState<QuickFillRow[]>([]);
@@ -93,43 +93,43 @@ export function ClientCreateDialog({ open, onClose, onCreated }: { open: boolean
         preferredChannel,
         creditLimit: Number(creditLimit) || 0,
       });
-      setCreatedClientId(data.client.id);
+      const newClientId = data.client.id;
+      setCreatedClientId(newClientId);
       toast.success("Հաճախորդը ստեղծված է");
       qc.invalidateQueries({ queryKey: ["clients"] });
 
-      // Auto-open order section
-      setShowOrderSection(true);
+      // If user has selected products, create order immediately
+      const orderItems = quickFillRowsToOrderItems(rows);
+      if (orderItems.length > 0 && showOrderSection) {
+        try {
+          const orderData: any = await createOrderMutation.mutateAsync({
+            clientId: newClientId,
+            items: orderItems,
+            savePrices,
+            paymentMethod,
+          });
+          const msg = orderData?.priceUpdates > 0
+            ? `Հաճախորդ և պատվեր ստեղծված են · ${orderData.priceUpdates} գին պահպանված է`
+            : "Հաճախորդ և պատվեր ստեղծված են";
+          toast.success(msg);
+          qc.invalidateQueries({ queryKey: ["orders"] });
+          reset();
+          onCreated?.();
+          onClose();
+        } catch (e: any) {
+          // Order failed but client was created — keep dialog open so user can retry
+          console.error("Order creation failed:", e);
+        }
+      } else {
+        // No order items — just close or keep open showing client created
+        // Stay open so user can fill order if they want
+      }
     } catch (e: any) {
       // toast already shown in onError
     }
   };
 
-  const submitOrder = async () => {
-    if (!createdClientId) { toast.error("Նախ ստեղծեք հաճախորդը"); return; }
-    const orderItems = quickFillRowsToOrderItems(rows);
-    if (orderItems.length === 0) {
-      toast.error("Լցրեք քանակ կամ մետրաժ առնվազն մեկ ապրանքի համար");
-      return;
-    }
-    try {
-      const data: any = await createOrderMutation.mutateAsync({
-        clientId: createdClientId,
-        items: orderItems,
-        savePrices,
-        paymentMethod,
-      });
-      const msg = data?.priceUpdates > 0
-        ? `Պատվերը ստեղծված է · ${data.priceUpdates} գին պահպանված է`
-        : "Պատվերը ստեղծված է";
-      toast.success(msg);
-      qc.invalidateQueries({ queryKey: ["orders"] });
-      reset();
-      onCreated?.();
-      onClose();
-    } catch (e: any) {
-      // toast already shown in onError
-    }
-  };
+  // (single submit() handles both client + order creation)
 
   const clientName = createdClientId
     ? (type === "COMPANY" ? companyName : `${firstName} ${lastName}`)
@@ -137,7 +137,7 @@ export function ClientCreateDialog({ open, onClose, onCreated }: { open: boolean
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-[1400px] w-[96vw] max-h-[94vh] overflow-hidden flex flex-col p-0 gap-0">
+      <DialogContent className="max-w-[2200px] w-[99vw] max-h-[95vh] overflow-hidden flex flex-col p-0 gap-0">
         {/* Header */}
         <DialogHeader className="px-6 py-4 border-b border-hairline bg-card shrink-0">
           <DialogTitle className="flex items-center gap-2 text-lg">
@@ -242,84 +242,77 @@ export function ClientCreateDialog({ open, onClose, onCreated }: { open: boolean
               </Select>
             </div>
 
-            {/* Order section — collapsible, shown after client is created */}
+            {/* Order section — shown immediately (not after client creation) */}
             <div className="pt-4 border-t-2 border-primary/30">
-              {!createdClientId ? (
-                <div className="text-center py-6">
-                  <Button onClick={submit} disabled={createClientMutation.isPending} size="lg" className="bg-primary gap-2">
-                    {createClientMutation.isPending && <Loader2 className="size-5 animate-spin" />}
-                    Ստեղծել հաճախորդ
-                  </Button>
-                  <p className="mt-3 text-xs text-muted-foreground">
-                    Ստեղծեք հաճախորդը, այնուհետև այստեղ կկարողանաք մուտքագրել պատվերը
-                  </p>
-                </div>
-              ) : (
-                <>
-                  {/* Confirmation that client was created + order toggle */}
-                  <div className="flex items-center justify-between gap-3 mb-3">
-                    <div className="flex items-center gap-2">
+              <div className="flex items-center justify-between gap-3 mb-3">
+                <div className="flex items-center gap-2">
+                  {createdClientId ? (
+                    <>
                       <span className="text-xs uppercase tracking-wider text-muted-foreground">Հաճախորդ՝</span>
                       <span className="text-sm font-semibold">{clientName}</span>
                       <span className="text-xs text-muted-foreground">· {phone}</span>
+                    </>
+                  ) : (
+                    <span className="text-xs uppercase tracking-wider text-muted-foreground">
+                      Պատվերի մուտքագրում — կպահպանվի հաճախորդի ստեղծումից հետո
+                    </span>
+                  )}
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={() => setShowOrderSection((v) => !v)}
+                >
+                  {showOrderSection ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
+                  {showOrderSection ? "Փակել պատվերի բաժինը" : "Բացել պատվերի բաժինը"}
+                </Button>
+              </div>
+
+              {showOrderSection && (
+                <div className="space-y-3">
+                  {/* Payment method */}
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <Label className="text-xs uppercase tracking-wider text-muted-foreground">Վճարման եղանակ՝</Label>
+                    <div className="flex items-center gap-1 border border-hairline bg-card">
+                      {([
+                        { v: "debt", label: "Պարտք" },
+                        { v: "cash", label: "Առձեռն" },
+                        { v: "transfer", label: "Փոխանցում" },
+                      ] as const).map((opt) => (
+                        <button
+                          key={opt.v}
+                          type="button"
+                          onClick={() => setPaymentMethod(opt.v)}
+                          className={`px-4 py-2 text-sm font-medium transition-colors ${
+                            paymentMethod === opt.v
+                              ? "bg-primary text-primary-foreground"
+                              : "hover:bg-muted/40 text-muted-foreground"
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="gap-1.5"
-                      onClick={() => setShowOrderSection((v) => !v)}
-                    >
-                      {showOrderSection ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
-                      {showOrderSection ? "Փակել պատվերի բաժինը" : "Բացել պատվերի բաժինը"}
-                    </Button>
+                    <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={savePrices}
+                        onChange={(e) => setSavePrices(e.target.checked)}
+                        className="size-4 accent-primary"
+                      />
+                      <span>Պահպանել գները</span>
+                    </label>
                   </div>
 
-                  {showOrderSection && (
-                    <div className="space-y-3">
-                      {/* Payment method */}
-                      <div className="flex items-center gap-3 flex-wrap">
-                        <Label className="text-xs uppercase tracking-wider text-muted-foreground">Վճարման եղանակ՝</Label>
-                        <div className="flex items-center gap-1 border border-hairline bg-card">
-                          {([
-                            { v: "debt", label: "Պարտք" },
-                            { v: "cash", label: "Առձեռն" },
-                            { v: "transfer", label: "Փոխանցում" },
-                          ] as const).map((opt) => (
-                            <button
-                              key={opt.v}
-                              type="button"
-                              onClick={() => setPaymentMethod(opt.v)}
-                              className={`px-4 py-2 text-sm font-medium transition-colors ${
-                                paymentMethod === opt.v
-                                  ? "bg-primary text-primary-foreground"
-                                  : "hover:bg-muted/40 text-muted-foreground"
-                              }`}
-                            >
-                              {opt.label}
-                            </button>
-                          ))}
-                        </div>
-                        <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
-                          <input
-                            type="checkbox"
-                            checked={savePrices}
-                            onChange={(e) => setSavePrices(e.target.checked)}
-                            className="size-4 accent-primary"
-                          />
-                          <span>Պահպանել գները</span>
-                        </label>
-                      </div>
-
-                      {/* Quick Fill panel inline */}
-                      <div className="border border-hairline">
-                        <QuickFillPanel
-                          embedded
-                          onChange={(r, t) => { setRows(r); setTotals(t); }}
-                        />
-                      </div>
-                    </div>
-                  )}
-                </>
+                  {/* Quick Fill panel inline */}
+                  <div className="border border-hairline">
+                    <QuickFillPanel
+                      embedded
+                      onChange={(r, t) => { setRows(r); setTotals(t); }}
+                    />
+                  </div>
+                </div>
               )}
             </div>
           </div>
@@ -328,7 +321,7 @@ export function ClientCreateDialog({ open, onClose, onCreated }: { open: boolean
         {/* Footer */}
         <DialogFooter className="px-6 py-4 border-t border-hairline bg-card flex items-center justify-between gap-3 shrink-0">
           <div className="flex items-center gap-4 text-sm">
-            {createdClientId && showOrderSection && (
+            {showOrderSection && (
               <>
                 <span className="text-muted-foreground">Ընտրված՝ <strong className="text-foreground">{totals.selectedCount}</strong></span>
                 <span className="text-muted-foreground">Ընդհանուր՝ <strong className="text-primary text-base">{new Intl.NumberFormat("hy-AM").format(totals.totalAmount)} դր</strong></span>
@@ -338,20 +331,9 @@ export function ClientCreateDialog({ open, onClose, onCreated }: { open: boolean
           <div className="flex items-center gap-2">
             <Button variant="outline" size="lg" onClick={() => { reset(); onClose(); }}>Փակել</Button>
             {!createdClientId ? (
-              <Button onClick={submit} disabled={createClientMutation.isPending} size="lg" className="bg-primary gap-2">
-                {createClientMutation.isPending && <Loader2 className="size-5 animate-spin" />}
-                Ստեղծել հաճախորդ
-              </Button>
-            ) : showOrderSection ? (
-              <Button
-                onClick={submitOrder}
-                disabled={createOrderMutation.isPending || totals.selectedCount === 0}
-                size="lg"
-                className="bg-primary gap-2"
-              >
-                {createOrderMutation.isPending && <Loader2 className="size-5 animate-spin" />}
-                <Zap className="size-5" />
-                Ստեղծել պատվեր ({totals.selectedCount})
+              <Button onClick={submit} disabled={createClientMutation.isPending || createOrderMutation.isPending} size="lg" className="bg-primary gap-2">
+                {(createClientMutation.isPending || createOrderMutation.isPending) && <Loader2 className="size-5 animate-spin" />}
+                {totals.selectedCount > 0 ? "Ստեղծել հաճախորդ և պատվեր" : "Ստեղծել հաճախորդ"}
               </Button>
             ) : (
               <Button

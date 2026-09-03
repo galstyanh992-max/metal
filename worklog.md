@@ -675,3 +675,45 @@ Stage Summary:
 - After client created, can immediately register order in the same dialog (no separate modal)
 - Quick-Fill panel uses full width without horizontal scrolling
 - All client fields become read-only after creation to prevent accidental edits
+
+---
+Task ID: P31
+Agent: main (continuation)
+Task: Remove duplicate button + show order section immediately + make Quick-Fill dialog 2.5x wider
+
+Work Log:
+1. **Removed duplicate Ստեղծել հաճախորդ button** (client-create-dialog.tsx):
+   - Removed the button that was inside the body (showed only before client creation)
+   - Now only ONE button in footer — single source of action
+   - Removed unused submitOrder function (merged into submit)
+   - Removed unused Zap icon import
+
+2. **Order section visible immediately** (not after client creation):
+   - Changed initial state: `showOrderSection = true` (was false)
+   - Order section shows right away with payment toggle + Quick Fill panel
+   - Single "Ստեղծել հաճախորդ" button now creates BOTH client AND order if products selected
+   - If no products selected → only creates client
+   - Button text dynamically changes:
+     - "Ստեղծել հաճախորդ" (when no products selected)
+     - "Ստեղծել հաճախորդ և պատվեր" (when products selected)
+
+3. **Quick-Fill dialog 2.5x wider**:
+   - max-w-[1600px] → max-w-[2200px] (orders-module.tsx, client-create-dialog.tsx)
+   - w-[98vw] → w-[99vw]
+   - h-[95vh] → h-[97vh] (Quick-Fill) / max-h-[95vh] (Client create)
+   - **Critical fix**: removed `sm:max-w-lg` from Dialog UI component (was overriding our max-w-[2200px])
+     - Path: src/components/ui/dialog.tsx line 63
+     - Now max-w from className prop is respected
+
+Verification results (2026-09-03):
+- ✅ Only 1 "Ստեղծել հաճախորդ" button (verified via DOM count)
+- ✅ Order section (Պարտք/Առձեռն/Փոխանցում + Quick Fill panel) visible immediately on dialog open
+- ✅ Quick-Fill dialog width: 1267px = 99% of viewport (was 512px = 40%)
+- ✅ Production deployed to https://arm-roll-erp.vercel.app
+- ✅ Screenshots: client-create-single-button.png, quickfill-2x-wider-fixed.png
+
+Stage Summary:
+- Single action button — no duplicate confusion
+- Order can be filled in parallel with client info (one click creates both)
+- Quick-Fill dialog now uses full screen width (was constrained by shadcn Dialog default)
+- Client create dialog also uses full width

@@ -357,7 +357,7 @@ export function QuickFillOrderDialog({
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-[1600px] w-[98vw] h-[95vh] overflow-hidden flex flex-col p-0 gap-0">
+      <DialogContent className="max-w-[2200px] w-[99vw] h-[97vh] overflow-hidden flex flex-col p-0 gap-0">
         <DialogHeader className="px-6 py-4 border-b border-hairline bg-card shrink-0">
           <DialogTitle className="flex items-center gap-2 text-lg">
             <Zap className="size-5 text-primary" />
