@@ -137,7 +137,7 @@ export function ClientCreateDialog({ open, onClose, onCreated }: { open: boolean
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-[2200px] w-[99vw] max-h-[95vh] overflow-hidden flex flex-col p-0 gap-0">
+      <DialogContent className="max-w-[1600px] w-[70vw] max-h-[88vh] overflow-hidden flex flex-col p-0 gap-0">
         {/* Header */}
         <DialogHeader className="px-6 py-4 border-b border-hairline bg-card shrink-0">
           <DialogTitle className="flex items-center gap-2 text-lg">

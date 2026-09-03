@@ -357,13 +357,13 @@ export function QuickFillOrderDialog({
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-[2200px] w-[99vw] h-[97vh] overflow-hidden flex flex-col p-0 gap-0">
-        <DialogHeader className="px-6 py-4 border-b border-hairline bg-card shrink-0">
-          <DialogTitle className="flex items-center gap-2 text-lg">
-            <Zap className="size-5 text-primary" />
+      <DialogContent className="max-w-[1600px] w-[70vw] h-[88vh] overflow-hidden flex flex-col p-0 gap-0">
+        <DialogHeader className="px-6 py-3 border-b border-hairline bg-card shrink-0">
+          <DialogTitle className="flex items-center gap-2 text-base">
+            <Zap className="size-4 text-primary" />
             Արագ պատվեր — լցոնում
           </DialogTitle>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="text-xs text-muted-foreground mt-0.5">
             Նշեք ապրանքները, լցրեք քանակը / մետրաժը / գինը։ Գները կպահպանվեն կատալոգում պատվերը հաստատելիս։
           </p>
         </DialogHeader>
@@ -454,41 +454,41 @@ export function QuickFillOrderDialog({
         </div>
 
         {/* Footer (always visible) */}
-        <DialogFooter className="px-6 py-4 border-t-2 border-primary/30 bg-primary/5 flex items-center justify-between gap-4 shrink-0">
-          <div className="flex items-center gap-6 text-sm">
-            <div className="flex items-center gap-2">
+        <DialogFooter className="px-5 py-2.5 border-t-2 border-primary/30 bg-primary/5 flex items-center justify-between gap-3 shrink-0">
+          <div className="flex items-center gap-4 text-sm">
+            <div className="flex items-center gap-1.5">
               <span className="text-muted-foreground">Ընտրված՝</span>
-              <span className="font-semibold tabular-nums text-base">{totals.selectedCount}</span>
+              <span className="font-semibold tabular-nums text-sm">{totals.selectedCount}</span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <span className="text-muted-foreground">Քանակ՝</span>
-              <span className="font-semibold tabular-nums text-base">
+              <span className="font-semibold tabular-nums text-sm">
                 {new Intl.NumberFormat("hy-AM").format(totals.totalQty)} հատ
               </span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <span className="text-muted-foreground">Մետրաժ՝</span>
-              <span className="font-semibold tabular-nums text-base">
+              <span className="font-semibold tabular-nums text-sm">
                 {new Intl.NumberFormat("hy-AM").format(totals.totalMeterage)} մ
               </span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <span className="text-muted-foreground">Ընդհանուր՝</span>
-              <span className="font-bold tabular-nums text-primary text-lg">
+              <span className="font-bold tabular-nums text-primary text-base">
                 {new Intl.NumberFormat("hy-AM").format(totals.totalAmount)} դր
               </span>
             </div>
             {totals.priceChanges > 0 && (
-              <div className="text-status-yellow font-medium text-sm">
+              <div className="text-status-yellow font-medium text-xs">
                 Գնի փոփոխություն՝ {totals.priceChanges}
               </div>
             )}
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="lg" onClick={onClose}>Չեղարկել</Button>
-            <Button onClick={submit} size="lg" disabled={mutation.isPending || totals.selectedCount === 0} className="bg-primary gap-2">
-              {mutation.isPending && <Loader2 className="size-5 animate-spin" />}
-              <Zap className="size-5" />
+            <Button variant="outline" onClick={onClose}>Չեղարկել</Button>
+            <Button onClick={submit} disabled={mutation.isPending || totals.selectedCount === 0} className="bg-primary gap-2">
+              {mutation.isPending && <Loader2 className="size-4 animate-spin" />}
+              <Zap className="size-4" />
               Ստեղծել պատվեր ({totals.selectedCount})
             </Button>
           </div>

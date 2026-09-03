@@ -717,3 +717,65 @@ Stage Summary:
 - Order can be filled in parallel with client info (one click creates both)
 - Quick-Fill dialog now uses full screen width (was constrained by shadcn Dialog default)
 - Client create dialog also uses full width
+
+---
+Task ID: P32
+Agent: main (continuation)
+Task: Make Quick-Fill dialog 30% smaller + shorten labels + verify Supabase
+
+Work Log:
+1. **Supabase connection check**: ✅ Working
+   - 4 users, 104 products, 5 clients, 2 orders, 10 inventory movements
+   - Response time: 3.8 seconds for full count queries
+   - Connection: postgres@aws-0-ap-southeast-2.pooler.supabase.com:5432
+
+2. **Quick-Fill dialog 30% smaller** (orders-module.tsx + client-create-dialog.tsx):
+   - Width: max-w-[2200px] w-[99vw] → max-w-[1600px] w-[70vw] (~30% smaller)
+   - Height: h-[97vh] → h-[88vh]
+   - Header padding: px-6 py-4 → px-6 py-3, title text-lg → text-base
+   - Footer padding: px-6 py-4 → px-5 py-2.5
+   - Footer button sizes: size="lg" → default (smaller)
+   - Footer total amount: text-lg → text-base
+
+3. **Compact Quick-Fill panel** (quick-fill-panel.tsx):
+   - Toolbar padding: p-4 → p-2.5
+   - Toolbar title: text-lg → text-sm, icon size-5 → size-4
+   - Badges: "հիմնական" → "հիմն.", "ընդհանուր" → "ընդհ."
+   - Filter button labels shortened:
+     - "Միայն հիմնականները (N)" → "Հիմնական (N)"
+     - "Միայն ընտրվածները (N)" → "Ընտրված (N)"
+   - Search input: h-10 → h-8, text-sm → text-xs
+   - Grid columns reduced:
+     - Checkbox: 44px → 36px
+     - Star: 44px → 36px
+     - Unit: 70px → 60px
+     - Qty: 90px → 80px
+     - Meterage: 90px → 80px
+     - Price: 120px → 110px
+   - Header padding: py-3 → py-2.5, font text-[11px] → text-[10px]
+   - Row padding: py-2.5 → py-2
+   - Row name: text-sm → text-xs
+   - Row SKU: text-xs → text-[10px] with truncate to prevent overflow
+   - Input height: h-9 → h-7
+   - Star size: text-lg → text-sm
+   - Checkbox: size-4 → size-3.5
+
+4. **Header text shortened**:
+   - "Միավոր" → "Միավ." (saves ~25px per row)
+   - "Ապրանք" stays full (main content)
+
+Verification results (2026-09-03):
+- ✅ Supabase connection healthy: 3860ms response, all queries succeed
+- ✅ Dialog width: 896px = 70% viewport (was 99%, now 30% smaller)
+- ✅ Dialog height: 508px = 88% viewport
+- ✅ All product names visible (QF-LAMIN, QF-KLIPS, QF-BAKAVINA, IMP-071...)
+- ✅ All spinbutton inputs active (qty, meterage, price per row)
+- ✅ Production deployed to https://arm-roll-erp.vercel.app
+- ✅ Screenshots: quickfill-30pct-smaller.png
+
+Stage Summary:
+- Dialog 30% smaller — more space-efficient on screen
+- All product names visible without truncation
+- SKU codes visible per row
+- Toolbar/filter buttons shortened to fit smaller dialog
+- Supabase connection verified healthy (3860ms response time)
