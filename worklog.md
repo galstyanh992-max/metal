@@ -1054,3 +1054,68 @@ Stage Summary:
   - Auto-confirm executes WRITE_OFF from + RECEIVE to
 - All existing inventory movements have branchId=null (default branch)
 - All snapshot logic uses findFirst instead of upsert to handle composite unique
+
+---
+Task ID: P37
+Agent: main (continuation)
+Task: Add debtors table with client info, order details, debt tracking
+
+Work Log:
+1. **API endpoint /api/debts** (api/debts/route.ts):
+   - GET /api/debts — list all clients with outstanding debt (outstandingAmount > 0)
+   - For each debtor returns:
+     - id, type, name (firstName+lastName or companyName), phone, email, taxId
+     - totalDebt, totalPaid, totalOrdered, orderCount, oldestOrderDate
+     - orders: [{ id, number, status, createdAt, totalAmount, paidAmount, outstandingAmount, dueDate, note }]
+   - Filter out clients with 0 debt by default (?includeZero=true to show all)
+   - Sort: largest debt first
+   - Summary: debtorCount, totalDebt, totalPaid, totalOrdered
+
+2. **Built DebtsModule component** (debts-module.tsx):
+   - Header: "Պարտատերեր" + count + Excel export button
+   - 4 summary KPI cards:
+     - Պարտատերեր count (with AlertTriangle icon)
+     - Ընդհանուր պարտք (TrendingDown, red)
+     - Վճարված (TrendingUp, green)
+     - Ընդհանուր պատվերներ (Wallet, primary)
+   - Search field: filter by name/phone/email/taxId
+   - Main table (per client, expandable):
+     - Expand arrow (▼/▶)
+     - Հաճախորդ (name + type + taxId)
+     - Հեռախոս (phone)
+     - Պատվերներ (count)
+     - Վճարված (paid, green)
+     - Մնացորդ պարտք (debt, red bold)
+     - Order count badge
+   - When expanded: per-order table inside client:
+     - Պատվեր N (order number)
+     - Ամսաթիվ (creation date)
+     - Պատվերի գումար (total)
+     - Վճարված (paid)
+     - Մնացորդ (outstanding, red)
+     - Ժամկետ (due date)
+     - Կարգ. (status badge)
+   - Excel export: flattens to per-order rows with client+phone+type+order details
+
+3. **Added "Պարտատերեր" tab** (4th tab in clients-orders module):
+   - Tab button with TrendingDown icon
+   - Position: after Դարպասի Հաշվարկ, before Settings
+   - Action buttons (Excel/+ Նոր հաճախորդ/Գրանցել Պատվեր) hidden on this tab
+   - DebtsModule renders directly (no Clients/Orders table)
+   - Access: ADMIN, OPERATOR (via finance.view_debt permission)
+
+Verification results (2026-09-08):
+- ✅ 4 tabs visible: Հաճախորդներ 5 / Պատվերներ 2 / Դարպասի Հաշվարկ / Պարտատերեր
+- ✅ Click Պարտատերեր → shows "Պարտատերեր" heading + 1 debtor row
+- ✅ Debtor: Արամ Պողոսյան, Անհատ, 19,500 դր outstanding
+- ✅ Expand shows order: ORD-2026-0001, 29.08.2026, 19,500 total, 19,500 outstanding
+- ✅ API tested directly: 1 debtor with full order details
+- ✅ Production deployed to https://arm-roll-erp.vercel.app
+- ✅ Screenshot: download/debts-table.png
+
+Stage Summary:
+- Պարտատերեր table shows all clients with outstanding debt
+- Columns: Հաճախորդ (name), Հեռախոս (phone), Պատվերներ count, Վճարված, Մնացորդ պարտք
+- Expandable per client — shows individual orders with details
+- Excel export with per-order granularity
+- Live data from Supabase (1 debtor currently: Արամ Պողոսյան, 19,500 դր)

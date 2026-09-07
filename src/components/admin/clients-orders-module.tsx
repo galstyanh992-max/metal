@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Search, Users, ShoppingCart, Zap, FileSpreadsheet, Loader2, DoorOpen } from "lucide-react";
+import { Plus, Search, Users, ShoppingCart, Zap, FileSpreadsheet, Loader2, DoorOpen, TrendingDown } from "lucide-react";
 import { useState } from "react";
 import { ClientCreateDialog } from "./client-create-dialog";
 import { ClientDetailDrawer } from "./client-detail-drawer";
@@ -13,6 +13,7 @@ import { exportToExcel, fmtAMD, fmtDate } from "@/lib/export/excel";
 import { ModuleFooter, MODULE_FOOTERS } from "@/components/shared/module-footer";
 import { RolshutterCalculatorWithOrder } from "@/components/rolshutter/rolshutter-calculator-with-order";
 import { ErrorBoundary } from "@/components/shared/error-boundary";
+import { DebtsModule } from "./debts-module";
 
 async function fetchClients() {
   const res = await fetch("/api/clients");
@@ -52,7 +53,7 @@ const ORDER_STATUS_LABELS: Record<string, string> = {
 export function ClientsOrdersModule({ role }: { role: string }) {
   const { data: clientsData, isLoading: clientsLoading } = useQuery({ queryKey: ["clients"], queryFn: fetchClients });
   const { data: ordersData, isLoading: ordersLoading, refetch: refetchOrders } = useQuery({ queryKey: ["orders"], queryFn: fetchOrders });
-  const [tab, setTab] = useState<"clients" | "orders" | "rolshutter">("clients");
+  const [tab, setTab] = useState<"clients" | "orders" | "rolshutter" | "debts">("clients");
   const [search, setSearch] = useState("");
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
@@ -177,8 +178,15 @@ export function ClientsOrdersModule({ role }: { role: string }) {
             <DoorOpen className="size-4" />
             Դարպասի Հաշվարկ
           </button>
+          <button
+            onClick={() => setTab("debts")}
+            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${tab === "debts" ? "bg-primary text-primary-foreground" : "hover:bg-muted/40"}`}
+          >
+            <TrendingDown className="size-4" />
+            Պարտատերեր
+          </button>
         </div>
-        {role !== "WAREHOUSE" && tab !== "rolshutter" && (
+        {role !== "WAREHOUSE" && tab !== "rolshutter" && tab !== "debts" && (
           <div className="flex items-center gap-2">
             {tab === "clients" && (
               <Button
@@ -235,8 +243,11 @@ export function ClientsOrdersModule({ role }: { role: string }) {
         </div>
       )}
 
-      {/* Excel-like table — hidden on rolshutter tab */}
-      {tab !== "rolshutter" && (
+      {/* Debts tab */}
+      {tab === "debts" && <DebtsModule />}
+
+      {/* Excel-like table — hidden on rolshutter + debts tabs */}
+      {tab !== "rolshutter" && tab !== "debts" && (
       <div className="border border-hairline overflow-x-auto bg-card">
         {tab === "clients" ? (
           <>
