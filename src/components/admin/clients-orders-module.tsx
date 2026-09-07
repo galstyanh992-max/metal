@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Search, Users, ShoppingCart, Zap, FileSpreadsheet, Loader2 } from "lucide-react";
+import { Plus, Search, Users, ShoppingCart, Zap, FileSpreadsheet, Loader2, DoorOpen } from "lucide-react";
 import { useState } from "react";
 import { ClientCreateDialog } from "./client-create-dialog";
 import { ClientDetailDrawer } from "./client-detail-drawer";
@@ -11,6 +11,7 @@ import { OrderDetailDrawer } from "./order-detail-drawer";
 import { CreateOrderDialog, QuickFillOrderDialog } from "./orders-module";
 import { exportToExcel, fmtAMD, fmtDate } from "@/lib/export/excel";
 import { ModuleFooter, MODULE_FOOTERS } from "@/components/shared/module-footer";
+import { RolshutterCalculator } from "@/components/rolshutter/rolshutter-calculator";
 
 async function fetchClients() {
   const res = await fetch("/api/clients");
@@ -50,7 +51,7 @@ const ORDER_STATUS_LABELS: Record<string, string> = {
 export function ClientsOrdersModule({ role }: { role: string }) {
   const { data: clientsData, isLoading: clientsLoading } = useQuery({ queryKey: ["clients"], queryFn: fetchClients });
   const { data: ordersData, isLoading: ordersLoading, refetch: refetchOrders } = useQuery({ queryKey: ["orders"], queryFn: fetchOrders });
-  const [tab, setTab] = useState<"clients" | "orders">("clients");
+  const [tab, setTab] = useState<"clients" | "orders" | "rolshutter">("clients");
   const [search, setSearch] = useState("");
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
@@ -168,8 +169,15 @@ export function ClientsOrdersModule({ role }: { role: string }) {
             Պատվերներ
             <span className="text-xs tabular-nums opacity-70">{orders.length}</span>
           </button>
+          <button
+            onClick={() => setTab("rolshutter")}
+            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${tab === "rolshutter" ? "bg-primary text-primary-foreground" : "hover:bg-muted/40"}`}
+          >
+            <DoorOpen className="size-4" />
+            Դարպասի Հաշվարկ
+          </button>
         </div>
-        {role !== "WAREHOUSE" && (
+        {role !== "WAREHOUSE" && tab !== "rolshutter" && (
           <div className="flex items-center gap-2">
             {tab === "clients" && (
               <Button
@@ -217,7 +225,15 @@ export function ClientsOrdersModule({ role }: { role: string }) {
         </div>
       </div>
 
-      {/* Excel-like table */}
+      {/* Rolshutter calculator tab */}
+      {tab === "rolshutter" && (
+        <div className="border border-hairline bg-card p-4">
+          <RolshutterCalculator />
+        </div>
+      )}
+
+      {/* Excel-like table — hidden on rolshutter tab */}
+      {tab !== "rolshutter" && (
       <div className="border border-hairline overflow-x-auto bg-card">
         {tab === "clients" ? (
           <>
@@ -311,6 +327,7 @@ export function ClientsOrdersModule({ role }: { role: string }) {
           </>
         )}
       </div>
+      )}
 
       {/* Drawers */}
       <ClientCreateDialog open={createClientOpen} onClose={() => setCreateClientOpen(false)} />
