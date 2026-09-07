@@ -40,10 +40,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ product
     const { userId } = await requireAction("inventory.adjust");
     const { productId } = await params;
     const body = await req.json();
-    const { type, qty, note } = body as {
+    const { type, qty, note, branchId } = body as {
       type: "RECEIVE" | "WRITE_OFF" | "ADJUSTMENT";
       qty: number;
       note?: string;
+      branchId?: string;
     };
 
     if (!type || !["RECEIVE", "WRITE_OFF", "ADJUSTMENT"].includes(type)) {
@@ -63,6 +64,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ product
       byUserId: userId,
       refType: "MANUAL",
       note: note ?? `${type} via Պահեստ module`,
+      branchId,
     });
 
     if (!result.ok) {

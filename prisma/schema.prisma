@@ -196,6 +196,69 @@ model Unit {
   products  Product[]
 }
 
+// =============================================================
+// BRANCHES — multiple warehouse locations
+// =============================================================
+
+model Branch {
+  id        String   @id @default(cuid())
+  code      String   @unique // "main" | "branch-2" | etc
+  name      String   // Armenian display name
+  address   String?
+  phone     String?
+  active    Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  inventoryMovements InventoryMovement[]
+  inventorySnapshots InventorySnapshot[]
+  transfersFrom      Transfer[] @relation("TransferFrom")
+  transfersTo        Transfer[] @relation("TransferTo")
+
+  @@index([active])
+}
+
+// =============================================================
+// TRANSFERS — move stock between branches
+// =============================================================
+
+model Transfer {
+  id            String   @id @default(cuid())
+  number        String   @unique // TR-2026-0001
+  fromBranchId  String
+  toBranchId    String
+  status        String   @default("DRAFT") // DRAFT | IN_TRANSIT | RECEIVED | CANCELLED
+  totalAmount   Int      @default(0)
+  note          String?
+  createdBy      String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  receivedAt    DateTime?
+
+  fromBranch    Branch   @relation("TransferFrom", fields: [fromBranchId], references: [id])
+  toBranch      Branch   @relation("TransferTo", fields: [toBranchId], references: [id])
+  items         TransferItem[]
+
+  @@index([fromBranchId])
+  @@index([toBranchId])
+  @@index([status])
+}
+
+model TransferItem {
+  id          String   @id @default(cuid())
+  transferId  String
+  productId   String
+  qty         Int
+  unitPrice   Int      @default(0)
+  total       Int      @default(0)
+  productName String   // snapshot
+
+  transfer    Transfer @relation(fields: [transferId], references: [id], onDelete: Cascade)
+  product     Product  @relation(fields: [productId], references: [id])
+
+  @@index([transferId])
+}
+
 model Product {
   id              String   @id @default(cuid())
   sku             String   @unique
@@ -221,9 +284,11 @@ model Product {
   suppliers       ProductSupplier[]
   priceHistory    ProductPriceHistory[]
   inventoryMovements InventoryMovement[]
+  inventorySnapshots InventorySnapshot[]
   bomComponents   BomRule[]   @relation("BomComponent")
   orderItems      OrderItem[]
   purchaseOrderItems PurchaseOrderItem[]
+  transferItems   TransferItem[]
 
   @@index([categoryId])
   @@index([unitId])
@@ -429,27 +494,37 @@ model InventoryMovement {
   productId  String
   type       MovementType
   qty        Int          // positive for additions, negative for issues (we'll store absolute + sign via type)
-  refType    String?      // "ORDER" | "PURCHASE_ORDER" | "MANUAL"
+  refType    String?      // "ORDER" | "PURCHASE_ORDER" | "MANUAL" | "TRANSFER"
   refId      String?
   lot        String?
   note       String?
   byUserId   String
+  branchId   String?
   createdAt  DateTime     @default(now())
 
   product    Product      @relation(fields: [productId], references: [id])
   byUser     User         @relation(fields: [byUserId], references: [id])
+  branch     Branch?      @relation(fields: [branchId], references: [id])
 
   @@index([productId, type, createdAt])
   @@index([refType, refId])
+  @@index([branchId])
 }
 
 // Derived snapshot (NOT authoritative — recomputed from movements)
 model InventorySnapshot {
   id        String   @id @default(cuid())
-  productId String   @unique
+  productId String
+  branchId  String?
   onHand    Int      @default(0)
   reserved  Int      @default(0)
   updatedAt DateTime @updatedAt
+
+  product   Product  @relation(fields: [productId], references: [id])
+  branch    Branch?  @relation(fields: [branchId], references: [id])
+
+  @@unique([productId, branchId])
+  @@index([branchId])
 }
 
 // =============================================================

@@ -47,13 +47,22 @@ export async function computeInventoryState(productId: string): Promise<Inventor
   };
 }
 
-export async function refreshSnapshot(productId: string): Promise<void> {
+export async function refreshSnapshot(productId: string, branchId?: string): Promise<void> {
   const state = await computeInventoryState(productId);
-  await db.inventorySnapshot.upsert({
-    where: { productId },
-    update: { onHand: state.onHand, reserved: state.reserved, updatedAt: new Date() },
-    create: { productId, onHand: state.onHand, reserved: state.reserved },
+  // Find existing snapshot for this (productId, branchId) combo
+  const existing = await db.inventorySnapshot.findFirst({
+    where: { productId, branchId: branchId ?? null },
   });
+  if (existing) {
+    await db.inventorySnapshot.update({
+      where: { id: existing.id },
+      data: { onHand: state.onHand, reserved: state.reserved, updatedAt: new Date() },
+    });
+  } else {
+    await db.inventorySnapshot.create({
+      data: { productId, branchId: branchId ?? null, onHand: state.onHand, reserved: state.reserved },
+    });
+  }
 }
 
 /**
@@ -67,8 +76,9 @@ export async function recordMovement(params: {
   refType?: string;
   refId?: string;
   note?: string;
+  branchId?: string;
 }): Promise<{ ok: boolean; error?: string }> {
-  const { productId, type, qty, byUserId, refType, refId, note } = params;
+  const { productId, type, qty, byUserId, refType, refId, note, branchId } = params;
   if (qty <= 0) return { ok: false, error: "qty must be positive" };
 
   return await db.$transaction(async (tx) => {
@@ -105,16 +115,25 @@ export async function recordMovement(params: {
         refType: refType ?? null,
         refId: refId ?? null,
         note: note ?? null,
+        branchId: branchId ?? null,
       },
     });
 
-    // refresh snapshot
+    // refresh snapshot (find or create by productId + branchId)
     const newState = await computeInventoryState(productId);
-    await tx.inventorySnapshot.upsert({
-      where: { productId },
-      update: { onHand: newState.onHand, reserved: newState.reserved, updatedAt: new Date() },
-      create: { productId, onHand: newState.onHand, reserved: newState.reserved },
+    const existingSnap = await tx.inventorySnapshot.findFirst({
+      where: { productId, branchId: branchId ?? null },
     });
+    if (existingSnap) {
+      await tx.inventorySnapshot.update({
+        where: { id: existingSnap.id },
+        data: { onHand: newState.onHand, reserved: newState.reserved, updatedAt: new Date() },
+      });
+    } else {
+      await tx.inventorySnapshot.create({
+        data: { productId, branchId: branchId ?? null, onHand: newState.onHand, reserved: newState.reserved },
+      });
+    }
 
     // check low stock
     const product = await tx.product.findUnique({ where: { id: productId } });

@@ -955,3 +955,102 @@ Stage Summary:
 - Categories API supports both soft-delete (archive) and hard-delete (when no products)
 - All category operations audit-logged
 - Fixed infinite loop issue in calculator's useEffect (React error #185) using useRef comparison
+
+---
+Task ID: P36
+Agent: main (continuation)
+Task: Add 4 branches to Պահեստ + implement transfer between branches
+
+Work Log:
+1. **Prisma schema updated** (schema.prisma):
+   - Added Branch model (id, code, name, address, phone, active, sortOrder)
+   - Added Transfer + TransferItem models for stock movements between branches
+   - Added branchId to InventoryMovement (optional — backward compatible)
+   - Changed InventorySnapshot.productId from @unique to @@unique([productId, branchId])
+   - Added branchId to InventorySnapshot
+   - Added transferItems relation to Product
+   - Fixed relation names (transfersFrom, transfersTo) to avoid ambiguity
+
+2. **Prisma db push** — applied to Supabase successfully (no data loss except old unique constraint)
+   - Cleared InventorySnapshot table (10 records) to avoid duplicates
+
+3. **Seeded 4 default branches** (scripts/seed-branches.ts):
+   - Գլխավոր պահեստ (main) — Ереван, главный офис
+   - Ֆիլիալ 2 — Մալաթիա (branch-2) — Ереван, Малатia-Себаstia
+   - Ֆիլիալ 3 — Արաբկիր (branch-3) — Ереван, Арабкир
+   - Ֆիլիալ 4 — Էրեբունի (branch-4) — Ереван, Эребуни
+   - Each with phone + address
+
+4. **API endpoints**:
+   - GET /api/branches — list all active branches (with _count)
+   - POST /api/branches — create new branch (ADMIN only)
+   - GET /api/inventory/transfer — list all transfers (with from/to branch + items)
+   - POST /api/inventory/transfer — create a transfer:
+     - Validates fromBranch != toBranch
+     - Validates stock availability in fromBranch
+     - Creates transfer record (number TR-2026-0001)
+     - If autoConfirm=true:
+       - WRITE_OFF from fromBranch (with refType=TRANSFER, refId=transfer.id)
+       - RECEIVE to toBranch (same refType/refId)
+     - Audit log entry
+
+5. **Updated GET /api/inventory** to show per-branch state:
+   - Returns `state` (overall across all branches)
+   - Returns `byBranch` array: [{ branchId, branchName, branchCode, onHand, reserved, available }]
+   - Optional ?branchId=xxx query to filter
+   - Returns `branches` list alongside inventory
+
+6. **Updated inventory/ledger.ts**:
+   - recordMovement now accepts branchId param, passes to inventoryMovement.create
+   - refreshSnapshot now finds/creates by (productId, branchId) combo instead of just productId
+   - Fixed upsert → findFirst + update/create (since unique is now composite)
+
+7. **Updated inventory/[productId] route.ts** — passes branchId to recordMovement
+
+8. **Built inventory-module.tsx** (fully rewritten):
+   - Branch overview cards at top (4 cards showing each branch's onHand + available)
+   - Branch filter dropdown (Բոլոր ֆիլիալները / specific branch)
+   - "Տեղափոխել" button (ADMIN only) → opens TransferDialog
+   - Inventory table with per-branch columns (Гльх. / Ф1 / Ф2 / Ф3 / Ф4)
+   - Each row shows: name, SKU, onHand per branch, total onHand, available, minStock, status
+   - Low stock highlight (orange if available < minStock/branchesCount)
+   - Ընդունել / Գրել buttons now require branchId (in InventoryAdjustDialog)
+
+9. **Built transfer-dialog.tsx**:
+   - From-branch + To-branch selectors (with ArrowRight icon)
+   - Validation: cannot transfer to same branch
+   - Search field for products
+   - Products table: shows only products with onHand > 0 in fromBranch
+   - Per-product qty input (max = onHand in fromBranch)
+   - Note field + "Ավտոմատ հաստատել" checkbox (default ON)
+   - Live count of selected items + total qty
+   - "Ստեղծել տեղափոխություն" button
+   - Stock error handling (red banner with details)
+
+10. **InventoryAdjustDialog updated** — now requires branchId:
+    - Branch selector (first branch selected by default)
+    - BranchId passed to /api/inventory/[productId] POST
+
+11. **Fixed bugs**:
+    - <SelectItem value=""> cannot be empty in shadcn Select → used "all" instead
+    - Wrapped InventoryModule in ErrorBoundary for graceful error handling
+    - Cleared old InventorySnapshot records (had productId-only unique, now composite)
+
+Verification results (2026-09-08):
+- ✅ 4 branches visible as cards (Գլխավոր պահեստ, Ֆիլիալ 2-4)
+- ✅ "Բոլոր ֆիլիալները" filter dropdown
+- ✅ "Տեղափոխել" button visible for ADMIN
+- ✅ Branches API returns 4 records with _count
+- ✅ Inventory API returns per-branch state (byBranch array)
+- ✅ Production deployed to https://arm-roll-erp.vercel.app
+- ✅ Screenshot: download/inventory-with-branches.png
+
+Stage Summary:
+- 4 branches implemented and visible in Պահեստ module
+- Stock movements are now branch-aware (branchId on InventoryMovement)
+- Transfer between branches implemented end-to-end
+  - Choose from/to branch
+  - Pick products with stock in fromBranch
+  - Auto-confirm executes WRITE_OFF from + RECEIVE to
+- All existing inventory movements have branchId=null (default branch)
+- All snapshot logic uses findFirst instead of upsert to handle composite unique

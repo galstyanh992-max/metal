@@ -36,6 +36,7 @@ import { SettingsModule } from "@/components/admin/settings-module";
 import { FormBuilderModule } from "@/components/forms/form-builder";
 import { SuppliersModule } from "@/components/admin/suppliers-module";
 import { ReportsModule } from "@/components/admin/reports-module";
+import { ErrorBoundary } from "@/components/shared/error-boundary";
 
 type NavItem = { key: string; label: string; icon: LucideIcon; module: string; roles: string[] };
 
@@ -103,7 +104,7 @@ export function WorkspaceShell() {
     if (role === "WAREHOUSE" && active === "picks") return <WarehousePicks />;
     if (active === "clients-orders") return <ClientsOrdersModule role={role} />;
     if (active === "products") return <ProductsModule role={role} />;
-    if (active === "inventory") return <InventoryModule role={role} />;
+    if (active === "inventory") return <ErrorBoundary><InventoryModule role={role} /></ErrorBoundary>;
     if (active === "ai") return <AIAssistant role={role} />;
     if (active === "finance" && role === "ADMIN") return <FinanceModule role={role} />;
     if (active === "procurement" && role === "ADMIN") return <ProcurementModule />;
