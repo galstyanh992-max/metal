@@ -834,3 +834,51 @@ Stage Summary:
 - Real product catalog (25+ items) with prices
 - Formulas mirror the original 456.xlsx spreadsheet
 - Print-ready A4 quote generation works
+
+---
+Task ID: P34
+Agent: main (continuation)
+Task: Move Դարպասի Հաշվարկ from sidebar into Պատվերներ tab
+
+Work Log:
+1. **Removed Դարպասի Հաշվարկ from sidebar** (workspace-shell.tsx):
+   - Removed NAV entry `{ key: "rolshutter", ... }`
+   - Removed renderModule line `if (active === "rolshutter") return <RolshutterCalculator />;`
+   - Removed DoorOpen icon import (no longer used in shell)
+   - Removed RolshutterCalculator import (moved to clients-orders-module)
+
+2. **Added as 3rd tab inside clients-orders module** (clients-orders-module.tsx):
+   - Imported `RolshutterCalculator` and `DoorOpen` icon
+   - Extended `tab` state type: `"clients" | "orders"` → `"clients" | "orders" | "rolshutter"`
+   - Added new tab button after Պատվերներ:
+     ```
+     <button onClick={() => setTab("rolshutter")}>
+       <DoorOpen className="size-4" />
+       Դարպասի Հաշվարկ
+     </button>
+     ```
+   - Hid action buttons (Excel, + Նոր հաճախորդ/Գրանցել Պատվեր) when tab === "rolshutter"
+   - Added conditional rendering:
+     ```
+     {tab === "rolshutter" && <RolshutterCalculator />}
+     {tab !== "rolshutter" && (<>...clients/orders table...</>)}
+     ```
+
+Verification results (2026-09-07):
+- ✅ Sidebar no longer has Դարպասի Հաշվարկ (verified: hasRolshutterInSidebar = false)
+- ✅ Three tabs visible inside Հաճախորդներ և Պատվերներ:
+  - Հաճախորդներ (5)
+  - Պատվերներ (2)
+  - Դարպասի Հաշվարկ
+- ✅ Clicking Դարպասի Հաշվարկ tab opens the calculator
+- ✅ Heading "Ռոլստորների կոնֆիգուրատոր" visible
+- ✅ Width=3, Height=2.5 inputs pre-filled
+- ✅ Product table with Կոռոբ 16, Վալ, Լամիլ 3,9 etc.
+- ✅ Production deployed to https://arm-roll-erp.vercel.app
+- ✅ Screenshot: download/rolshutter-as-tab.png
+
+Stage Summary:
+- Դարպասի Հաշվարկ moved from sidebar into Պատվերներ tab area
+- Now appears as 3rd tab inside Հաճախորդներ և Պատվերներ module
+- Excel/+ Նոր buttons hidden when calculator tab is active
+- Calculator fully functional with all features (presets, materials, totals, print)
