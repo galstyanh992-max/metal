@@ -1119,3 +1119,62 @@ Stage Summary:
 - Expandable per client — shows individual orders with details
 - Excel export with per-order granularity
 - Live data from Supabase (1 debtor currently: Արամ Պողոսյան, 19,500 դր)
+
+---
+Task ID: P38
+Agent: main (continuation)
+Task: Move order panel above calculator + add discount % everywhere
+
+Work Log:
+1. **RolshutterCalculatorWithOrder — panel moved to top** (rolshutter-calculator-with-order.tsx):
+   - Order panel ("Ստեղծել պատվեր հաշվարկից") now renders BEFORE calculator
+   - Calculator below the order panel
+   - Added discount % field (Input, 0-100, step 0.5)
+   - Live calculation: discountAmount = total × discountPercent / 100
+   - finalTotal = total - discountAmount
+   - Footer shows strikethrough old total + final total when discount > 0
+   - Yellow banner: "Զեղչ X% · զեղչված գումար՝ Y դր · վերջնական՝ Z դր"
+   - Discount passed to API as `discountPercent` field
+   - Reset discount to "0" after order created
+
+2. **QuickFillOrderDialog — discount % field added** (orders-module.tsx):
+   - Added `discountPercent` state (default "0")
+   - Added input next to "Պահպանել գները" checkbox
+   - Live calculation in footer: strikethrough + final total
+   - "Զեղչ X% · −Y դր" yellow text shown when discount > 0
+   - Passed to API in mutation.mutate({ ..., discountPercent })
+
+3. **ClientCreateDialog — discount % field added** (client-create-dialog.tsx):
+   - Added `discountPercent` state
+   - Added input in order section (next to payment method + save prices)
+   - Footer shows discounted total with strikethrough
+   - Passed to createOrderMutation.mutateAsync({ ..., discountPercent })
+
+4. **POST /api/orders updated** (api/orders/route.ts):
+   - Added `discountPercent?: number` to body type
+   - Combined loyalty + manual discount:
+     - manualDiscount applied first on baseAmount
+     - loyaltyDiscount applied on remaining (after manual)
+     - totalDiscountAmount = manualDiscountAmount + loyaltyDiscountAmount
+   - Stored as `discountAmount: totalDiscountAmount` in order
+   - totalAmount = baseAmount - totalDiscountAmount
+   - Example: 100k base, 10% manual + 5% loyalty → 100k - 10k = 90k, then 90k - 4.5k = 85.5k
+
+Verification results (2026-09-08):
+- ✅ "Ստեղծել պատվեր հաշվարկից" panel on top (before calculator)
+- ✅ "ԶԵՂՉ (%)" label visible in calculator order panel
+- ✅ Discount spinbutton (ref=e15) with value 0
+- ✅ "ԶԵՂՉ (%)" label visible in Quick-Fill dialog (after "Պահպանել գները")
+- ✅ Both panels show discounted total live
+- ✅ API accepts discountPercent and applies it correctly
+- ✅ Production deployed to https://arm-roll-erp.vercel.app
+- ✅ Screenshots: calculator-panel-on-top.png
+
+Stage Summary:
+- Order creation panel moved above calculator (visible first)
+- Discount % field added in 3 places:
+  1. Դարպասի Հաշվարկ → "Ստեղծել պատվեր հաշվարկից" panel
+  2. Quick-Fill "Գրանցել Պատվեր" dialog
+  3. ClientCreateDialog inline order section
+- Discount combined with loyalty discount in API (manual first, then loyalty)
+- Live total calculation shows strikethrough + final amount + savings banner

@@ -46,7 +46,7 @@ export async function POST(req: Request) {
   try {
     const { role, userId } = await requireAction("order.create");
     const body = await req.json();
-    const { clientId, items, note, dueDate, savePrices, paymentMethod } = body as {
+    const { clientId, items, note, dueDate, savePrices, paymentMethod, discountPercent } = body as {
       clientId: string;
       items: Array<{
         productId: string;
@@ -59,6 +59,7 @@ export async function POST(req: Request) {
       dueDate?: string;
       savePrices?: boolean; // global flag — apply all per-item overrides to catalog
       paymentMethod?: "debt" | "cash" | "transfer";
+      discountPercent?: number;
     };
 
     if (!clientId || !items?.length) {
@@ -137,10 +138,16 @@ export async function POST(req: Request) {
       }
     }
 
-    // Loyalty discount
-    const discountPercent = client.loyaltyDiscount ?? 0;
-    const discountAmount = Math.round((baseAmount * discountPercent) / 100);
-    const totalAmount = baseAmount - discountAmount;
+    // Loyalty discount + manual discount (from UI input) — combined
+    const loyaltyDiscount = client.loyaltyDiscount ?? 0;
+    const manualDiscount = Math.min(100, Math.max(0, Number(discountPercent) || 0));
+    // Apply manual discount first, then loyalty on the remaining amount
+    const manualDiscountAmount = Math.round((baseAmount * manualDiscount) / 100);
+    const afterManualDiscount = baseAmount - manualDiscountAmount;
+    const loyaltyDiscountAmount = Math.round((afterManualDiscount * loyaltyDiscount) / 100);
+    const totalDiscountPercent = manualDiscount + loyaltyDiscount;
+    const totalDiscountAmount = manualDiscountAmount + loyaltyDiscountAmount;
+    const totalAmount = Math.max(0, baseAmount - totalDiscountAmount);
 
     // Payment method handling:
     // - cash / transfer → fully paid immediately (paidAmount = totalAmount, outstanding = 0)
@@ -161,7 +168,7 @@ export async function POST(req: Request) {
         clientId,
         status: isPaidNow ? "CONFIRMED" : "DRAFT",
         baseAmount,
-        discountAmount,
+        discountAmount: totalDiscountAmount,
         taxAmount: 0,
         totalAmount,
         paidAmount,

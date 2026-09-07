@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { RolshutterCalculator } from "./rolshutter-calculator";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Zap } from "lucide-react";
+import { Loader2, Zap, Percent } from "lucide-react";
 import { toast } from "sonner";
 
 async function fetchClients() {
@@ -45,6 +46,7 @@ export function RolshutterCalculatorWithOrder() {
 
   const [clientId, setClientId] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"debt" | "cash" | "transfer">("debt");
+  const [discountPercent, setDiscountPercent] = useState("0");
   const [rows, setRows] = useState<CalculatorRow[]>([]);
   const [total, setTotal] = useState(0);
 
@@ -53,6 +55,16 @@ export function RolshutterCalculatorWithOrder() {
 
   const clients = clientsData?.clients ?? [];
   const products = productsData?.products ?? [];
+
+  // Compute discount-adjusted total
+  const discountAmount = useMemo(() => {
+    const pct = Math.min(100, Math.max(0, Number(discountPercent) || 0));
+    return Math.round((total * pct) / 100);
+  }, [total, discountPercent]);
+
+  const finalTotal = useMemo(() => {
+    return Math.max(0, total - discountAmount);
+  }, [total, discountAmount]);
 
   const orderMutation = useMutation({
     mutationFn: async () => {
@@ -127,7 +139,8 @@ export function RolshutterCalculatorWithOrder() {
           items,
           savePrices: false,
           paymentMethod,
-          note: `Ստեղծված է Դարպասի Հաշվարկից · Ընդհանուր՝ ${Math.round(total).toLocaleString("hy-AM")} դր`,
+          discountPercent: Number(discountPercent) || 0,
+          note: `Ստեղծված է Դարպասի Հաշվարկից · Ընդհանուր՝ ${Math.round(finalTotal).toLocaleString("hy-AM")} դր${Number(discountPercent) > 0 ? ` · զեղչ ${discountPercent}%` : ""}`,
         }),
       });
       if (!res.ok) {
@@ -146,6 +159,7 @@ export function RolshutterCalculatorWithOrder() {
       setClientId("");
       setRows([]);
       setTotal(0);
+      setDiscountPercent("0");
     },
     onError: (e: any) => {
       if (e?.stockError && e?.details) {
@@ -158,16 +172,14 @@ export function RolshutterCalculatorWithOrder() {
 
   return (
     <div className="space-y-3">
-      <RolshutterCalculator onRowsChange={onRowsChange} onTotalChange={onTotalChange} />
-
-      {/* Order panel — client + payment + create button */}
+      {/* Order panel — moved to TOP (above calculator) */}
       <div className="border-2 border-primary/30 bg-primary/5 p-4 rounded-lg">
         <div className="flex items-center gap-2 mb-3">
           <Zap className="size-5 text-primary" />
           <h3 className="text-base font-semibold">Ստեղծել պատվեր հաշվարկից</h3>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3">
           <div className="space-y-1.5">
             <Label className="text-xs uppercase tracking-wider text-muted-foreground">Հաճախորդ *</Label>
             <Select value={clientId} onValueChange={setClientId}>
@@ -209,26 +221,64 @@ export function RolshutterCalculatorWithOrder() {
           </div>
 
           <div className="space-y-1.5">
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+              <Percent className="size-3" /> Զեղչ (%)
+            </Label>
+            <Input
+              type="number"
+              min={0}
+              max={100}
+              step="0.5"
+              value={discountPercent}
+              onChange={(e) => setDiscountPercent(e.target.value)}
+              placeholder="0"
+              className="h-9 text-right tabular-nums focus-steel"
+            />
+          </div>
+
+          <div className="space-y-1.5">
             <Label className="text-xs uppercase tracking-wider text-muted-foreground">Ընդհանուր</Label>
             <div className="h-9 px-3 flex items-center bg-card border border-hairline">
-              <span className="text-lg font-bold tabular-nums text-primary">
-                {new Intl.NumberFormat("hy-AM").format(Math.round(total || 0))} դր
-              </span>
-              <span className="ml-2 text-xs text-muted-foreground">
-                · {rows.length} ապրանք
-              </span>
+              {Number(discountPercent) > 0 ? (
+                <div className="flex flex-col">
+                  <span className="text-xs line-through text-muted-foreground tabular-nums">
+                    {new Intl.NumberFormat("hy-AM").format(Math.round(total || 0))} դր
+                  </span>
+                  <span className="text-base font-bold tabular-nums text-primary">
+                    {new Intl.NumberFormat("hy-AM").format(Math.round(finalTotal))} դր
+                  </span>
+                </div>
+              ) : (
+                <>
+                  <span className="text-lg font-bold tabular-nums text-primary">
+                    {new Intl.NumberFormat("hy-AM").format(Math.round(total || 0))} դր
+                  </span>
+                  <span className="ml-2 text-xs text-muted-foreground">
+                    · {rows.length} ապրանք
+                  </span>
+                </>
+              )}
             </div>
           </div>
         </div>
 
+        {Number(discountPercent) > 0 && (
+          <div className="mb-3 px-3 py-1.5 bg-status-yellow/10 border border-status-yellow/30 rounded text-xs">
+            <span className="text-status-yellow font-medium">Զեղչ {discountPercent}%</span>
+            <span className="text-muted-foreground ml-2">
+              · զեղչված գումար՝ {new Intl.NumberFormat("hy-AM").format(discountAmount)} դր
+              · վերջնական՝ {new Intl.NumberFormat("hy-AM").format(finalTotal)} դր
+            </span>
+          </div>
+        )}
+
         <div className="flex items-center justify-between gap-3">
           <p className="text-xs text-muted-foreground">
-            Ապրանքները ավտոմատ կկապվեն կատալոգի հետ (կկատարվի ապրանքի ստեղծում, եթե չկա նմանատիպը):
-            Պահեստի ստուգումը կկատարվի պատվերի ստեղծման ժամանակ։
+            Ապրանքները ավտոմատ կկապվեն կատալոգի հետ։ Պահեստի ստուգումը կկատարվի պատվերի ստեղծման ժամանակ։
           </p>
           <Button
             onClick={() => orderMutation.mutate()}
-            disabled={orderMutation.isPending || !clientId || rows.length === 0 || total === 0}
+            disabled={orderMutation.isPending || !clientId || rows.length === 0 || finalTotal === 0}
             className="bg-primary gap-2"
             size="lg"
           >
@@ -238,6 +288,9 @@ export function RolshutterCalculatorWithOrder() {
           </Button>
         </div>
       </div>
+
+      {/* Calculator below */}
+      <RolshutterCalculator onRowsChange={onRowsChange} onTotalChange={onTotalChange} />
     </div>
   );
 }

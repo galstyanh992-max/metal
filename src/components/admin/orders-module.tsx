@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Plus, ShoppingCart, Loader2, Search, Trash2, Zap, AlertTriangle } from "lucide-react";
+import { Plus, ShoppingCart, Loader2, Search, Trash2, Zap, AlertTriangle, Percent } from "lucide-react";
 import { useState, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -304,11 +304,16 @@ export function QuickFillOrderDialog({
   const [clientId, setClientId] = useState(initialClientId ?? "");
   const [savePrices, setSavePrices] = useState(true);
   const [paymentMethod, setPaymentMethod] = useState<"debt" | "cash" | "transfer">("debt");
+  const [discountPercent, setDiscountPercent] = useState("0");
   const [rows, setRows] = useState<QuickFillRow[]>([]);
   const [totals, setTotals] = useState<QuickFillTotals>({
     totalQty: 0, totalMeterage: 0, totalAmount: 0, selectedCount: 0, priceChanges: 0,
   });
   const [stockError, setStockError] = useState<string[] | null>(null);
+
+  // Discount calculation
+  const discountAmount = Math.round((totals.totalAmount * (Math.min(100, Math.max(0, Number(discountPercent) || 0)))) / 100);
+  const finalTotal = Math.max(0, totals.totalAmount - discountAmount);
 
   const mutation = useMutation({
     mutationFn: async (payload: any) => {
@@ -352,7 +357,7 @@ export function QuickFillOrderDialog({
       toast.error("Լցրեք քանակ կամ մետրաժ առնվազն մեկ ապրանքի համար");
       return;
     }
-    mutation.mutate({ clientId, items: orderItems, savePrices, paymentMethod });
+    mutation.mutate({ clientId, items: orderItems, savePrices, paymentMethod, discountPercent: Number(discountPercent) || 0 });
   };
 
   return (
@@ -418,6 +423,21 @@ export function QuickFillOrderDialog({
             />
             <span>Պահպանել գները</span>
           </label>
+          <div className="flex items-center gap-2">
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+              <Percent className="size-3" /> Զեղչ (%)
+            </Label>
+            <Input
+              type="number"
+              min={0}
+              max={100}
+              step="0.5"
+              value={discountPercent}
+              onChange={(e) => setDiscountPercent(e.target.value)}
+              placeholder="0"
+              className="h-9 w-20 text-right tabular-nums focus-steel"
+            />
+          </div>
         </div>
 
         {/* Stock error banner (if any) */}
@@ -474,10 +494,26 @@ export function QuickFillOrderDialog({
             </div>
             <div className="flex items-center gap-1.5">
               <span className="text-muted-foreground">Ընդհանուր՝</span>
-              <span className="font-bold tabular-nums text-primary text-base">
-                {new Intl.NumberFormat("hy-AM").format(totals.totalAmount)} դր
-              </span>
+              {Number(discountPercent) > 0 ? (
+                <span className="flex flex-col leading-tight">
+                  <span className="text-xs line-through text-muted-foreground tabular-nums">
+                    {new Intl.NumberFormat("hy-AM").format(totals.totalAmount)} դր
+                  </span>
+                  <span className="font-bold tabular-nums text-primary text-base">
+                    {new Intl.NumberFormat("hy-AM").format(finalTotal)} դր
+                  </span>
+                </span>
+              ) : (
+                <span className="font-bold tabular-nums text-primary text-base">
+                  {new Intl.NumberFormat("hy-AM").format(totals.totalAmount)} դր
+                </span>
+              )}
             </div>
+            {Number(discountPercent) > 0 && (
+              <div className="text-status-yellow font-medium text-xs">
+                Զեղչ {discountPercent}% · −{new Intl.NumberFormat("hy-AM").format(discountAmount)} դր
+              </div>
+            )}
             {totals.priceChanges > 0 && (
               <div className="text-status-yellow font-medium text-xs">
                 Գնի փոփոխություն՝ {totals.priceChanges}

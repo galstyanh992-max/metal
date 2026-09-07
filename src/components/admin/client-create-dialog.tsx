@@ -28,11 +28,15 @@ export function ClientCreateDialog({ open, onClose, onCreated }: { open: boolean
   const [showOrderSection, setShowOrderSection] = useState(true);
   const [paymentMethod, setPaymentMethod] = useState<"debt" | "cash" | "transfer">("debt");
   const [savePrices, setSavePrices] = useState(true);
+  const [discountPercent, setDiscountPercent] = useState("0");
   const [rows, setRows] = useState<QuickFillRow[]>([]);
   const [totals, setTotals] = useState<QuickFillTotals>({
     totalQty: 0, totalMeterage: 0, totalAmount: 0, selectedCount: 0, priceChanges: 0,
   });
   const [createdClientId, setCreatedClientId] = useState<string | null>(null);
+
+  const discountAmount = Math.round((totals.totalAmount * (Math.min(100, Math.max(0, Number(discountPercent) || 0)))) / 100);
+  const finalTotal = Math.max(0, totals.totalAmount - discountAmount);
 
   const qc = useQueryClient();
 
@@ -107,6 +111,7 @@ export function ClientCreateDialog({ open, onClose, onCreated }: { open: boolean
             items: orderItems,
             savePrices,
             paymentMethod,
+            discountPercent: Number(discountPercent) || 0,
           });
           const msg = orderData?.priceUpdates > 0
             ? `Հաճախորդ և պատվեր ստեղծված են · ${orderData.priceUpdates} գին պահպանված է`
@@ -303,6 +308,19 @@ export function ClientCreateDialog({ open, onClose, onCreated }: { open: boolean
                       />
                       <span>Պահպանել գները</span>
                     </label>
+                    <div className="flex items-center gap-2">
+                      <Label className="text-xs uppercase tracking-wider text-muted-foreground">Զեղչ (%)</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        max={100}
+                        step="0.5"
+                        value={discountPercent}
+                        onChange={(e) => setDiscountPercent(e.target.value)}
+                        placeholder="0"
+                        className="h-9 w-20 text-right tabular-nums focus-steel"
+                      />
+                    </div>
                   </div>
 
                   {/* Quick Fill panel inline */}
@@ -324,7 +342,15 @@ export function ClientCreateDialog({ open, onClose, onCreated }: { open: boolean
             {showOrderSection && (
               <>
                 <span className="text-muted-foreground">Ընտրված՝ <strong className="text-foreground">{totals.selectedCount}</strong></span>
-                <span className="text-muted-foreground">Ընդհանուր՝ <strong className="text-primary text-base">{new Intl.NumberFormat("hy-AM").format(totals.totalAmount)} դր</strong></span>
+                {Number(discountPercent) > 0 ? (
+                  <span className="text-muted-foreground">Ընդհանուր՝
+                    <span className="text-xs line-through text-muted-foreground ml-1 tabular-nums">{new Intl.NumberFormat("hy-AM").format(totals.totalAmount)} դր</span>
+                    <strong className="text-primary text-base ml-1 tabular-nums">{new Intl.NumberFormat("hy-AM").format(finalTotal)} դր</strong>
+                    <span className="text-status-yellow ml-1 text-xs">−{discountPercent}%</span>
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground">Ընդհանուր՝ <strong className="text-primary text-base">{new Intl.NumberFormat("hy-AM").format(totals.totalAmount)} դր</strong></span>
+                )}
               </>
             )}
           </div>
