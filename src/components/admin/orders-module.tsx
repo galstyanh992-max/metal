@@ -17,6 +17,7 @@ import { OrderDetailDrawer } from "./order-detail-drawer";
 import { DynamicFormRenderer } from "@/components/forms/dynamic-form-renderer";
 import { BomPreview } from "@/components/forms/bom-preview";
 import { QuickFillPanel, quickFillRowsToOrderItems, type QuickFillRow, type QuickFillTotals } from "./quick-fill-panel";
+import { SearchableClientSelect } from "@/components/shared/searchable-client-select";
 
 async function fetchOrders() {
   const res = await fetch("/api/orders");
@@ -214,16 +215,12 @@ export function CreateOrderDialog({ onClose, onCreated }: { onClose: () => void;
         <div className="space-y-4 py-2">
           <div className="space-y-1.5">
             <Label className="text-xs uppercase tracking-wider text-muted-foreground">Հաճախորդ</Label>
-            <Select value={clientId} onValueChange={setClientId}>
-              <SelectTrigger><SelectValue placeholder="Ընտրեք հաճախորդ" /></SelectTrigger>
-              <SelectContent>
-                {clientsData?.clients?.map((c: any) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.type === "COMPANY" ? c.companyName : `${c.firstName} ${c.lastName}`} — {c.phone}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchableClientSelect
+              clients={clientsData?.clients ?? []}
+              value={clientId}
+              onChange={setClientId}
+              placeholder="Ընտրեք հաճախորդ · որոնում անունով կամ հեռախոսով"
+            />
           </div>
 
           <div className="space-y-3">
@@ -383,16 +380,12 @@ export function QuickFillOrderDialog({
                 <span className="ml-2 text-[10px] text-status-green uppercase tracking-wider">նորաստեղծ</span>
               </div>
             ) : (
-              <Select value={clientId} onValueChange={setClientId}>
-                <SelectTrigger className="h-10 text-sm"><SelectValue placeholder="Ընտրեք հաճախորդ" /></SelectTrigger>
-                <SelectContent>
-                  {clientsData?.clients?.map((c: any) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.type === "COMPANY" ? c.companyName : `${c.firstName} ${c.lastName}`} — {c.phone}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SearchableClientSelect
+                clients={clientsData?.clients ?? []}
+                value={clientId}
+                onChange={setClientId}
+                placeholder="Ընտրեք հաճախորդ · որոնում անունով կամ հեռախոսով"
+              />
             )}
           </div>
           <div className="flex items-center gap-1 border border-hairline bg-card">

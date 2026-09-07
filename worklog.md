@@ -1178,3 +1178,58 @@ Stage Summary:
   3. ClientCreateDialog inline order section
 - Discount combined with loyalty discount in API (manual first, then loyalty)
 - Live total calculation shows strikethrough + final amount + savings banner
+
+---
+Task ID: P39
+Agent: main (continuation)
+Task: Add searchable client select (by name + phone) everywhere clients are chosen
+
+Work Log:
+1. **Built SearchableClientSelect component** (shared/searchable-client-select.tsx):
+   - Reusable dropdown with built-in search field
+   - Search by: name (firstName, lastName, companyName), phone, email, taxId — case-insensitive, partial match
+   - Shows client type icon (User for individual, Building2 for company)
+   - Shows name + phone in trigger and results
+   - Shows ՀՎՀՀ for companies
+   - Checkmark on selected client
+   - Keyboard: Enter selects first result, Escape closes
+   - Click outside to close
+   - Footer with result count
+   - Props: clients, value, onChange, placeholder, disabled
+
+2. **Replaced Select with SearchableClientSelect in 3 places**:
+
+   a) **QuickFillOrderDialog** (orders-module.tsx):
+      - Old: shadcn Select with dropdown of all clients (no search)
+      - New: SearchableClientSelect with search by name/phone
+      - Placeholder: "Ընտրեք հաճախորդ · որոնում անունով կամ հեռախոսով"
+
+   b) **RolshutterCalculatorWithOrder** (rolshutter-calculator-with-order.tsx):
+      - Old: shadcn Select
+      - New: SearchableClientSelect
+      - Removed unused Select/SelectContent/SelectItem/SelectTrigger/SelectValue imports
+      - Placeholder: "Ընտրեք · որոնում անունով կամ հեռախոսով"
+
+   c) **CreateOrderDialog** (orders-module.tsx):
+      - Old: shadcn Select
+      - New: SearchableClientSelect
+      - Same placeholder with search hint
+
+3. **ClientCreateDialog** — no change needed:
+   - This dialog CREATES a new client (doesn't select existing)
+   - No client Select component there
+
+Verification results (2026-09-08):
+- ✅ Quick-Fill dialog shows "Ընտրեք հաճախորդ · որոնում անունով կամ հեռախոսով"
+- ✅ Clicking opens dropdown with search field "Որոնում՝ անուն, հեռախոս…"
+- ✅ Search by name "Արամ" → finds "Արամ Պողոսյան +374 99 123456"
+- ✅ Search by phone "99 123" → finds "Արամ Պողոսյան +374 99 123456"
+- ✅ Production deployed to https://arm-roll-erp.vercel.app
+- ✅ Screenshot: download/searchable-client-select.png
+
+Stage Summary:
+- All 3 places where clients are selected now have searchable dropdown
+- Search works by name (first/last/company) AND phone (partial match)
+- Search also matches email and taxId (ՀՎՀՀ) as bonus
+- Results show in real-time as user types
+- Keyboard navigation (Enter to select first, Escape to close)

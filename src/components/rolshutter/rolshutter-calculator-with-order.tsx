@@ -6,9 +6,9 @@ import { RolshutterCalculator } from "./rolshutter-calculator";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Zap, Percent } from "lucide-react";
 import { toast } from "sonner";
+import { SearchableClientSelect } from "@/components/shared/searchable-client-select";
 
 async function fetchClients() {
   const res = await fetch("/api/clients");
@@ -182,18 +182,12 @@ export function RolshutterCalculatorWithOrder() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3">
           <div className="space-y-1.5">
             <Label className="text-xs uppercase tracking-wider text-muted-foreground">Հաճախորդ *</Label>
-            <Select value={clientId} onValueChange={setClientId}>
-              <SelectTrigger className="h-9">
-                <SelectValue placeholder="Ընտրեք հաճախորդ" />
-              </SelectTrigger>
-              <SelectContent>
-                {clients.map((c: any) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.type === "COMPANY" ? c.companyName : `${c.firstName} ${c.lastName}`} — {c.phone}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchableClientSelect
+              clients={clients}
+              value={clientId}
+              onChange={setClientId}
+              placeholder="Ընտրեք · որոնում անունով կամ հեռախոսով"
+            />
           </div>
 
           <div className="space-y-1.5">
