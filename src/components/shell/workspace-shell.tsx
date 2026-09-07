@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 import {
   LayoutDashboard, Users, Package, ShoppingCart, Warehouse as WarehouseIcon,
   Truck, FileText, Settings, LogOut, Menu, Search, Bell, Factory, Building2, BarChart3,
-  ChevronDown, Sparkles, Receipt, Crown, Calculator, Mail, MessageCircle,
+  ChevronDown, Sparkles, Receipt, Crown, Calculator, Mail, MessageCircle, DoorOpen,
   type LucideIcon,
 } from "lucide-react";
 import { AdminDashboard } from "@/components/admin/dashboard";
@@ -36,12 +36,14 @@ import { SettingsModule } from "@/components/admin/settings-module";
 import { FormBuilderModule } from "@/components/forms/form-builder";
 import { SuppliersModule } from "@/components/admin/suppliers-module";
 import { ReportsModule } from "@/components/admin/reports-module";
+import { RolshutterCalculator } from "@/components/rolshutter/rolshutter-calculator";
 
 type NavItem = { key: string; label: string; icon: LucideIcon; module: string; roles: string[] };
 
 const NAV: NavItem[] = [
   { key: "dashboard", label: "Վահանակ", icon: LayoutDashboard, module: "dashboard", roles: ["ADMIN", "OPERATOR", "WAREHOUSE"] },
   { key: "clients-orders", label: "Հաճախորդներ և Պատվերներ", icon: Users, module: "clients-orders", roles: ["ADMIN", "OPERATOR", "WAREHOUSE"] },
+  { key: "rolshutter", label: "Դարպասի Հաշվարկ", icon: DoorOpen, module: "rolshutter", roles: ["ADMIN", "OPERATOR"] },
   { key: "products", label: "Ապրանքներ", icon: Package, module: "products", roles: ["ADMIN", "OPERATOR", "WAREHOUSE"] },
   { key: "inventory", label: "Պահեստ", icon: WarehouseIcon, module: "inventory", roles: ["ADMIN"] },
   { key: "picks", label: "Ընտրում", icon: Package, module: "picks", roles: ["WAREHOUSE"] },
@@ -102,6 +104,7 @@ export function WorkspaceShell() {
     }
     if (role === "WAREHOUSE" && active === "picks") return <WarehousePicks />;
     if (active === "clients-orders") return <ClientsOrdersModule role={role} />;
+    if (active === "rolshutter") return <RolshutterCalculator />;
     if (active === "products") return <ProductsModule role={role} />;
     if (active === "inventory") return <InventoryModule role={role} />;
     if (active === "ai") return <AIAssistant role={role} />;

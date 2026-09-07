@@ -779,3 +779,58 @@ Stage Summary:
 - SKU codes visible per row
 - Toolbar/filter buttons shortened to fit smaller dialog
 - Supabase connection verified healthy (3860ms response time)
+
+---
+Task ID: P33
+Agent: main (continuation)
+Task: Integrate Rolshutter Calculator as "Դարպասի Հաշվարկ" tab in sidebar
+
+Work Log:
+1. **Copied calculator component** from user upload to src/components/rolshutter/rolshutter-calculator.tsx
+   - Source: /home/z/my-project/upload/roller shutter configurator (1).jsx (869 lines)
+   - Added "use client" directive at top
+   - Changed `export default function` to named `export function RolshutterCalculator`
+
+2. **Added sidebar navigation entry** (workspace-shell.tsx):
+   - New NAV item: `{ key: "rolshutter", label: "Դարպասի Հաշվարկ", icon: DoorOpen, module: "rolshutter", roles: ["ADMIN", "OPERATOR"] }`
+   - Positioned between "Հաճախորդներ և Պատվերներ" and "Ապրանքներ"
+   - Imported DoorOpen icon from lucide-react
+   - Imported RolshutterCalculator component
+
+3. **Added module rendering** (workspace-shell.tsx renderModule):
+   - `if (active === "rolshutter") return <RolshutterCalculator />;`
+   - Accessible to ADMIN and OPERATOR roles (WAREHOUSE excluded)
+
+4. **Features integrated from the JSX file**:
+   - Door type presets (6 variants: 7,7/5,5/3,9 × Standart/Security)
+   - 25 material categories (Կոռոբ, Վալ, Լամիլ, Տակացու, Ռետինե, Ուղղորդիչ, Պուխ, etc.)
+   - Per-row product selection (catalog with real Armenian product names)
+   - Per-row qty/price editable inputs
+   - Remove any standard item the customer doesn't want
+   - Custom rows ("+ Ավելացնել իմ ապրանքը")
+   - Optional add-ons: Հավաքում (assembly, 2000 ֏/m²) and Առաքում (delivery)
+   - Print button (fits quote on one A4 page)
+   - Color selector (6 RAL colors: Անտրացիտ V16, Մետալիկ Y06, Սպիտակ W16, etc.)
+   - Motor side selector (Աջ / Ձախ)
+   - Real formulas (meters = width + offset, sum = meters × qty × price, etc.)
+   - Live totals: Մակերես, Գույն, Գին/ք.մ, Ընդամենը
+
+Verification results (2026-09-07):
+- ✅ Sidebar shows "Դարպասի Հաշվարկ" tab (between Clients/Orders and Products)
+- ✅ Clicking opens the RolshutterCalculator component
+- ✅ Heading "Ռոլստորների կոնֆիգուրատոր" visible
+- ✅ Width=3, Height=2.5 inputs pre-filled
+- ✅ Color dropdown: Անտրացիտ V16 (RAL 7016) selected
+- ✅ Table with Կոռոբ 16, Վալ 40, Լամիլ 3,9 rows — all with editable qty/price
+- ✅ "Տպել" button visible (top right)
+- ✅ "Ընտրել դարպասի տեսակը" preset selector
+- ✅ Production deployed to https://arm-roll-erp.vercel.app
+- ✅ Screenshot: download/rolshutter-calculator.png
+
+Stage Summary:
+- Rolshutter calculator fully integrated into Arm Roll ERP
+- Accessible to ADMIN and OPERATOR via sidebar
+- All Armenian UI labels preserved
+- Real product catalog (25+ items) with prices
+- Formulas mirror the original 456.xlsx spreadsheet
+- Print-ready A4 quote generation works
