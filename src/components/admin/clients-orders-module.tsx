@@ -11,7 +11,8 @@ import { OrderDetailDrawer } from "./order-detail-drawer";
 import { CreateOrderDialog, QuickFillOrderDialog } from "./orders-module";
 import { exportToExcel, fmtAMD, fmtDate } from "@/lib/export/excel";
 import { ModuleFooter, MODULE_FOOTERS } from "@/components/shared/module-footer";
-import { RolshutterCalculator } from "@/components/rolshutter/rolshutter-calculator";
+import { RolshutterCalculatorWithOrder } from "@/components/rolshutter/rolshutter-calculator-with-order";
+import { ErrorBoundary } from "@/components/shared/error-boundary";
 
 async function fetchClients() {
   const res = await fetch("/api/clients");
@@ -228,7 +229,9 @@ export function ClientsOrdersModule({ role }: { role: string }) {
       {/* Rolshutter calculator tab */}
       {tab === "rolshutter" && (
         <div className="border border-hairline bg-card p-4">
-          <RolshutterCalculator />
+          <ErrorBoundary>
+            <RolshutterCalculatorWithOrder />
+          </ErrorBoundary>
         </div>
       )}
 

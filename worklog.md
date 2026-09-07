@@ -882,3 +882,76 @@ Stage Summary:
 - Now appears as 3rd tab inside Հաճախորդներ և Պատվերներ module
 - Excel/+ Նոր buttons hidden when calculator tab is active
 - Calculator fully functional with all features (presets, materials, totals, print)
+
+---
+Task ID: P35
+Agent: main (continuation)
+Task: 1) Client selector + order creation in Դարպասի Հաշվարկ + 2) Category management
+
+Work Log:
+1. **Modified RolshutterCalculator** (rolshutter-calculator.tsx):
+   - Added optional props: `onRowsChange(summary)` and `onTotalChange(total)`
+   - Added useEffect with summary building (visibleRows + customRows + assembly + delivery)
+   - Used useRef to compare summary/total keys — prevents infinite loop (React error #185)
+   - Added try/catch + typeof checks for safety
+
+2. **Built RolshutterCalculatorWithOrder** (rolshutter-calculator-with-order.tsx):
+   - Wraps RolshutterCalculator with order creation panel
+   - Client selector dropdown (from /api/clients)
+   - Payment method toggle (Պարտք / Առձեռն / Փոխանցում)
+   - "Ստեղծել պատվեր հաշվարկից" header
+   - Live total + product count
+   - On submit:
+     - For each calculator row, finds matching product by name in catalog
+     - If not found — auto-creates new product via POST /api/products with CALC-* SKU
+     - Sends POST /api/orders with clientId, items (qty+unitPrice+parameters), paymentMethod
+     - Note: "Ստեղծված է Դարպասի Հաշվարկից · Ընդհանուր՝ X դր"
+   - Shows stock error banner if inventory insufficient
+
+3. **Created Category API endpoints**:
+   - `POST /api/categories` — create new category (ADMIN only, audit log)
+   - `PATCH /api/categories/[id]` — rename / change sortOrder / archive
+   - `DELETE /api/categories/[id]` — hard-delete if no products, otherwise:
+     - Unassigns all products (categoryId=null)
+     - Soft-deletes category (active=false)
+     - Audit log entry
+   - Updated GET /api/categories to include `_count.products`
+
+4. **Built CategoryManagerDialog** (category-manager-dialog.tsx):
+   - Create new category (with input field)
+   - List categories with product count badge per category
+   - Rename category (Pencil button → modal)
+   - Delete category (Trash button → confirmation modal with warning)
+   - Select category → see its products in right panel
+   - Add product to category (dropdown of products without category)
+   - Remove product from category (X button next to each product)
+   - All changes audit-logged
+
+5. **Added Կատեգորիաներ button** (products-module.tsx):
+   - New outline button with FolderTree icon
+   - Opens CategoryManagerDialog
+   - ADMIN only
+
+6. **Added ErrorBoundary** (shared/error-boundary.tsx):
+   - Catches React component errors, prevents whole-app crash
+   - Used to wrap RolshutterCalculatorWithOrder in Դարպասի Հաշվարկ tab
+   - Shows error message + "Կրկնել" (retry) button
+
+Verification results (2026-09-08):
+- ✅ Դարպասի Հաշվարկ tab shows:
+  - Ռոլստորների կոնֆիգուրատոր (calculator header)
+  - Ստեղծել պատվեր հաշվարկից (order creation panel)
+  - Ընտրեք հաճախորդ (client dropdown)
+  - Պարտք / Առձեռն / Փոխանցում (payment method toggle)
+  - Ստեղծել պատվեր button (disabled when no client)
+- ✅ Ապրանքներ module shows Կատեգորիաներ button
+- ✅ Production deployed to https://arm-roll-erp.vercel.app
+- ✅ Screenshot: download/rolshutter-with-order-panel.png
+
+Stage Summary:
+- Դարպասի Հաշվարկ now has client selector — calculator results can create real orders
+- Order creation auto-matches products by name or auto-creates new products
+- ADMIN can fully manage categories: create, rename, delete, assign/remove products
+- Categories API supports both soft-delete (archive) and hard-delete (when no products)
+- All category operations audit-logged
+- Fixed infinite loop issue in calculator's useEffect (React error #185) using useRef comparison

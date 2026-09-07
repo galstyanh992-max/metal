@@ -6,11 +6,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Plus, Pencil, Trash2, Loader2, Package, Calculator, Star } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Package, Calculator, Star, FolderTree } from "lucide-react";
 import { useState } from "react";
 import { ProductDetailDrawer } from "./product-detail-drawer";
 import { ProductEditDialog } from "./product-edit-dialog";
 import { ProductCostCalculator } from "./product-cost-calculator";
+import { CategoryManagerDialog } from "./category-manager-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { ModuleFooter, MODULE_FOOTERS } from "@/components/shared/module-footer";
 import { toast } from "sonner";
@@ -34,6 +35,7 @@ export function ProductsModule({ role }: { role: string }) {
   const [calcId, setCalcId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [categoryManagerOpen, setCategoryManagerOpen] = useState(false);
   const qc = useQueryClient();
 
   const products = data?.products ?? [];
@@ -80,9 +82,20 @@ export function ProductsModule({ role }: { role: string }) {
         title="Ապրանքներ"
         description="Կատալոգ և պաշարներ"
         action={role === "ADMIN" && (
-          <Button size="sm" className="gap-2 bg-primary" onClick={() => setCreateOpen(true)}>
-            <Plus className="size-4" /> Ապրանք
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-2"
+              onClick={() => setCategoryManagerOpen(true)}
+            >
+              <FolderTree className="size-4" />
+              Կատեգորիաներ
+            </Button>
+            <Button size="sm" className="gap-2 bg-primary" onClick={() => setCreateOpen(true)}>
+              <Plus className="size-4" /> Ապրանք
+            </Button>
+          </div>
         )}
       />
 
@@ -175,6 +188,11 @@ export function ProductsModule({ role }: { role: string }) {
 
       {/* Product detail drawer */}
       <ProductDetailDrawer productId={detailId} open={!!detailId} onClose={() => setDetailId(null)} role={role} />
+
+      {/* Category manager (ADMIN only) */}
+      {role === "ADMIN" && categoryManagerOpen && (
+        <CategoryManagerDialog onClose={() => setCategoryManagerOpen(false)} />
+      )}
 
       {/* Create / Edit dialog */}
       {role === "ADMIN" && createOpen && (

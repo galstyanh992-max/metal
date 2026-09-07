@@ -1,5 +1,5 @@
 "use client";
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useMemo, useState, useEffect, useRef } from "react";
 
 /**
  * Ռոլստորների կոնֆիգուրատոր — mirrors the formulas from 456.xlsx, plus:
@@ -270,7 +270,7 @@ function buildCatalog(products) {
 
 let customRowSeq = 1;
 
-export function RolshutterCalculator({ products }) {
+export function RolshutterCalculator({ products, onRowsChange, onTotalChange }) {
   const [width, setWidth] = useState(3);
   const [height, setHeight] = useState(2.5);
   const [color, setColor] = useState(DEFAULT_COLORS[0]);
@@ -445,6 +445,75 @@ export function RolshutterCalculator({ products }) {
   const deliverySum = deliveryOn ? Number(deliveryPrice) || 0 : 0;
   const total = materialsTotal + customTotal + assemblySum + deliverySum;
   const pricePerSqm = area > 0 ? materialsTotal / area : 0;
+
+  // Notify parent of row changes (for order creation) — avoid infinite loops
+  const lastSummaryRef = useRef("");
+  useEffect(() => {
+    if (typeof onRowsChange !== "function") return;
+    try {
+      const summary = [
+        ...visibleRows
+          .filter((r) => (Number(r.sum) || 0) > 0)
+          .map((r) => ({
+            name: String(r.name || ""),
+            qty: Number(r.qty) || 0,
+            meters: r.meters ?? null,
+            price: Number(r.price) || 0,
+            sum: Number(r.sum) || 0,
+          })),
+        ...customRows
+          .filter((r) => (Number(r.qty) || 0) * (Number(r.price) || 0) > 0)
+          .map((r) => ({
+            name: String(r.name || "Այլ ապրանք"),
+            qty: Number(r.qty) || 0,
+            meters: null,
+            price: Number(r.price) || 0,
+            sum: (Number(r.qty) || 0) * (Number(r.price) || 0),
+          })),
+      ];
+      if (assemblyOn && assemblySum > 0) {
+        summary.push({
+          name: "Հավաքում",
+          qty: 1,
+          meters: null,
+          price: Math.round(assemblySum),
+          sum: Math.round(assemblySum),
+        });
+      }
+      if (deliveryOn && deliverySum > 0) {
+        summary.push({
+          name: "Առաքում",
+          qty: 1,
+          meters: null,
+          price: Math.round(deliverySum),
+          sum: Math.round(deliverySum),
+        });
+      }
+      // Only call parent if summary actually changed (prevents infinite loop)
+      const summaryKey = JSON.stringify(summary);
+      if (summaryKey !== lastSummaryRef.current) {
+        lastSummaryRef.current = summaryKey;
+        onRowsChange(summary);
+      }
+    } catch (e) {
+      // silent
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleRows, customRows, assemblyOn, assemblySum, deliveryOn, deliverySum]);
+
+  const lastTotalRef = useRef(0);
+  useEffect(() => {
+    if (typeof onTotalChange === "function") {
+      try {
+        const t = Math.round(total);
+        if (t !== lastTotalRef.current) {
+          lastTotalRef.current = t;
+          onTotalChange(t);
+        }
+      } catch (e) {}
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [total]);
 
   // Lamel-count helper (C12 in the original sheet): (height - boxDepth*0.01) / line-divisor.
   const lamelDivisor = LAMEL_DIVISOR_BY_LINE[currentLine];
