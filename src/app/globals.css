@@ -56,7 +56,7 @@
  * Cool graphite neutrals + steel accent + copper for critical CTAs.
  */
 :root {
-  --radius: 0.375rem;
+  --radius: 0.5rem;
   /* surfaces — graphite neutrals */
   --background: oklch(0.985 0.002 240);
   --foreground: oklch(0.21 0.01 240);
@@ -145,31 +145,107 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
-  /* tabular figures for all numbers (AMD) */
-  table, .num, [data-num] {
-    font-variant-numeric: tabular-nums;
+  table, .num, [data-num] { font-variant-numeric: tabular-nums; }
+}
+
+/* === 3D & Premium UI === */
+@layer components {
+  /* 3D card effect */
+  .card-3d {
+    @apply bg-card rounded-lg;
+    border: 1px solid oklch(0.9 0.005 240);
+    box-shadow: 0 1px 3px oklch(0 0 0 / 0.04), 0 1px 2px oklch(0 0 0 / 0.06);
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+  }
+  .card-3d:hover {
+    box-shadow: 0 4px 12px oklch(0 0 0 / 0.08), 0 2px 4px oklch(0 0 0 / 0.04);
+    transform: translateY(-1px);
+  }
+  .dark .card-3d {
+    box-shadow: 0 1px 3px oklch(0 0 0 / 0.2);
+  }
+  .dark .card-3d:hover {
+    box-shadow: 0 4px 12px oklch(0 0 0 / 0.3);
+  }
+
+  /* Glassmorphism sidebar */
+  .glass-panel {
+    backdrop-filter: blur(12px) saturate(180%);
+    background: color-mix(in oklch, var(--background) 85%, transparent);
+  }
+  .dark .glass-panel {
+    background: color-mix(in oklch, var(--background) 80%, transparent);
+  }
+
+  /* Gradient primary button */
+  .btn-primary-3d {
+    background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary) / 0.9) 100%);
+    box-shadow: 0 1px 2px oklch(0 0 0 / 0.12), inset 0 1px 0 oklch(1 0 0 / 0.08);
+    transition: box-shadow 0.15s ease, transform 0.15s ease;
+  }
+  .btn-primary-3d:hover {
+    box-shadow: 0 2px 6px oklch(0 0 0 / 0.18), inset 0 1px 0 oklch(1 0 0 / 0.1);
+    transform: translateY(-1px);
+  }
+  .btn-primary-3d:active {
+    box-shadow: 0 0px 1px oklch(0 0 0 / 0.1), inset 0 1px 2px oklch(0 0 0 / 0.1);
+    transform: translateY(0);
+  }
+
+  /* Nav button active glow */
+  .nav-active-glow {
+    box-shadow: inset 2px 0 0 0 var(--primary), 0 0 12px color-mix(in oklch, var(--primary) 15%, transparent);
+  }
+
+  /* KPI card with depth */
+  .kpi-3d {
+    @apply bg-card rounded-lg;
+    border: 1px solid oklch(0.9 0.005 240);
+    box-shadow: 0 1px 3px oklch(0 0 0 / 0.03);
+    transition: box-shadow 0.2s, transform 0.2s;
+  }
+  .dark .kpi-3d {
+    border-color: oklch(0.26 0.008 240);
+  }
+  .kpi-3d:hover {
+    box-shadow: 0 6px 16px oklch(0 0 0 / 0.06);
+    transform: translateY(-2px);
+  }
+
+  /* Input focus glow */
+  .input-focus-glow:focus-visible {
+    box-shadow: 0 0 0 3px color-mix(in oklch, var(--primary) 12%, transparent);
+  }
+
+  /* Tab button 3D */
+  .tab-3d {
+    transition: all 0.15s ease;
+    box-shadow: 0 0px 0px transparent;
+  }
+  .tab-3d-active {
+    box-shadow: 0 2px 8px color-mix(in oklch, var(--primary) 20%, transparent), inset 0 1px 0 oklch(1 0 0 / 0.1);
   }
 }
 
 /* Premium scrollbar */
-::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: oklch(0.85 0.005 240); border-radius: 4px; }
-.dark ::-webkit-scrollbar-thumb { background: oklch(0.35 0.008 240); }
-::-webkit-scrollbar-thumb:hover { background: oklch(0.75 0.005 240); }
+::-webkit-scrollbar-thumb { background: oklch(0.82 0.005 240); border-radius: 3px; }
+.dark ::-webkit-scrollbar-thumb { background: oklch(0.32 0.008 240); }
+::-webkit-scrollbar-thumb:hover { background: oklch(0.72 0.005 240); }
 
 /* Status helpers */
-.status-green { background: color-mix(in oklch, var(--status-green) 15%, transparent); color: var(--status-green); }
-.status-yellow { background: color-mix(in oklch, var(--status-yellow) 18%, transparent); color: color-mix(in oklch, var(--status-yellow) 70%, black); }
-.status-orange { background: color-mix(in oklch, var(--status-orange) 18%, transparent); color: color-mix(in oklch, var(--status-orange) 70%, black); }
-.status-red { background: color-mix(in oklch, var(--status-red) 18%, transparent); color: var(--status-red); }
-.status-critical { background: color-mix(in oklch, var(--status-critical) 22%, transparent); color: var(--status-critical); }
+.status-green { background: color-mix(in oklch, var(--status-green) 12%, transparent); color: var(--status-green); }
+.status-yellow { background: color-mix(in oklch, var(--status-yellow) 15%, transparent); color: color-mix(in oklch, var(--status-yellow) 70%, black); }
+.status-orange { background: color-mix(in oklch, var(--status-orange) 15%, transparent); color: color-mix(in oklch, var(--status-orange) 70%, black); }
+.status-red { background: color-mix(in oklch, var(--status-red) 15%, transparent); color: var(--status-red); }
+.status-critical { background: color-mix(in oklch, var(--status-critical) 20%, transparent); color: var(--status-critical); }
 
 /* Industrial divider */
 .hairline { border-color: oklch(0.9 0.005 240); }
-.dark .hairline { border-color: oklch(0.28 0.008 240); }
+.dark .hairline { border-color: oklch(0.26 0.008 240); }
 
-/* Tight focus rings for precision feel */
+/* Focus */
 .focus-steel:focus-visible { outline: 2px solid var(--steel); outline-offset: 1px; }
 
 /* Hide number spinners */
@@ -177,10 +253,14 @@ input[type="number"]::-webkit-outer-spin-button,
 input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 input[type="number"] { -moz-appearance: textfield; }
 
+/* Smooth transitions everywhere */
+button, a { transition: background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease; }
+
+/* Page entrance animation */
+@keyframes page-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+.page-enter { animation: page-in 0.2s ease-out; }
+
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.01ms !important;
-    transition-duration: 0.01ms !important;
-  }
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }

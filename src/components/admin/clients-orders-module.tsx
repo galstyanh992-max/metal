@@ -154,10 +154,10 @@ export function ClientsOrdersModule({ role }: { role: string }) {
     <div className="space-y-4">
       {/* Header with tabs */}
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-1 border border-hairline">
+        <div className="flex items-center gap-1 border border-hairline rounded-lg p-1 bg-card" style={{ boxShadow: "0 1px 3px oklch(0 0 0 / 0.03)" }}>
           <button
             onClick={() => setTab("clients")}
-            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${tab === "clients" ? "bg-primary text-primary-foreground" : "hover:bg-muted/40"}`}
+            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-all rounded-md ${tab === "clients" ? "bg-primary text-primary-foreground tab-3d-active" : "hover:bg-muted/40"}`}
           >
             <Users className="size-4" />
             Հաճախորդներ
@@ -165,7 +165,7 @@ export function ClientsOrdersModule({ role }: { role: string }) {
           </button>
           <button
             onClick={() => setTab("orders")}
-            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${tab === "orders" ? "bg-primary text-primary-foreground" : "hover:bg-muted/40"}`}
+            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-all rounded-md ${tab === "orders" ? "bg-primary text-primary-foreground tab-3d-active" : "hover:bg-muted/40"}`}
           >
             <ShoppingCart className="size-4" />
             Պատվերներ
@@ -173,14 +173,14 @@ export function ClientsOrdersModule({ role }: { role: string }) {
           </button>
           <button
             onClick={() => setTab("rolshutter")}
-            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${tab === "rolshutter" ? "bg-primary text-primary-foreground" : "hover:bg-muted/40"}`}
+            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-all rounded-md ${tab === "rolshutter" ? "bg-primary text-primary-foreground tab-3d-active" : "hover:bg-muted/40"}`}
           >
             <DoorOpen className="size-4" />
             Դարպասի Հաշվարկ
           </button>
           <button
             onClick={() => setTab("debts")}
-            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${tab === "debts" ? "bg-primary text-primary-foreground" : "hover:bg-muted/40"}`}
+            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-all rounded-md ${tab === "debts" ? "bg-primary text-primary-foreground tab-3d-active" : "hover:bg-muted/40"}`}
           >
             <TrendingDown className="size-4" />
             Պարտատերեր

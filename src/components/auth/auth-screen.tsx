@@ -37,24 +37,33 @@ export function AuthScreen({ mode, onModeChange }: { mode: "signin" | "signup"; 
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <div className="flex-1 grid lg:grid-cols-2">
-        {/* Brand panel */}
-        <div className="hidden lg:flex flex-col justify-between p-12 bg-primary text-primary-foreground relative overflow-hidden">
-          <div className="absolute inset-0 opacity-[0.04]" style={{
+        {/* Brand panel — 3D gradient with mesh */}
+        <div className="hidden lg:flex flex-col justify-between p-12 relative overflow-hidden" style={{
+          background: "linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary) / 0.85) 50%, oklch(0.28 0.02 240) 100%)",
+          boxShadow: "4px 0 24px oklch(0 0 0 / 0.06)",
+        }}>
+          {/* Mesh pattern overlay */}
+          <div className="absolute inset-0 opacity-[0.03]" style={{
             backgroundImage: "repeating-linear-gradient(45deg, currentColor 0, currentColor 1px, transparent 1px, transparent 12px)"
+          }} />
+          {/* Glow orb */}
+          <div className="absolute top-1/4 right-1/4 size-64 rounded-full opacity-10" style={{
+            background: "radial-gradient(circle, var(--copper) 0%, transparent 70%)",
+            filter: "blur(40px)",
           }} />
           <div className="relative">
             <div className="flex items-center gap-3">
-              <img src="/logo.jpeg" alt="Arm Roll" className="size-10 object-contain" />
+              <img src="/logo.jpeg" alt="Arm Roll" className="size-10 object-contain" style={{ filter: "drop-shadow(0 2px 4px oklch(0 0 0 / 0.2))" }} />
               <div>
-                <div className="text-lg font-semibold tracking-tight">ARM ROLL</div>
+                <div className="text-lg font-semibold tracking-tight text-primary-foreground">ARM ROLL</div>
                 <div className="text-xs text-primary-foreground/60 tracking-widest uppercase">ERP / CRM — Armenia</div>
               </div>
             </div>
           </div>
           <div className="relative space-y-4">
-            <h1 className="text-3xl font-semibold leading-tight">
+            <h1 className="text-3xl font-semibold leading-tight text-primary-foreground">
               Արտադրության և առևտրի<br/>
-              <span className="text-copper">ճշգրիտ կառավարում</span>
+              <span className="text-copper" style={{ textShadow: "0 0 20px color-mix(in oklch, var(--copper) 30%, transparent)" }}>ճշգրիտ կառավարում</span>
             </h1>
             <p className="text-primary-foreground/70 text-sm leading-relaxed max-w-md">
               Հաճախորդներ, պատվերներ, պահեստ, ֆինանսներ, հարկեր և փաստաթղթեր՝ մեկ համակարգում։ Հայաստանյան արդյունաբերական ճշգրտությամբ։
@@ -66,9 +75,9 @@ export function AuthScreen({ mode, onModeChange }: { mode: "signin" | "signup"; 
           </div>
         </div>
 
-        {/* Form panel */}
+        {/* Form panel — centered with subtle depth */}
         <div className="flex items-center justify-center p-6 sm:p-12">
-          <Card className="w-full max-w-sm border-hairline shadow-none">
+          <Card className="w-full max-w-sm border-hairline rounded-xl" style={{ boxShadow: "0 4px 24px oklch(0 0 0 / 0.05)" }}>
             <CardHeader className="space-y-3">
               <div className="lg:hidden flex items-center gap-2">
                 <img src="/logo.jpeg" alt="Arm Roll" className="size-8 object-contain" />
@@ -81,14 +90,14 @@ export function AuthScreen({ mode, onModeChange }: { mode: "signin" | "signup"; 
               <form onSubmit={handleSubmit} className="space-y-3">
                 <div className="space-y-1.5">
                   <Label htmlFor="email" className="text-xs uppercase tracking-wide text-muted-foreground">Էլ․ հասցե</Label>
-                  <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus className="focus-steel" />
+                  <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus className="focus-steel rounded-lg input-focus-glow" />
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="password" className="text-xs uppercase tracking-wide text-muted-foreground">Գաղտնաբառ</Label>
-                  <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required className="focus-steel" />
+                  <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required className="focus-steel rounded-lg input-focus-glow" />
                 </div>
-                {error && <div className="text-xs text-destructive bg-destructive/5 border border-destructive/20 px-3 py-2">{error}</div>}
-                <Button type="submit" disabled={loading} className="w-full bg-primary hover:bg-primary/90">
+                {error && <div className="text-xs text-destructive bg-destructive/5 border border-destructive/20 px-3 py-2 rounded-md">{error}</div>}
+                <Button type="submit" disabled={loading} className="w-full bg-primary hover:bg-primary/90 rounded-lg btn-primary-3d">
                   {loading ? <Loader2 className="size-4 animate-spin" /> : <Lock className="size-4" />}
                   Մուտք
                 </Button>

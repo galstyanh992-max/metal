@@ -121,8 +121,8 @@ export function WorkspaceShell() {
 
   return (
     <div className="min-h-screen flex bg-background">
-      {/* Desktop sidebar */}
-      <aside className="hidden lg:flex w-60 flex-col border-r border-hairline bg-sidebar">
+      {/* Desktop sidebar — glass + 3D shadow */}
+      <aside className="hidden lg:flex w-60 flex-col border-r border-hairline glass-panel" style={{ boxShadow: "2px 0 12px oklch(0 0 0 / 0.03)" }}>
         <SidebarContent items={items} active={active} onSelect={setActive} role={role} userName={session?.user?.name ?? ""} userEmail={session?.user?.email ?? ""} />
       </aside>
 
@@ -140,26 +140,26 @@ export function WorkspaceShell() {
 
       {/* Main */}
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="h-14 border-b border-hairline flex items-center justify-between px-4 lg:px-6 gap-4">
+        <header className="h-14 border-b border-hairline flex items-center justify-between px-4 lg:px-6 gap-4 glass-panel" style={{ boxShadow: "0 1px 3px oklch(0 0 0 / 0.02)" }}>
           <div className="flex items-center gap-3 lg:gap-4 ml-12 lg:ml-0">
             <h2 className="text-sm font-medium truncate">
               {items.find((i) => i.key === active)?.label ?? "Վահանակ"}
             </h2>
-            <Badge variant="outline" className="hidden sm:inline-flex text-[10px] uppercase tracking-wider border-hairline">
+            <Badge variant="outline" className="hidden sm:inline-flex text-[10px] uppercase tracking-wider border-hairline rounded-md">
               {role === "ADMIN" ? "Ադմինիստրատոր" : role === "OPERATOR" ? "Օպերատոր" : "Պահեստապետ"}
             </Badge>
           </div>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setPaletteOpen(true)}
-              className="flex items-center gap-2 px-3 h-8 text-sm text-muted-foreground border border-hairline hover:bg-muted/40 transition-colors rounded-sm min-w-[120px] lg:min-w-[200px]"
+              className="flex items-center gap-2 px-3 h-8 text-sm text-muted-foreground border border-hairline hover:bg-muted/40 transition-colors rounded-lg min-w-[120px] lg:min-w-[200px] input-focus-glow"
             >
               <Search className="size-3.5 shrink-0" />
               <span className="hidden md:inline flex-1 text-left text-xs">Որոնում…</span>
               <kbd className="hidden md:inline-flex text-[9px] px-1 py-0.5 border border-hairline rounded-sm shrink-0">⌘K</kbd>
             </button>
             <NotificationsBell />
-            <Button variant="ghost" size="sm" onClick={handleLogout} className="gap-2">
+            <Button variant="ghost" size="sm" onClick={handleLogout} className="gap-2 rounded-lg">
               <LogOut className="size-4" />
               <span className="hidden sm:inline">Ելք</span>
             </Button>
@@ -167,7 +167,7 @@ export function WorkspaceShell() {
         </header>
 
         <main className="flex-1 overflow-auto">
-          <div className="p-4 lg:p-6 max-w-[1600px] mx-auto">
+          <div className="p-4 lg:p-6 max-w-[1600px] mx-auto page-enter">
             {renderModule()}
           </div>
         </main>
@@ -206,13 +206,13 @@ function SidebarContent({ items, active, onSelect, role, userName, userEmail }: 
               key={item.key}
               onClick={() => onSelect(item.key)}
               className={cn(
-                "w-full flex items-center gap-3 px-3 py-2 text-sm transition-colors text-left",
+                "w-full flex items-center gap-3 px-3 py-2 text-sm transition-all text-left rounded-lg",
                 isActive
-                  ? "bg-primary text-primary-foreground"
-                  : "text-sidebar-foreground hover:bg-sidebar-accent"
+                  ? "bg-primary text-primary-foreground nav-active-glow font-medium"
+                  : "text-sidebar-foreground hover:bg-sidebar-accent hover:translate-x-0.5"
               )}
             >
-              <Icon className="size-4 shrink-0" />
+              <Icon className={cn("size-4 shrink-0 transition-transform", isActive && "scale-110")} />
               <span className="truncate">{item.label}</span>
             </button>
           );
@@ -220,8 +220,8 @@ function SidebarContent({ items, active, onSelect, role, userName, userEmail }: 
       </nav>
       <Separator className="bg-hairline" />
       <div className="p-3">
-        <div className="flex items-center gap-2.5">
-          <div className="size-8 bg-muted flex items-center justify-center text-xs font-medium">
+        <div className="flex items-center gap-2.5 p-2 rounded-lg hover:bg-muted/30 transition-colors cursor-pointer">
+          <div className="size-8 bg-gradient-to-br from-primary to-primary/70 text-primary-foreground flex items-center justify-center text-xs font-medium rounded-lg shadow-sm">
             {userName.charAt(0).toUpperCase()}
           </div>
           <div className="flex-1 min-w-0">

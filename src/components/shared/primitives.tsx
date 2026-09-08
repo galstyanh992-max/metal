@@ -19,7 +19,7 @@ export function StatusPill({ status }: { status: string }) {
     CRITICAL: "Սպառված",
   };
   return (
-    <span className={cn("inline-flex items-center gap-1.5 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide", map[status] ?? "bg-muted text-muted-foreground")}>
+    <span className={cn("inline-flex items-center gap-1.5 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide rounded-md", map[status] ?? "bg-muted text-muted-foreground")}>
       <span className="size-1.5 rounded-full bg-current opacity-70" />
       {labels[status] ?? status}
     </span>
@@ -44,12 +44,12 @@ export function KpiCard({ label, value, sub, trend, icon: Icon, accent }: {
     : accent === "copper" ? "text-copper"
     : "";
   return (
-    <div className="bg-card border border-hairline p-3 lg:p-5 space-y-1.5 lg:space-y-2">
+    <div className="kpi-3d p-3 lg:p-5 space-y-1.5 lg:space-y-2">
       <div className="flex items-start justify-between gap-2">
         <div className="text-[10px] lg:text-[11px] uppercase tracking-wider text-muted-foreground font-medium">{label}</div>
-        {Icon && <Icon className="size-3.5 lg:size-4 text-muted-foreground/60 shrink-0" />}
+        {Icon && <Icon className={cn("size-3.5 lg:size-4 shrink-0", accent ? colorClass : "text-muted-foreground/60")} />}
       </div>
-      <div className={`text-lg lg:text-2xl font-semibold tracking-tight tabular-nums ${colorClass}`}>{value}</div>
+      <div className={cn("text-lg lg:text-2xl font-semibold tracking-tight tabular-nums", colorClass)}>{value}</div>
       {sub && <div className="text-[10px] lg:text-xs text-muted-foreground">{sub}</div>}
     </div>
   );
@@ -57,7 +57,7 @@ export function KpiCard({ label, value, sub, trend, icon: Icon, accent }: {
 
 export function EmptyState({ title, description, action }: { title: string; description?: string; action?: React.ReactNode }) {
   return (
-    <div className="border border-dashed border-hairline p-8 lg:p-12 text-center space-y-3">
+    <div className="border border-dashed border-hairline p-8 lg:p-12 text-center space-y-3 rounded-lg">
       <div className="text-sm font-medium">{title}</div>
       {description && <div className="text-xs text-muted-foreground max-w-sm mx-auto">{description}</div>}
       {action}
