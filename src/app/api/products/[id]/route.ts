@@ -15,11 +15,12 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const { userId, role } = await requireRole("ADMIN", "OPERATOR");
     const { id } = await params;
     const body = await req.json();
-    const { salePrice, purchasePrice, name, minStock } = body as {
+    const { salePrice, purchasePrice, name, minStock, categoryId } = body as {
       salePrice?: number;
       purchasePrice?: number;
       name?: string;
       minStock?: number;
+      categoryId?: string | null;
     };
 
     const existing = await db.product.findUnique({ where: { id } });
@@ -40,6 +41,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     }
     if (typeof minStock === "number" && minStock !== existing.minStock) {
       patch.minStock = Math.max(0, Math.floor(minStock));
+    }
+    // Allow setting categoryId (including null to remove from category)
+    if (categoryId !== undefined && categoryId !== existing.categoryId) {
+      patch.categoryId = categoryId || null;
     }
 
     if (Object.keys(patch).length === 0) {

@@ -42,7 +42,11 @@ export function CategoryManagerDialog({ onClose }: { onClose: () => void }) {
   const productsInCategory = selectedCat
     ? products.filter((p: any) => p.categoryId === selectedCat.id)
     : [];
-  const productsWithoutCategory = products.filter((p: any) => !p.categoryId);
+  // Show ALL products in the add dropdown — both without category AND from other categories
+  // This allows moving products between categories, not just adding unassigned ones
+  const productsAvailableToAdd = products.filter((p: any) =>
+    p.categoryId !== selectedCatId  // exclude products already in this category
+  );
 
   // Create category
   const createMut = useMutation({
@@ -241,7 +245,7 @@ export function CategoryManagerDialog({ onClose }: { onClose: () => void }) {
                           <SelectValue placeholder="Ընտրեք ապրանք" />
                         </SelectTrigger>
                         <SelectContent>
-                          {productsWithoutCategory.map((p: any) => (
+                          {productsAvailableToAdd.map((p: any) => (
                             <SelectItem key={p.id} value={p.id}>
                               {p.name} <span className="text-muted-foreground">({p.sku})</span>
                             </SelectItem>
@@ -249,9 +253,9 @@ export function CategoryManagerDialog({ onClose }: { onClose: () => void }) {
                         </SelectContent>
                       </Select>
                     </div>
-                    {productsWithoutCategory.length === 0 && (
+                    {productsAvailableToAdd.length === 0 && (
                       <p className="text-[11px] text-muted-foreground mt-1.5">
-                        Բոլոր ապրանքներն արդեն կապված են կատեգորիաների հետ
+                        Բոլոր ապրանքներն արդեն այս կատեգորիայում են
                       </p>
                     )}
                   </div>
