@@ -7,10 +7,11 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, User, Building2, ChevronDown, ChevronRight } from "lucide-react";
+import { Loader2, User, Building2, ChevronDown, ChevronRight, DoorOpen, Zap } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { QuickFillPanel, quickFillRowsToOrderItems, type QuickFillRow, type QuickFillTotals } from "./quick-fill-panel";
+import { RolshutterCalculatorWithOrder } from "@/components/rolshutter/rolshutter-calculator-with-order";
 
 export function ClientCreateDialog({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated?: () => void }) {
   const [type, setType] = useState<"INDIVIDUAL" | "COMPANY">("INDIVIDUAL");
@@ -26,6 +27,7 @@ export function ClientCreateDialog({ open, onClose, onCreated }: { open: boolean
 
   // Inline Quick-Fill for new order — open by default
   const [showOrderSection, setShowOrderSection] = useState(true);
+  const [orderMode, setOrderMode] = useState<"quickfill" | "calculator">("quickfill");
   const [paymentMethod, setPaymentMethod] = useState<"debt" | "cash" | "transfer">("debt");
   const [savePrices, setSavePrices] = useState(true);
   const [discountPercent, setDiscountPercent] = useState("0");
@@ -276,60 +278,96 @@ export function ClientCreateDialog({ open, onClose, onCreated }: { open: boolean
 
               {showOrderSection && (
                 <div className="space-y-3">
-                  {/* Payment method */}
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <Label className="text-xs uppercase tracking-wider text-muted-foreground">Վճարման եղանակ՝</Label>
-                    <div className="flex items-center gap-1 border border-hairline bg-card">
-                      {([
-                        { v: "debt", label: "Պարտք" },
-                        { v: "cash", label: "Առձեռն" },
-                        { v: "transfer", label: "Փոխանցում" },
-                      ] as const).map((opt) => (
-                        <button
-                          key={opt.v}
-                          type="button"
-                          onClick={() => setPaymentMethod(opt.v)}
-                          className={`px-4 py-2 text-sm font-medium transition-colors ${
-                            paymentMethod === opt.v
-                              ? "bg-primary text-primary-foreground"
-                              : "hover:bg-muted/40 text-muted-foreground"
-                          }`}
-                        >
-                          {opt.label}
-                        </button>
-                      ))}
-                    </div>
-                    <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        checked={savePrices}
-                        onChange={(e) => setSavePrices(e.target.checked)}
-                        className="size-4 accent-primary"
-                      />
-                      <span>Պահպանել գները</span>
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <Label className="text-xs uppercase tracking-wider text-muted-foreground">Զեղչ (%)</Label>
-                      <Input
-                        type="number"
-                        min={0}
-                        max={100}
-                        step="0.5"
-                        value={discountPercent}
-                        onChange={(e) => setDiscountPercent(e.target.value)}
-                        placeholder="0"
-                        className="h-9 w-20 text-right tabular-nums focus-steel"
-                      />
-                    </div>
+                  {/* Order mode toggle */}
+                  <div className="flex items-center gap-1 border border-hairline">
+                    <button
+                      type="button"
+                      onClick={() => setOrderMode("quickfill")}
+                      className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
+                        orderMode === "quickfill" ? "bg-primary text-primary-foreground" : "hover:bg-muted/40"
+                      }`}
+                    >
+                      <Zap className="size-4" />
+                      Արագ լցոնում
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setOrderMode("calculator")}
+                      className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
+                        orderMode === "calculator" ? "bg-primary text-primary-foreground" : "hover:bg-muted/40"
+                      }`}
+                    >
+                      <DoorOpen className="size-4" />
+                      Դարպասի Հաշվարկ
+                    </button>
                   </div>
 
-                  {/* Quick Fill panel inline */}
-                  <div className="border border-hairline">
-                    <QuickFillPanel
-                      embedded
-                      onChange={(r, t) => { setRows(r); setTotals(t); }}
-                    />
-                  </div>
+                  {orderMode === "quickfill" ? (
+                    <>
+                      {/* Payment method */}
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <Label className="text-xs uppercase tracking-wider text-muted-foreground">Վճարման եղանակ՝</Label>
+                        <div className="flex items-center gap-1 border border-hairline bg-card">
+                          {([
+                            { v: "debt", label: "Պարտք" },
+                            { v: "cash", label: "Առձեռն" },
+                            { v: "transfer", label: "Փոխանցում" },
+                          ] as const).map((opt) => (
+                            <button
+                              key={opt.v}
+                              type="button"
+                              onClick={() => setPaymentMethod(opt.v)}
+                              className={`px-4 py-2 text-sm font-medium transition-colors ${
+                                paymentMethod === opt.v
+                                  ? "bg-primary text-primary-foreground"
+                                  : "hover:bg-muted/40 text-muted-foreground"
+                              }`}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                        <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={savePrices}
+                            onChange={(e) => setSavePrices(e.target.checked)}
+                            className="size-4 accent-primary"
+                          />
+                          <span>Պահպանել գները</span>
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <Label className="text-xs uppercase tracking-wider text-muted-foreground">Զեղչ (%)</Label>
+                          <Input
+                            type="number"
+                            min={0}
+                            max={100}
+                            step="0.5"
+                            value={discountPercent}
+                            onChange={(e) => setDiscountPercent(e.target.value)}
+                            placeholder="0"
+                            className="h-9 w-20 text-right tabular-nums focus-steel"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Quick Fill panel inline */}
+                      <div className="border border-hairline">
+                        <QuickFillPanel
+                          embedded
+                          onChange={(r, t) => { setRows(r); setTotals(t); }}
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    /* Door calculator mode */
+                    <div className="border border-hairline p-3">
+                      <p className="text-xs text-muted-foreground mb-2">
+                        Լցրեք հաշվարկը, ապա ստեղծեք հաճախորդը — պատվերը կստեղծվի ավտոմատ
+                      </p>
+                      <RolshutterCalculatorWithOrder />
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -339,7 +377,7 @@ export function ClientCreateDialog({ open, onClose, onCreated }: { open: boolean
         {/* Footer */}
         <DialogFooter className="px-6 py-4 border-t border-hairline bg-card flex items-center justify-between gap-3 shrink-0">
           <div className="flex items-center gap-4 text-sm">
-            {showOrderSection && (
+            {showOrderSection && orderMode === "quickfill" && (
               <>
                 <span className="text-muted-foreground">Ընտրված՝ <strong className="text-foreground">{totals.selectedCount}</strong></span>
                 {Number(discountPercent) > 0 ? (
@@ -352,6 +390,11 @@ export function ClientCreateDialog({ open, onClose, onCreated }: { open: boolean
                   <span className="text-muted-foreground">Ընդհանուր՝ <strong className="text-primary text-base">{new Intl.NumberFormat("hy-AM").format(totals.totalAmount)} դր</strong></span>
                 )}
               </>
+            )}
+            {showOrderSection && orderMode === "calculator" && (
+              <span className="text-xs text-muted-foreground">
+                Դարպասի Հաշվարկ — պատվերը կստեղծվի հաշվարկի լցոնումից
+              </span>
             )}
           </div>
           <div className="flex items-center gap-2">

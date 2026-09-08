@@ -1233,3 +1233,49 @@ Stage Summary:
 - Search also matches email and taxId (ՀՎՀՀ) as bonus
 - Results show in real-time as user types
 - Keyboard navigation (Enter to select first, Escape to close)
+
+---
+Task ID: P40
+Agent: main (continuation)
+Task: Calculator order panel at bottom + door calculator in client create + warehouse flow + stock check
+
+Work Log:
+1. **Calculator order panel moved to BOTTOM** (rolshutter-calculator-with-order.tsx):
+   - Calculator now renders first (top)
+   - Order panel ("Ստեղծել պատվեր հաշվարկից") renders after calculator (bottom)
+   - Header shows live total: "188,643 դր · 15 ապրանք" format
+   - Stock warning banner added (red, shows product names if insufficient stock)
+   - Info text: "Պատվերը կուղարկվի Պահեստապետին · գները նրան չեն երևում · պահեստի առկայությունը ստուգվում է"
+
+2. **Door Calculator added to ClientCreateDialog** (client-create-dialog.tsx):
+   - New toggle: "Արագ լցոնում" (default) / "Դարպասի Հաշվարկ"
+   - Quick-Fill mode: existing QuickFillPanel + payment + discount
+   - Calculator mode: embeds RolshutterCalculatorWithOrder component
+   - Footer adapts: shows totals in Quick-Fill mode, info text in calculator mode
+   - Imported DoorOpen + Zap icons, RolshutterCalculatorWithOrder component
+
+3. **All orders → CONFIRMED status** (api/orders/route.ts):
+   - Changed: `status: isPaidNow ? "CONFIRMED" : "DRAFT"` → `status: "CONFIRMED"`
+   - All orders now go to CONFIRMED → visible to warehouse keeper
+   - Warehouse keeper sees orders in Picks module (Ընտրում)
+   - Prices already hidden from warehouse via RBAC (stripForbiddenForWarehouse)
+
+4. **Stock check enforced** (already existed, confirmed working):
+   - POST /api/orders checks computeInventoryState for each item
+   - If insufficient: returns 409 with { stockError: true, details: [...] }
+   - Quick-Fill dialog: shows red banner with product names
+   - Calculator order panel: shows red stock warning banner
+   - Both display: "Պատվերը հնարավոր չէ ընդունել — անբավարար պաշար" + list of products
+
+Verification results (2026-09-08):
+- ✅ Calculator: "Ռոլստորների կոնֆիգուրատոր" first, "Ստեղծել պատվեր հաշվարկից" after
+- ✅ ClientCreateDialog: toggle "Արագ լցոնում" / "Դարպասի Հաշվարկ"
+- ✅ Order status: all new orders → CONFIRMED (warehouse sees them)
+- ✅ Stock check: enforced in API, UI shows red banner if insufficient
+- ✅ Production deployed to https://arm-roll-erp.vercel.app
+
+Stage Summary:
+- Calculator panel at bottom with live total (price · count) in header
+- Door calculator available inside Նոր հաճախորդ dialog
+- All orders go to warehouse (CONFIRMED status, no prices for warehouse)
+- Stock check prevents ordering if products not available — warning shown

@@ -172,11 +172,29 @@ export function RolshutterCalculatorWithOrder() {
 
   return (
     <div className="space-y-3">
-      {/* Order panel — moved to TOP (above calculator) */}
+      {/* Calculator on top */}
+      <RolshutterCalculator onRowsChange={onRowsChange} onTotalChange={onTotalChange} />
+
+      {/* Order panel — at the BOTTOM (after calculator) */}
       <div className="border-2 border-primary/30 bg-primary/5 p-4 rounded-lg">
         <div className="flex items-center gap-2 mb-3">
           <Zap className="size-5 text-primary" />
           <h3 className="text-base font-semibold">Ստեղծել պատվեր հաշվարկից</h3>
+          {rows.length > 0 && total > 0 && (
+            <span className="ml-auto text-sm text-muted-foreground tabular-nums">
+              {Number(discountPercent) > 0 ? (
+                <>
+                  <span className="line-through">{new Intl.NumberFormat("hy-AM").format(Math.round(total))} դր</span>
+                  {" → "}
+                  <strong className="text-primary">{new Intl.NumberFormat("hy-AM").format(Math.round(finalTotal))} դր</strong>
+                </>
+              ) : (
+                <><strong className="text-primary">{new Intl.NumberFormat("hy-AM").format(Math.round(total))} դր</strong></>
+              )}
+              {" · "}
+              {rows.length} ապրանք
+            </span>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3">
@@ -266,9 +284,21 @@ export function RolshutterCalculatorWithOrder() {
           </div>
         )}
 
+        {/* Stock warning if not enough stock */}
+        {orderMutation.isError && (orderMutation.error as any)?.stockError && (
+          <div className="mb-3 px-3 py-2 bg-status-red/10 border border-status-red/30 rounded text-xs text-status-red">
+            <strong>⚠️ Պատվերը հնարավոր չէ ընդունել — անբավարար պաշար</strong>
+            <ul className="mt-1 space-y-0.5">
+              {((orderMutation.error as any)?.details ?? []).map((d: string, i: number) => (
+                <li key={i}>• {d}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         <div className="flex items-center justify-between gap-3">
           <p className="text-xs text-muted-foreground">
-            Ապրանքները ավտոմատ կկապվեն կատալոգի հետ։ Պահեստի ստուգումը կկատարվի պատվերի ստեղծման ժամանակ։
+            Պատվերը կուղարկվի Պահեստապետին · գները նրան չեն երևում · պահեստի առկայությունը ստուգվում է
           </p>
           <Button
             onClick={() => orderMutation.mutate()}
@@ -282,9 +312,6 @@ export function RolshutterCalculatorWithOrder() {
           </Button>
         </div>
       </div>
-
-      {/* Calculator below */}
-      <RolshutterCalculator onRowsChange={onRowsChange} onTotalChange={onTotalChange} />
     </div>
   );
 }

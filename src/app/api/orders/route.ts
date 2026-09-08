@@ -149,9 +149,10 @@ export async function POST(req: Request) {
     const totalDiscountAmount = manualDiscountAmount + loyaltyDiscountAmount;
     const totalAmount = Math.max(0, baseAmount - totalDiscountAmount);
 
-    // Payment method handling:
-    // - cash / transfer → fully paid immediately (paidAmount = totalAmount, outstanding = 0)
-    // - debt (default)  → unpaid (paidAmount = 0, outstanding = totalAmount)
+    // Order status:
+    // - cash/transfer → CONFIRMED (paid)
+    // - debt → CONFIRMED (sent to warehouse for picking, no prices visible to warehouse)
+    // (Previously debt was DRAFT — now all orders go to CONFIRMED so warehouse sees them)
     const isPaidNow = paymentMethod === "cash" || paymentMethod === "transfer";
     const paidAmount = isPaidNow ? totalAmount : 0;
     const outstandingAmount = totalAmount - paidAmount;
@@ -166,7 +167,7 @@ export async function POST(req: Request) {
       data: {
         number,
         clientId,
-        status: isPaidNow ? "CONFIRMED" : "DRAFT",
+        status: "CONFIRMED",
         baseAmount,
         discountAmount: totalDiscountAmount,
         taxAmount: 0,
