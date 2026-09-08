@@ -45,24 +45,68 @@ const LINE_OFFSET = { "7,7": -0.11, "5,5": -0.095, "3,9": -0.075 };
 // Վերին ավտոմատ փական: Standart also drops Ադապտեր / Կառավարման անջատիչ /
 // Սահմանափակիչ թիթեղ / Կողպեկ (Security keeps them). Everything set by a
 // preset stays fully editable afterwards — this is just a fast starting point.
+// LINE_VARIANTS — default product selection per profile line.
+// Mapped from user's specification:
+//   7,7: Կոռոբ 30, Վալ 70, Լամիլ 7,7, Տակացու 7,7, Ռետինե 7,7, Ուղղորդիչ 7,7,
+//         Պուխ խոշոր, Առանցքակալ մեծ, Ամրակ մեծ, Օս դյուրալյումինե 70,
+//         Ռոլիկ մեծ, Օղակ 70, Կախիչ 7,7/5,5, Խցան 7,7, Կարդան ունիվերսալ,
+//         Վթարային DS38A, Շարժիչ 80Nm(70), Բլոկ DC155
+//   5,5: Կոռոբ 25, Վալ 60, Լամիլ 5,5, ... Պուխ մանր, Օս պլաստմասե 60,
+//         Օղակ 60, Կախիչ 7,7/5,5, Խցան 5,5, Կարդան ունիվերսալ,
+//         Վթարային DS38A, Շարժիչ 50Nm վթարային, Բլոկ DC155
+//   3,9: Կոռոբ 20, Վալ 40, Լամիլ 3,9, ... Պուխ մանր, Առանցքակալ փոքր,
+//         Օս պլաստմասե 40, Օղակ 40, Կախիչ 3,9, Խցան 3,9,
+//         Շարժիչ 20Nm, Բլոկ DC155
+//         (NO Կարդան, NO Վթարային բռնակ, NO Ամրակ, NO Ռոլիկ)
 const LINE_VARIANTS = {
   "7,7": {
     lamil: "lamil-77", takatsu: "takatsu-77", rezin: "rezin-77",
-    napravl: "napravl-77", zaglushka: "zaglushka-77", kakhich: "kakhich-77-55",
-    korob: "korob-35", val: "val-70", kaltso: "kaltso-70", os: "os-plastic-70",
+    napravl: "napravl-77", zaglushka: "zaglushka-77",
+    kakhich: "kakhich-77-55", top_lock: "top_lock-77",
+    korob: "korob-30", val: "val-70", kaltso: "kaltso-70",
+    os: "os-alu-70",  // դյուրալյումինե 70
+    bearing: "bearing-big", bearing_holder: "bearing_holder-big",
+    rolik: "rolik-big",
+    chotka: "chotka-big",  // Պուխ խոշոր
+    kardan: "kardan-universal",
+    emergency_handle: "handle-ds38a",
+    motor: "motor-80-70",  // 80Nm (70)
+    blok: "blok-dc155-1ch",
   },
   "5,5": {
     lamil: "lamil-55", takatsu: "takatsu-55", rezin: "rezin-55",
-    napravl: "napravl-55", zaglushka: "zaglushka-55", kakhich: "kakhich-77-55",
-    korob: "korob-25", val: "val-60", kaltso: "kaltso-60", os: "os-plastic-60",
+    napravl: "napravl-55", zaglushka: "zaglushka-55",
+    kakhich: "kakhich-77-55", top_lock: "top_lock-77",
+    korob: "korob-25", val: "val-60", kaltso: "kaltso-60",
+    os: "os-plastic-60",  // պլաստմասե 60
+    bearing: "bearing-big", bearing_holder: "bearing_holder-big",
+    rolik: "rolik-big",
+    chotka: "chotka-small",  // Պուխ մանր
+    kardan: "kardan-universal",
+    emergency_handle: "handle-ds38a",
+    motor: "motor-50noem-60",  // 50Nm վթարային
+    blok: "blok-dc155-1ch",
   },
   "3,9": {
     lamil: "lamil-39", takatsu: "takatsu-39", rezin: "rezin-39",
-    napravl: "napravl-39", zaglushka: "zaglushka-39", kakhich: "kakhich-39",
-    korob: "korob-20", val: "val-40", kaltso: "kaltso-40", os: "os-plastic-40",
+    napravl: "napravl-39", zaglushka: "zaglushka-39",
+    kakhich: "kakhich-39", top_lock: "top_lock-77",
+    korob: "korob-20", val: "val-40", kaltso: "kaltso-40",
+    os: "os-plastic-40",  // պլաստմասե 40
+    bearing: "bearing-small",  // փոքր (no holder for 3,9)
+    chotka: "chotka-small",  // Պուխ մանր
+    // NO kardan, NO emergency_handle, NO rolik for 3,9
+    motor: "motor-20-60",  // 20Nm
+    blok: "blok-dc155-1ch",
   },
 };
 
+// Items removed for 3,9 line (simpler construction)
+const LINE_39_EXCLUDED_KEYS = ["kardan", "emergency_handle", "bearing_holder", "rolik"];
+
+// Items only in Security tier (not in Standart): top_lock replaces kakhich
+// Standart: has Կախիչ (kakhich), no Վերին փական (top_lock)
+// Security: has Վերին փական (top_lock), no Կախիչ (kakhich)
 const SECURITY_ONLY_KEYS = ["adapter", "control_switch", "limiter_plate", "lock"];
 
 const DOOR_PRESETS = [
@@ -324,33 +368,50 @@ export function RolshutterCalculator({ products, onRowsChange, onTotalChange }) 
     const preset = DOOR_PRESETS.find((p) => p.id === presetId);
     if (!preset) return;
     const lv = LINE_VARIANTS[preset.line];
+    const isLine39 = preset.line === "3,9";
 
-    setProductForRow("korob", lv.korob);
-    setProductForRow("val", lv.val);
-    setProductForRow("lamil", lv.lamil);
-    setProductForRow("takatsu", lv.takatsu);
-    setProductForRow("rezin", lv.rezin);
-    setProductForRow("napravl", lv.napravl);
-    setProductForRow("zaglushka", lv.zaglushka);
-    setProductForRow("kaltso", lv.kaltso);
-    setProductForRow("os", lv.os);
+    // Set all products from LINE_VARIANTS
+    const keysToSet = [
+      "korob", "val", "lamil", "takatsu", "rezin", "napravl", "zaglushka",
+      "kaltso", "os", "chotka", "bearing",
+      "motor", "blok",
+    ];
+    // Add line-specific items (not excluded for 3,9)
+    if (!isLine39) {
+      keysToSet.push("bearing_holder", "rolik", "kardan", "emergency_handle");
+    }
 
+    keysToSet.forEach((key) => {
+      if (lv[key]) setProductForRow(key, lv[key]);
+    });
+
+    // Handle Standart vs Security (Կախիչ vs Վերին փական)
     if (preset.tier === "standart") {
+      // Standart: show Կախիչ, remove Վերին փական + Security-only items
       setProductForRow("kakhich", lv.kakhich);
       setRemovedKeys((prev) => {
         const s = new Set(prev);
         s.delete("kakhich");
         s.add("top_lock");
         SECURITY_ONLY_KEYS.forEach((k) => s.add(k));
+        // Also remove 3,9 excluded items if 3,9 line
+        if (isLine39) {
+          LINE_39_EXCLUDED_KEYS.forEach((k) => s.add(k));
+        }
         return Array.from(s);
       });
     } else {
-      setProductForRow("top_lock", "top_lock-77");
+      // Security: show Վերին փական, remove Կախիչ + Security-only items
+      setProductForRow("top_lock", lv.top_lock || "top_lock-77");
       setRemovedKeys((prev) => {
         const s = new Set(prev);
         s.delete("top_lock");
         SECURITY_ONLY_KEYS.forEach((k) => s.delete(k));
         s.add("kakhich");
+        // Also remove 3,9 excluded items if 3,9 line
+        if (isLine39) {
+          LINE_39_EXCLUDED_KEYS.forEach((k) => s.add(k));
+        }
         return Array.from(s);
       });
     }
