@@ -171,146 +171,146 @@ export function RolshutterCalculatorWithOrder() {
   });
 
   return (
-    <div className="space-y-3">
-      {/* Calculator on top */}
-      <RolshutterCalculator onRowsChange={onRowsChange} onTotalChange={onTotalChange} />
+    <div className="border-2 border-primary/30 bg-primary/5 p-4 rounded-lg space-y-4">
+      {/* TOP: title + client + payment + discount */}
+      <div className="flex items-center gap-2 pb-3 border-b border-hairline">
+        <Zap className="size-5 text-primary" />
+        <h3 className="text-base font-semibold">Ստեղծել պատվեր հաշվարկից</h3>
+        {rows.length > 0 && total > 0 && (
+          <span className="ml-auto text-sm text-muted-foreground tabular-nums">
+            {Number(discountPercent) > 0 ? (
+              <>
+                <span className="line-through">{new Intl.NumberFormat("hy-AM").format(Math.round(total))} դր</span>
+                {" → "}
+                <strong className="text-primary">{new Intl.NumberFormat("hy-AM").format(Math.round(finalTotal))} դր</strong>
+              </>
+            ) : (
+              <><strong className="text-primary">{new Intl.NumberFormat("hy-AM").format(Math.round(total))} դր</strong></>
+            )}
+            {" · "}
+            {rows.length} ապրանք
+          </span>
+        )}
+      </div>
 
-      {/* Order panel — at the BOTTOM (after calculator) */}
-      <div className="border-2 border-primary/30 bg-primary/5 p-4 rounded-lg">
-        <div className="flex items-center gap-2 mb-3">
-          <Zap className="size-5 text-primary" />
-          <h3 className="text-base font-semibold">Ստեղծել պատվեր հաշվարկից</h3>
-          {rows.length > 0 && total > 0 && (
-            <span className="ml-auto text-sm text-muted-foreground tabular-nums">
-              {Number(discountPercent) > 0 ? (
-                <>
-                  <span className="line-through">{new Intl.NumberFormat("hy-AM").format(Math.round(total))} դր</span>
-                  {" → "}
-                  <strong className="text-primary">{new Intl.NumberFormat("hy-AM").format(Math.round(finalTotal))} դր</strong>
-                </>
-              ) : (
-                <><strong className="text-primary">{new Intl.NumberFormat("hy-AM").format(Math.round(total))} դր</strong></>
-              )}
-              {" · "}
-              {rows.length} ապրանք
-            </span>
-          )}
+      {/* Client + payment + discount selectors */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="space-y-1.5">
+          <Label className="text-xs uppercase tracking-wider text-muted-foreground">Հաճախորդ *</Label>
+          <SearchableClientSelect
+            clients={clients}
+            value={clientId}
+            onChange={setClientId}
+            placeholder="Ընտրեք · որոնում անունով կամ հեռախոսով"
+          />
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3">
-          <div className="space-y-1.5">
-            <Label className="text-xs uppercase tracking-wider text-muted-foreground">Հաճախորդ *</Label>
-            <SearchableClientSelect
-              clients={clients}
-              value={clientId}
-              onChange={setClientId}
-              placeholder="Ընտրեք · որոնում անունով կամ հեռախոսով"
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label className="text-xs uppercase tracking-wider text-muted-foreground">Վճարման եղանակ</Label>
-            <div className="flex items-center gap-1 border border-hairline bg-card h-9">
-              {([
-                { v: "debt", label: "Պարտք" },
-                { v: "cash", label: "Առձեռն" },
-                { v: "transfer", label: "Փոխանցում" },
-              ] as const).map((opt) => (
-                <button
-                  key={opt.v}
-                  type="button"
-                  onClick={() => setPaymentMethod(opt.v)}
-                  className={`flex-1 h-full px-3 text-sm font-medium transition-colors ${
-                    paymentMethod === opt.v
-                      ? "bg-primary text-primary-foreground"
-                      : "hover:bg-muted/40 text-muted-foreground"
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-              <Percent className="size-3" /> Զեղչ (%)
-            </Label>
-            <Input
-              type="number"
-              min={0}
-              max={100}
-              step="0.5"
-              value={discountPercent}
-              onChange={(e) => setDiscountPercent(e.target.value)}
-              placeholder="0"
-              className="h-9 text-right tabular-nums focus-steel"
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label className="text-xs uppercase tracking-wider text-muted-foreground">Ընդհանուր</Label>
-            <div className="h-9 px-3 flex items-center bg-card border border-hairline">
-              {Number(discountPercent) > 0 ? (
-                <div className="flex flex-col">
-                  <span className="text-xs line-through text-muted-foreground tabular-nums">
-                    {new Intl.NumberFormat("hy-AM").format(Math.round(total || 0))} դր
-                  </span>
-                  <span className="text-base font-bold tabular-nums text-primary">
-                    {new Intl.NumberFormat("hy-AM").format(Math.round(finalTotal))} դր
-                  </span>
-                </div>
-              ) : (
-                <>
-                  <span className="text-lg font-bold tabular-nums text-primary">
-                    {new Intl.NumberFormat("hy-AM").format(Math.round(total || 0))} դր
-                  </span>
-                  <span className="ml-2 text-xs text-muted-foreground">
-                    · {rows.length} ապրանք
-                  </span>
-                </>
-              )}
-            </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs uppercase tracking-wider text-muted-foreground">Վճարման եղանակ</Label>
+          <div className="flex items-center gap-1 border border-hairline bg-card h-9">
+            {([
+              { v: "debt", label: "Պարտք" },
+              { v: "cash", label: "Առձեռն" },
+              { v: "transfer", label: "Փոխանցում" },
+            ] as const).map((opt) => (
+              <button
+                key={opt.v}
+                type="button"
+                onClick={() => setPaymentMethod(opt.v)}
+                className={`flex-1 h-full px-3 text-sm font-medium transition-colors ${
+                  paymentMethod === opt.v
+                    ? "bg-primary text-primary-foreground"
+                    : "hover:bg-muted/40 text-muted-foreground"
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
           </div>
         </div>
 
-        {Number(discountPercent) > 0 && (
-          <div className="mb-3 px-3 py-1.5 bg-status-yellow/10 border border-status-yellow/30 rounded text-xs">
-            <span className="text-status-yellow font-medium">Զեղչ {discountPercent}%</span>
-            <span className="text-muted-foreground ml-2">
-              · զեղչված գումար՝ {new Intl.NumberFormat("hy-AM").format(discountAmount)} դր
-              · վերջնական՝ {new Intl.NumberFormat("hy-AM").format(finalTotal)} դր
+        <div className="space-y-1.5">
+          <Label className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+            <Percent className="size-3" /> Զեղչ (%)
+          </Label>
+          <Input
+            type="number"
+            min={0}
+            max={100}
+            step="0.5"
+            value={discountPercent}
+            onChange={(e) => setDiscountPercent(e.target.value)}
+            placeholder="0"
+            className="h-9 text-right tabular-nums focus-steel"
+          />
+        </div>
+      </div>
+
+      {/* MIDDLE: Calculator */}
+      <div className="border border-hairline bg-card rounded-lg p-3">
+        <RolshutterCalculator onRowsChange={onRowsChange} onTotalChange={onTotalChange} />
+      </div>
+
+      {/* BOTTOM: price + discount summary + create button */}
+      {Number(discountPercent) > 0 && (
+        <div className="px-3 py-1.5 bg-status-yellow/10 border border-status-yellow/30 rounded text-xs">
+          <span className="text-status-yellow font-medium">Զեղչ {discountPercent}%</span>
+          <span className="text-muted-foreground ml-2">
+            · զեղչված գումար՝ {new Intl.NumberFormat("hy-AM").format(discountAmount)} դր
+            · վերջնական՝ {new Intl.NumberFormat("hy-AM").format(finalTotal)} դր
+          </span>
+        </div>
+      )}
+
+      {/* Stock warning if not enough stock */}
+      {orderMutation.isError && (orderMutation.error as any)?.stockError && (
+        <div className="px-3 py-2 bg-status-red/10 border border-status-red/30 rounded text-xs text-status-red">
+          <strong>⚠️ Պատվերը հնարավոր չէ ընդունել — անբավարար պաշար</strong>
+          <ul className="mt-1 space-y-0.5">
+            {((orderMutation.error as any)?.details ?? []).map((d: string, i: number) => (
+              <li key={i}>• {d}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Bottom bar: total + create button */}
+      <div className="flex items-center justify-between gap-3 pt-3 border-t border-hairline">
+        <div className="flex items-center gap-4">
+          <div className="text-sm">
+            <span className="text-muted-foreground">Ընդհանուր՝ </span>
+            {Number(discountPercent) > 0 ? (
+              <span className="flex flex-col leading-tight">
+                <span className="text-xs line-through text-muted-foreground tabular-nums">
+                  {new Intl.NumberFormat("hy-AM").format(Math.round(total || 0))} դր
+                </span>
+                <span className="text-xl font-bold tabular-nums text-primary">
+                  {new Intl.NumberFormat("hy-AM").format(Math.round(finalTotal))} դր
+                </span>
+              </span>
+            ) : (
+              <span className="text-xl font-bold tabular-nums text-primary">
+                {new Intl.NumberFormat("hy-AM").format(Math.round(total || 0))} դր
+              </span>
+            )}
+            <span className="ml-2 text-xs text-muted-foreground">
+              · {rows.length} ապրանք
             </span>
           </div>
-        )}
-
-        {/* Stock warning if not enough stock */}
-        {orderMutation.isError && (orderMutation.error as any)?.stockError && (
-          <div className="mb-3 px-3 py-2 bg-status-red/10 border border-status-red/30 rounded text-xs text-status-red">
-            <strong>⚠️ Պատվերը հնարավոր չէ ընդունել — անբավարար պաշար</strong>
-            <ul className="mt-1 space-y-0.5">
-              {((orderMutation.error as any)?.details ?? []).map((d: string, i: number) => (
-                <li key={i}>• {d}</li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        <div className="flex items-center justify-between gap-3">
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-muted-foreground hidden md:block">
             Պատվերը կուղարկվի Պահեստապետին · գները նրան չեն երևում · պահեստի առկայությունը ստուգվում է
           </p>
-          <Button
-            onClick={() => orderMutation.mutate()}
-            disabled={orderMutation.isPending || !clientId || rows.length === 0 || finalTotal === 0}
-            className="bg-primary gap-2"
-            size="lg"
-          >
-            {orderMutation.isPending && <Loader2 className="size-5 animate-spin" />}
-            <Zap className="size-5" />
-            Ստեղծել պատվեր
-          </Button>
         </div>
+        <Button
+          onClick={() => orderMutation.mutate()}
+          disabled={orderMutation.isPending || !clientId || rows.length === 0 || finalTotal === 0}
+          className="bg-primary gap-2"
+          size="lg"
+        >
+          {orderMutation.isPending && <Loader2 className="size-5 animate-spin" />}
+          <Zap className="size-5" />
+          Ստեղծել պատվեր
+        </Button>
       </div>
     </div>
   );
