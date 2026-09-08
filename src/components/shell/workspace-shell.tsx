@@ -11,12 +11,10 @@ import { cn } from "@/lib/utils";
 import {
   LayoutDashboard, Users, Package, ShoppingCart, Warehouse as WarehouseIcon,
   Truck, FileText, Settings, LogOut, Menu, Search, Bell, Factory, Building2, BarChart3,
-  ChevronDown, Sparkles, Receipt, Crown, Calculator, Mail, MessageCircle,
+  ChevronDown, Sparkles, Receipt, Crown, Calculator, Mail, MessageCircle, DoorOpen,
   type LucideIcon,
 } from "lucide-react";
 import { AdminDashboard } from "@/components/admin/dashboard";
-import { ClientsModule } from "@/components/admin/clients-module";
-import { OrdersModule } from "@/components/admin/orders-module";
 import { ClientsOrdersModule } from "@/components/admin/clients-orders-module";
 import { ProductsModule } from "@/components/admin/products-module";
 import { InventoryModule } from "@/components/admin/inventory-module";
@@ -66,7 +64,6 @@ export function WorkspaceShell() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
 
-  // Cmd+K shortcut
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
@@ -121,42 +118,39 @@ export function WorkspaceShell() {
 
   return (
     <div className="min-h-screen flex bg-background">
-      {/* Desktop sidebar — glass + 3D shadow */}
-      <aside className="hidden lg:flex w-60 flex-col border-r border-hairline glass-panel" style={{ boxShadow: "2px 0 12px oklch(0 0 0 / 0.03)" }}>
+      <aside className="hidden lg:flex w-56 flex-col border-r bg-sidebar">
         <SidebarContent items={items} active={active} onSelect={setActive} role={role} userName={session?.user?.name ?? ""} userEmail={session?.user?.email ?? ""} />
       </aside>
 
-      {/* Mobile drawer */}
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
         <SheetTrigger asChild>
           <Button variant="ghost" size="icon" className="lg:hidden absolute top-3 left-3 z-50">
             <Menu className="size-5" />
           </Button>
         </SheetTrigger>
-        <SheetContent side="left" className="w-64 p-0">
+        <SheetContent side="left" className="w-60 p-0">
           <SidebarContent items={items} active={active} onSelect={(k) => { setActive(k); setMobileOpen(false); }} role={role} userName={session?.user?.name ?? ""} userEmail={session?.user?.email ?? ""} />
         </SheetContent>
       </Sheet>
 
-      {/* Main */}
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="h-14 border-b border-hairline flex items-center justify-between px-4 lg:px-6 gap-4 glass-panel" style={{ boxShadow: "0 1px 3px oklch(0 0 0 / 0.02)" }}>
-          <div className="flex items-center gap-3 lg:gap-4 ml-12 lg:ml-0">
+        <header className="h-12 border-b flex items-center justify-between px-4 lg:px-6 gap-4 bg-card">
+          <div className="flex items-center gap-3 ml-12 lg:ml-0">
             <h2 className="text-sm font-medium truncate">
               {items.find((i) => i.key === active)?.label ?? "Վահանակ"}
             </h2>
-            <Badge variant="outline" className="hidden sm:inline-flex text-[10px] uppercase tracking-wider border-hairline rounded-md">
-              {role === "ADMIN" ? "Ադմինիստրատոր" : role === "OPERATOR" ? "Օպերատոր" : "Պահեստապետ"}
+            <Badge variant="outline" className="hidden sm:inline-flex text-[10px] uppercase tracking-wider rounded-md">
+              {role === "ADMIN" ? "Ադմին" : role === "OPERATOR" ? "Օպերատոր" : "Պահեստ"}
             </Badge>
           </div>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setPaletteOpen(true)}
-              className="flex items-center gap-2 px-3 h-8 text-sm text-muted-foreground border border-hairline hover:bg-muted/40 transition-colors rounded-lg min-w-[120px] lg:min-w-[200px] input-focus-glow"
+              className="flex items-center gap-2 px-3 h-8 text-sm text-muted-foreground border rounded-lg hover:bg-muted/30 min-w-[120px] lg:min-w-[200px]"
             >
               <Search className="size-3.5 shrink-0" />
               <span className="hidden md:inline flex-1 text-left text-xs">Որոնում…</span>
-              <kbd className="hidden md:inline-flex text-[9px] px-1 py-0.5 border border-hairline rounded-sm shrink-0">⌘K</kbd>
+              <kbd className="hidden md:inline-flex text-[9px] px-1 py-0.5 border rounded">⌘K</kbd>
             </button>
             <NotificationsBell />
             <Button variant="ghost" size="sm" onClick={handleLogout} className="gap-2 rounded-lg">
@@ -188,12 +182,12 @@ function SidebarContent({ items, active, onSelect, role, userName, userEmail }: 
 }) {
   return (
     <div className="flex flex-col h-full">
-      <div className="h-14 flex items-center px-4 border-b border-hairline">
-        <div className="flex items-center gap-2.5">
-          <img src="/logo.jpeg" alt="Arm Roll" className="size-8 object-contain" />
+      <div className="h-12 flex items-center px-4 border-b">
+        <div className="flex items-center gap-2">
+          <img src="/logo.jpeg" alt="Arm Roll" className="size-7 rounded-lg" />
           <div className="leading-tight">
             <div className="text-sm font-semibold tracking-tight">ARM ROLL</div>
-            <div className="text-[10px] text-muted-foreground tracking-widest uppercase">ERP · ARM</div>
+            <div className="text-[9px] text-muted-foreground tracking-widest uppercase">ERP · ARM</div>
           </div>
         </div>
       </div>
@@ -206,29 +200,28 @@ function SidebarContent({ items, active, onSelect, role, userName, userEmail }: 
               key={item.key}
               onClick={() => onSelect(item.key)}
               className={cn(
-                "w-full flex items-center gap-3 px-3 py-2 text-sm transition-all text-left rounded-lg",
+                "w-full flex items-center gap-2.5 px-3 py-2 text-sm transition-colors text-left rounded-lg",
                 isActive
-                  ? "bg-primary text-primary-foreground nav-active-glow font-medium"
-                  : "text-sidebar-foreground hover:bg-sidebar-accent hover:translate-x-0.5"
+                  ? "bg-primary text-primary-foreground font-medium"
+                  : "text-sidebar-foreground hover:bg-sidebar-accent"
               )}
             >
-              <Icon className={cn("size-4 shrink-0 transition-transform", isActive && "scale-110")} />
+              <Icon className="size-4 shrink-0" />
               <span className="truncate">{item.label}</span>
             </button>
           );
         })}
       </nav>
-      <Separator className="bg-hairline" />
-      <div className="p-3">
-        <div className="flex items-center gap-2.5 p-2 rounded-lg hover:bg-muted/30 transition-colors cursor-pointer">
-          <div className="size-8 bg-gradient-to-br from-primary to-primary/70 text-primary-foreground flex items-center justify-center text-xs font-medium rounded-lg shadow-sm">
+      <Separator />
+      <div className="p-2">
+        <div className="flex items-center gap-2 p-2 rounded-lg">
+          <div className="size-7 bg-primary text-primary-foreground flex items-center justify-center text-xs font-medium rounded-lg">
             {userName.charAt(0).toUpperCase()}
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-sm font-medium truncate">{userName}</div>
+            <div className="text-xs font-medium truncate">{userName}</div>
             <div className="text-[10px] text-muted-foreground truncate">{userEmail}</div>
           </div>
-          <ChevronDown className="size-3 text-muted-foreground" />
         </div>
       </div>
     </div>
@@ -237,7 +230,7 @@ function SidebarContent({ items, active, onSelect, role, userName, userEmail }: 
 
 function ComingSoon({ label }: { label: string }) {
   return (
-    <div className="border border-dashed border-hairline p-12 text-center">
+    <div className="border border-dashed border-hairline p-12 text-center rounded-lg">
       <div className="text-sm text-muted-foreground">
         «{label}» մոդուլը պատրաստվում է
       </div>

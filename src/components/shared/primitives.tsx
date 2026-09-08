@@ -44,10 +44,10 @@ export function KpiCard({ label, value, sub, trend, icon: Icon, accent }: {
     : accent === "copper" ? "text-copper"
     : "";
   return (
-    <div className="kpi-3d p-3 lg:p-5 space-y-1.5 lg:space-y-2">
+    <div className="kpi-3d p-4 lg:p-5 space-y-1.5">
       <div className="flex items-start justify-between gap-2">
         <div className="text-[10px] lg:text-[11px] uppercase tracking-wider text-muted-foreground font-medium">{label}</div>
-        {Icon && <Icon className={cn("size-3.5 lg:size-4 shrink-0", accent ? colorClass : "text-muted-foreground/60")} />}
+        {Icon && <Icon className={cn("size-4 shrink-0", accent ? colorClass : "text-muted-foreground/50")} />}
       </div>
       <div className={cn("text-lg lg:text-2xl font-semibold tracking-tight tabular-nums", colorClass)}>{value}</div>
       {sub && <div className="text-[10px] lg:text-xs text-muted-foreground">{sub}</div>}
