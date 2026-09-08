@@ -8,10 +8,32 @@ export async function GET() {
   try {
     const { role } = await requireAction("order.list");
 
+    // OPTIMIZED: Use select instead of include to fetch only needed fields
     const orders = await db.order.findMany({
-      include: {
-        client: true,
-        items: true,
+      select: {
+        id: true,
+        number: true,
+        status: true,
+        baseAmount: true,
+        discountAmount: true,
+        taxAmount: true,
+        totalAmount: true,
+        paidAmount: true,
+        outstandingAmount: true,
+        costAmount: true,
+        grossProfit: true,
+        marginPercent: true,
+        note: true,
+        dueDate: true,
+        createdAt: true,
+        updatedAt: true,
+        client: {
+          select: { id: true, type: true, firstName: true, lastName: true, companyName: true, phone: true, email: true },
+        },
+        items: {
+          select: { id: true, productId: true, productName: true, qty: true, unitId: true, unitPriceSnapshot: true, lineTotal: true, sortOrder: true },
+          orderBy: { sortOrder: "asc" },
+        },
       },
       orderBy: { createdAt: "desc" },
       take: 100,
@@ -74,8 +96,23 @@ export async function POST(req: Request) {
     const products = await db.product.findMany({ where: { id: { in: productIds } } });
     const productMap = new Map(products.map((p) => [p.id, p]));
 
-    // ====== INVENTORY CHECK ======
+    // ====== INVENTORY CHECK (OPTIMIZED — bulk query) ======
     // Verify each item has enough available stock. If not, return error with product name.
+    // Before: N queries (one per item) — After: 1 bulk query for all movements
+    const allMovements = await db.inventoryMovement.findMany({
+      where: { productId: { in: productIds } },
+      select: { productId: true, type: true, qty: true },
+    });
+    // Compute stock per product in memory
+    const stockMap = new Map<string, number>();
+    for (const m of allMovements) {
+      if (!stockMap.has(m.productId)) stockMap.set(m.productId, 0);
+      const cur = stockMap.get(m.productId)!;
+      if (["RECEIVE", "RETURN"].includes(m.type)) stockMap.set(m.productId, cur + m.qty);
+      else if (["ISSUE", "WRITE_OFF"].includes(m.type)) stockMap.set(m.productId, cur - m.qty);
+      else if (m.type === "ADJUSTMENT") stockMap.set(m.productId, cur + m.qty);
+    }
+
     const stockErrors: string[] = [];
     for (const it of items) {
       const p = productMap.get(it.productId);
@@ -83,10 +120,10 @@ export async function POST(req: Request) {
         stockErrors.push(`Ապրանքը չի գտնվել (ID: ${it.productId})`);
         continue;
       }
-      const state = await computeInventoryState(p.id);
-      if (state.available < it.qty) {
+      const available = Math.max(0, stockMap.get(p.id) ?? 0);
+      if (available < it.qty) {
         stockErrors.push(
-          `«${p.name}» (${p.sku}) — պահեստում մատչելի է ${state.available} հատ, պատվերում՝ ${it.qty} հատ`
+          `«${p.name}» (${p.sku}) — պահեստում մատչելի է ${available} հատ, պատվերում՝ ${it.qty} հատ`
         );
       }
     }

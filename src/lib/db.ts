@@ -7,21 +7,17 @@ const globalForPrisma = globalThis as unknown as {
 /**
  * Prisma client with optimized connection pool settings for Supabase.
  *
- * - connection_limit: 5 (Supabase session pooler max is 15 — keep headroom)
- * - pool_timeout: 20s (fail fast instead of hanging)
- * - log: only errors/warnings in production
- *
- * Reuses the same client across hot-reloads in dev to prevent pool exhaustion.
+ * - connection_limit: 10 (Supabase session pooler max is 15 — keep headroom)
+ * - pool_timeout: 10s (fail fast)
+ * - log: only errors/warnings
  */
 const isProd = process.env.NODE_ENV === 'production'
 
 function buildDatabaseUrl(): string | undefined {
   const baseUrl = process.env.DATABASE_URL
   if (!baseUrl) return undefined
-  // Prisma expects ? for query params. Our Supabase URL has no query string,
-  // so we need to add ?connection_limit=... not &connection_limit=...
   const separator = baseUrl.includes('?') ? '&' : '?'
-  return `${baseUrl}${separator}connection_limit=5&pool_timeout=20`
+  return `${baseUrl}${separator}connection_limit=10&pool_timeout=10`
 }
 
 export const db =

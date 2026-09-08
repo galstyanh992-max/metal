@@ -44,14 +44,30 @@ export async function GET() {
       overdueDebt = overdueAgg._sum.outstandingAmount ?? 0;
     }
 
-    // Low stock detection
-    const lowStock = [] as any[];
-    for (const p of lowStockProducts) {
-      const st = await computeInventoryState(p.id);
-      if (st.available < p.minStock) {
-        lowStock.push({ ...p, ...st });
-      }
+    // Low stock detection — OPTIMIZED: bulk fetch movements instead of N+1
+    const lowStockMovements = await db.inventoryMovement.findMany({
+      select: { productId: true, type: true, qty: true },
+    });
+    // Compute onHand per product in memory
+    const stockMap = new Map<string, number>();
+    for (const m of lowStockMovements) {
+      if (!stockMap.has(m.productId)) stockMap.set(m.productId, 0);
+      const cur = stockMap.get(m.productId)!;
+      if (["RECEIVE", "RETURN"].includes(m.type)) stockMap.set(m.productId, cur + m.qty);
+      else if (["ISSUE", "WRITE_OFF"].includes(m.type)) stockMap.set(m.productId, cur - m.qty);
+      else if (m.type === "ADJUSTMENT") stockMap.set(m.productId, cur + m.qty);
     }
+    const lowStock = lowStockProducts
+      .filter((p) => {
+        const onHand = Math.max(0, stockMap.get(p.id) ?? 0);
+        return onHand < p.minStock;
+      })
+      .map((p) => ({
+        ...p,
+        onHand: Math.max(0, stockMap.get(p.id) ?? 0),
+        reserved: 0,
+        available: Math.max(0, stockMap.get(p.id) ?? 0),
+      }));
 
     // Role-specific dashboard payload
     const data: any = {
