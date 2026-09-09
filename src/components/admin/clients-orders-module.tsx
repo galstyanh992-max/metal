@@ -215,7 +215,7 @@ export function ClientsOrdersModule({ role }: { role: string }) {
               </Button>
             )}
             <Button size="sm" className="gap-2 bg-primary" onClick={() => tab === "clients" ? setCreateClientOpen(true) : setQuickFillOpen(true)}>
-              <Plus className="size-4" /> {tab === "clients" ? "Նոր հաճախորդ" : "Գրանցել Պատվեր"}
+              <Plus className="size-4" /> {tab === "clients" ? "Նոր հաճախորդ" : "Պատվերի լրացում"}
             </Button>
           </div>
         )}

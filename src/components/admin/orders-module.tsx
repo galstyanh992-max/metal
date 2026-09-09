@@ -82,7 +82,7 @@ export function OrdersModule({ role }: { role: string }) {
         {role !== "WAREHOUSE" && (
           <div className="flex items-center gap-2">
             <Button size="sm" variant="outline" className="gap-2" onClick={() => setQuickFillOpen(true)}>
-              <Zap className="size-4 text-primary" /> Գրանցել Պատվեր
+              <Zap className="size-4 text-primary" /> Պատվերի լրացում
             </Button>
             <Button size="sm" className="gap-2 bg-primary" onClick={() => setCreateOpen(true)}>
               <Plus className="size-4" /> Նոր
@@ -363,7 +363,7 @@ export function QuickFillOrderDialog({
         <DialogHeader className="px-6 py-3 border-b border-hairline bg-card shrink-0">
           <DialogTitle className="flex items-center gap-2 text-base">
             <Zap className="size-4 text-primary" />
-            Արագ պատվեր — լցոնում
+            Պատվերի լրացում
           </DialogTitle>
           <p className="text-xs text-muted-foreground mt-0.5">
             Նշեք ապրանքները, լցրեք քանակը / մետրաժը / գինը։ Գները կպահպանվեն կատալոգում պատվերը հաստատելիս։

@@ -100,37 +100,43 @@ export function ClientCreateDialog({ open, onClose, onCreated }: { open: boolean
         creditLimit: Number(creditLimit) || 0,
       });
       const newClientId = data.client.id;
-      setCreatedClientId(newClientId);
       toast.success("Հաճախորդը ստեղծված է");
       qc.invalidateQueries({ queryKey: ["clients"] });
 
-      // If user has selected products, create order immediately
-      const orderItems = quickFillRowsToOrderItems(rows);
-      if (orderItems.length > 0 && showOrderSection) {
-        try {
-          const orderData: any = await createOrderMutation.mutateAsync({
-            clientId: newClientId,
-            items: orderItems,
-            savePrices,
-            paymentMethod,
-            discountPercent: Number(discountPercent) || 0,
-          });
-          const msg = orderData?.priceUpdates > 0
-            ? `Հաճախորդ և պատվեր ստեղծված են · ${orderData.priceUpdates} գին պահպանված է`
-            : "Հաճախորդ և պատվեր ստեղծված են";
-          toast.success(msg);
-          qc.invalidateQueries({ queryKey: ["orders"] });
-          reset();
-          onCreated?.();
-          onClose();
-        } catch (e: any) {
-          // Order failed but client was created — keep dialog open so user can retry
-          console.error("Order creation failed:", e);
+      // If user has selected products in QuickFill mode, create order immediately
+      if (orderMode === "quickfill" && showOrderSection) {
+        const orderItems = quickFillRowsToOrderItems(rows);
+        if (orderItems.length > 0) {
+          try {
+            const orderData: any = await createOrderMutation.mutateAsync({
+              clientId: newClientId,
+              items: orderItems,
+              savePrices,
+              paymentMethod,
+              discountPercent: Number(discountPercent) || 0,
+            });
+            const msg = orderData?.priceUpdates > 0
+              ? `Հաճախորդ և պատվեր ստեղծված են · ${orderData.priceUpdates} գին պահպանված է`
+              : "Հաճախորդ և պատվեր ստեղծված են";
+            toast.success(msg);
+            qc.invalidateQueries({ queryKey: ["orders"] });
+            reset();
+            onCreated?.();
+            onClose();
+            return;
+          } catch (e: any) {
+            console.error("Order creation failed:", e);
+            // Client was created — show it and stay open
+            setCreatedClientId(newClientId);
+            return;
+          }
         }
-      } else {
-        // No order items — just close or keep open showing client created
-        // Stay open so user can fill order if they want
       }
+
+      // No order items or calculator mode — just close
+      reset();
+      onCreated?.();
+      onClose();
     } catch (e: any) {
       // toast already shown in onError
     }
@@ -288,7 +294,7 @@ export function ClientCreateDialog({ open, onClose, onCreated }: { open: boolean
                       }`}
                     >
                       <Zap className="size-4" />
-                      Արագ լցոնում
+                      Պատվերի լրացում
                     </button>
                     <button
                       type="button"

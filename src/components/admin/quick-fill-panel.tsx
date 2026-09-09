@@ -201,7 +201,7 @@ export function QuickFillPanel({
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-2">
             <Package2 className="size-4 text-primary" />
-            <span className="text-sm font-semibold">Գրանցել Պատվեր</span>
+            <span className="text-sm font-semibold">Պատվերի լրացում</span>
             <Badge variant="outline" className="text-[10px] border-hairline px-1.5 py-0.5">
               {qfCount} հիմն.
             </Badge>

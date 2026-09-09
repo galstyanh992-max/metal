@@ -57,18 +57,6 @@ export function ProductEditDialog({
   // Load existing product if edit mode
   useEffect(() => {
     if (mode !== "edit" || !productId) return;
-    // We don't have a GET /api/products/[id] for the full product; fetch via price-history
-    // which includes the product info
-    fetch(`/api/products/${productId}/price-history`)
-      .then(r => r.json())
-      .then(d => {
-        const p = d.history?.[0]?.product;
-        if (p) {
-          // Need full product — fetch via list
-        }
-      })
-      .catch(() => {});
-    // Better: fetch via products list and find
     fetch("/api/products")
       .then(r => r.json())
       .then(d => {
@@ -88,6 +76,13 @@ export function ProductEditDialog({
       })
       .catch(() => {});
   }, [mode, productId]);
+
+  // Auto-select first unit when available and not set
+  useEffect(() => {
+    if (!unitId && unitsData?.units?.length > 0) {
+      setUnitId(unitsData.units[0].id);
+    }
+  }, [unitsData, unitId]);
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -171,9 +166,10 @@ export function ProductEditDialog({
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs uppercase tracking-wider text-muted-foreground">Կատեգորիա</Label>
-              <Select value={categoryId} onValueChange={setCategoryId}>
-                <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
+              <Select value={categoryId || "none"} onValueChange={(v) => setCategoryId(v === "none" ? "" : v)}>
+                <SelectTrigger><SelectValue placeholder="Ընտրեք կատեգորիա" /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="none">— Առանց կատեգորիայի —</SelectItem>
                   {categories.map((c: any) => (
                     <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                   ))}
