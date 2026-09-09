@@ -140,7 +140,7 @@ export async function POST(req: Request) {
         status: autoConfirm ? "RECEIVED" : "DRAFT",
         totalAmount,
         note: note ?? null,
-        createdById: userId,
+        createdBy: userId,
         receivedAt: autoConfirm ? new Date() : null,
         items: { create: transferItemsData },
       },

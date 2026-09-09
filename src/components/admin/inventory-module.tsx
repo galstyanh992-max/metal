@@ -11,12 +11,13 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Package, AlertTriangle, Layers, Boxes, Plus, Minus, Sliders, Loader2,
-  ArrowRightLeft, Building2,
+  ArrowRightLeft, Building2, FileSpreadsheet,
 } from "lucide-react";
 import { useState, useMemo } from "react";
 import { InventoryHistoryDrawer } from "./inventory-history-drawer";
 import { TransferDialog } from "./transfer-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { exportToExcel } from "@/lib/export/excel";
 import { toast } from "sonner";
 
 async function fetchInventory() {
@@ -38,7 +39,30 @@ export function InventoryModule({ role }: { role: string }) {
   const [adjustProduct, setAdjustProduct] = useState<any | null>(null);
   const [transferOpen, setTransferOpen] = useState(false);
   const [filterBranchId, setFilterBranchId] = useState<string>("");
+  const [exporting, setExporting] = useState(false);
   const qc = useQueryClient();
+
+  const exportExcel = () => {
+    setExporting(true);
+    try {
+      exportToExcel(
+        `պահեստ-${new Date().toISOString().slice(0, 10)}.xlsx`,
+        "Պահեստ",
+        filteredItems,
+        [
+          { header: "Ապրանք", width: 32, get: (p: any) => p.name },
+          { header: "SKU", width: 16, get: (p: any) => p.sku },
+          { header: "Միավոր", width: 10, get: (p: any) => p.unit?.symbol ?? "" },
+          { header: "Մնացորդ", width: 12, get: (p: any) => p.state.onHand },
+          { header: "Պահված", width: 12, get: (p: any) => p.state.reserved },
+          { header: "Մատչելի", width: 12, get: (p: any) => p.state.available },
+          { header: "Նվազագույն", width: 12, get: (p: any) => p.minStock ?? 0 },
+        ],
+      );
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const items = data?.inventory ?? [];
   const branches = branchesData?.branches ?? [];
@@ -74,6 +98,16 @@ export function InventoryModule({ role }: { role: string }) {
         description={isAdmin ? "Գույքագրում և շարժումներ · 4 ֆիլիալներով" : "Գույքագրում (միայն դիտում)"}
         action={
           <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-2"
+              onClick={exportExcel}
+              disabled={exporting || filteredItems.length === 0}
+            >
+              {exporting ? <Loader2 className="size-4 animate-spin" /> : <FileSpreadsheet className="size-4 text-status-green" />}
+              Excel
+            </Button>
             <Select value={filterBranchId} onValueChange={setFilterBranchId}>
               <SelectTrigger className="h-8 w-48 text-xs">
                 <SelectValue placeholder="Բոլոր ֆիլիալները" />

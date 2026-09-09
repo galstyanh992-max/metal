@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, User, Building2, Lock } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
+import { signIn } from "next-auth/react";
 import { toast } from "sonner";
 
 export function AuthScreen({ mode, onModeChange }: { mode: "signin" | "signup"; onModeChange: (m: "signin" | "signup") => void }) {

@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Plus, Pencil, Trash2, Loader2, Package, Calculator, Star, FolderTree } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Package, Calculator, Star, FolderTree, FileSpreadsheet } from "lucide-react";
 import { useState } from "react";
 import { ProductDetailDrawer } from "./product-detail-drawer";
 import { ProductEditDialog } from "./product-edit-dialog";
@@ -14,6 +14,7 @@ import { ProductCostCalculator } from "./product-cost-calculator";
 import { CategoryManagerDialog } from "./category-manager-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { ModuleFooter, MODULE_FOOTERS } from "@/components/shared/module-footer";
+import { exportToExcel } from "@/lib/export/excel";
 import { toast } from "sonner";
 
 async function fetchProducts() {
@@ -36,9 +37,34 @@ export function ProductsModule({ role }: { role: string }) {
   const [createOpen, setCreateOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [categoryManagerOpen, setCategoryManagerOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const qc = useQueryClient();
 
   const products = data?.products ?? [];
+
+  const exportExcel = () => {
+    setExporting(true);
+    try {
+      exportToExcel(
+        `ապրանքներ-${new Date().toISOString().slice(0, 10)}.xlsx`,
+        "Ապրանքներ",
+        products,
+        [
+          { header: "Անուն", width: 32, get: (p: any) => p.name },
+          { header: "SKU", width: 16, get: (p: any) => p.sku },
+          { header: "Կատեգորիա", width: 20, get: (p: any) => p.category?.name ?? "" },
+          { header: "Միավոր", width: 10, get: (p: any) => p.unit?.symbol ?? "" },
+          { header: "Գույն", width: 16, get: (p: any) => p.color ?? "" },
+          { header: "Վաճառքի գին (դր)", width: 16, get: (p: any) => p.salePrice ?? 0 },
+          { header: "Գնման գին (դր)", width: 16, get: (p: any) => p.purchasePrice ?? 0 },
+          { header: "Մնացորդ", width: 12, get: (p: any) => p.stock?.available ?? 0 },
+          { header: "Նվազագույն", width: 12, get: (p: any) => p.minStock ?? 0 },
+        ],
+      );
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -81,22 +107,36 @@ export function ProductsModule({ role }: { role: string }) {
       <SectionHeader
         title="Ապրանքներ"
         description="Կատալոգ և պաշարներ"
-        action={role === "ADMIN" && (
+        action={
           <div className="flex items-center gap-2">
             <Button
               size="sm"
               variant="outline"
               className="gap-2"
-              onClick={() => setCategoryManagerOpen(true)}
+              onClick={exportExcel}
+              disabled={exporting || products.length === 0}
             >
-              <FolderTree className="size-4" />
-              Կատեգորիաներ
+              {exporting ? <Loader2 className="size-4 animate-spin" /> : <FileSpreadsheet className="size-4 text-status-green" />}
+              Excel
             </Button>
-            <Button size="sm" className="gap-2 bg-primary" onClick={() => setCreateOpen(true)}>
-              <Plus className="size-4" /> Ապրանք
-            </Button>
+            {role === "ADMIN" && (
+              <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-2"
+                  onClick={() => setCategoryManagerOpen(true)}
+                >
+                  <FolderTree className="size-4" />
+                  Կատեգորիաներ
+                </Button>
+                <Button size="sm" className="gap-2 bg-primary" onClick={() => setCreateOpen(true)}>
+                  <Plus className="size-4" /> Ապրանք
+                </Button>
+              </>
+            )}
           </div>
-        )}
+        }
       />
 
       <Card className="border-hairline shadow-none">

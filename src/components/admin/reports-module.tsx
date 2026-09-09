@@ -6,8 +6,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { TrendingUp, DollarSign, ShoppingBag, Wallet, Percent, BarChart3, Package } from "lucide-react";
+import { TrendingUp, DollarSign, ShoppingBag, Wallet, Percent, BarChart3, Package, FileSpreadsheet, Loader2 } from "lucide-react";
 import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { exportToExcel, fmtDate } from "@/lib/export/excel";
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   BarChart, Bar,
@@ -21,6 +23,7 @@ async function fetchReport(period: string) {
 
 export function ReportsModule() {
   const [period, setPeriod] = useState("30");
+  const [exporting, setExporting] = useState(false);
   const { data, isLoading } = useQuery({ queryKey: ["reports", period], queryFn: () => fetchReport(period) });
 
   const s = data?.summary ?? {};
@@ -28,20 +31,73 @@ export function ReportsModule() {
   const topProducts = data?.topProducts ?? [];
   const paymentByMethod = data?.paymentByMethod ?? {};
 
+  const exportExcel = () => {
+    setExporting(true);
+    try {
+      exportToExcel(
+        `հաշվետվություն-${period}օր-${new Date().toISOString().slice(0, 10)}.xlsx`,
+        "Ամփոփում",
+        [
+          { metric: "Ընդհանուր վաճառք", value: s.totalSales ?? 0 },
+          { metric: "Ընդհանուր գանձում", value: s.totalCollected ?? 0 },
+          { metric: "Շահույթ", value: s.totalProfit ?? 0 },
+          { metric: "Մարժա (%)", value: s.marginPercent ?? 0 },
+          { metric: "Միջին պատվեր", value: s.avgOrderValue ?? 0 },
+          { metric: "Ընդհանուր արժեք", value: s.totalCost ?? 0 },
+          { metric: "Պատվերների քանակ", value: s.totalOrders ?? 0 },
+        ],
+        [
+          { header: "Ցուցանիշ", width: 24, get: (r: any) => r.metric },
+          { header: "Արժեք", width: 16, get: (r: any) => r.value },
+        ],
+      );
+      exportToExcel(
+        `հաշվետվություն-օրական-${period}օր-${new Date().toISOString().slice(0, 10)}.xlsx`,
+        "Օրական",
+        dailyData,
+        [
+          { header: "Ամսաթիվ", width: 14, get: (r: any) => r.date },
+          { header: "Վաճառք (դր)", width: 16, get: (r: any) => r.sales },
+          { header: "Արժեք (դր)", width: 16, get: (r: any) => r.cost },
+          { header: "Շահույթ (դր)", width: 16, get: (r: any) => r.profit },
+          { header: "Պատվերներ", width: 12, get: (r: any) => r.orders },
+        ],
+      );
+      exportToExcel(
+        `հաշվետվություն-ապրանքներ-${period}օր-${new Date().toISOString().slice(0, 10)}.xlsx`,
+        "Ապրանքներ",
+        topProducts,
+        [
+          { header: "Ապրանք", width: 32, get: (r: any) => r.name },
+          { header: "Քանակ", width: 12, get: (r: any) => r.qty },
+          { header: "Եկամուտ (դր)", width: 16, get: (r: any) => r.revenue },
+        ],
+      );
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <SectionHeader
         title="Հաշվետվություններ"
         description="Վաճառքի, շահույթի և գումարման վերլուծություն"
         action={
-          <Select value={period} onValueChange={setPeriod}>
-            <SelectTrigger className="w-32 h-8 text-xs"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="7">7 օր</SelectItem>
-              <SelectItem value="30">30 օր</SelectItem>
-              <SelectItem value="90">90 օր</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" className="gap-2" onClick={exportExcel} disabled={exporting || (!dailyData.length && !topProducts.length)}>
+              {exporting ? <Loader2 className="size-4 animate-spin" /> : <FileSpreadsheet className="size-4 text-status-green" />}
+              Excel
+            </Button>
+            <Select value={period} onValueChange={setPeriod}>
+              <SelectTrigger className="w-32 h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="7">7 օր</SelectItem>
+                <SelectItem value="30">30 օր</SelectItem>
+                <SelectItem value="90">90 օր</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         }
       />
 

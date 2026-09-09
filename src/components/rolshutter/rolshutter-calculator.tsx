@@ -314,7 +314,7 @@ function buildCatalog(products) {
 
 let customRowSeq = 1;
 
-export function RolshutterCalculator({ products, onRowsChange, onTotalChange }) {
+export function RolshutterCalculator({ products = [], onRowsChange, onTotalChange }) {
   const [width, setWidth] = useState(3);
   const [height, setHeight] = useState(2.5);
   const [color, setColor] = useState(DEFAULT_COLORS[0]);
@@ -588,38 +588,10 @@ export function RolshutterCalculator({ products, onRowsChange, onTotalChange }) 
 
   return (
     <div
-      className="mx-auto max-w-3xl p-6 text-neutral-900 print:p-2 print:max-w-none print:text-[11px]"
-      style={{ fontFamily: "'Arian AMU', sans-serif" }}
+      className="mx-auto max-w-3xl p-6 text-foreground print:p-2 print:max-w-none print:text-[11px]"
+      style={{ fontFamily: "var(--font-noto-armenian), var(--font-geist-sans), system-ui, sans-serif" }}
     >
       <style>{`
-        @font-face {
-          font-family: 'Arian AMU';
-          src: url('/fonts/arnamu.ttf') format('truetype');
-          font-weight: 400;
-          font-style: normal;
-          font-display: swap;
-        }
-        @font-face {
-          font-family: 'Arian AMU';
-          src: url('/fonts/arnamu_bold.ttf') format('truetype');
-          font-weight: 700;
-          font-style: normal;
-          font-display: swap;
-        }
-        @font-face {
-          font-family: 'Arian AMU';
-          src: url('/fonts/arnamu_italic.ttf') format('truetype');
-          font-weight: 400;
-          font-style: italic;
-          font-display: swap;
-        }
-        @font-face {
-          font-family: 'Arian AMU';
-          src: url('/fonts/arnamu_italic_bold.ttf') format('truetype');
-          font-weight: 700;
-          font-style: italic;
-          font-display: swap;
-        }
         input, select, button, table { font-family: inherit; }
         @media print {
           @page { size: A4; margin: 10mm; }

@@ -1,17 +1,21 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, User, Building2, ChevronDown, ChevronRight, DoorOpen, Zap } from "lucide-react";
+import {
+  Loader2, User, Building2, ChevronDown, ChevronRight, DoorOpen, Zap,
+  Receipt, Package2, Percent, CheckCircle2, AlertTriangle,
+} from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { QuickFillPanel, quickFillRowsToOrderItems, type QuickFillRow, type QuickFillTotals } from "./quick-fill-panel";
-import { RolshutterCalculatorWithOrder } from "@/components/rolshutter/rolshutter-calculator-with-order";
+import { RolshutterCalculator } from "@/components/rolshutter/rolshutter-calculator";
+import { buildItemsFromCalculatorRows, type CalculatorRow } from "@/lib/orders/calculator-order";
 
 export function ClientCreateDialog({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated?: () => void }) {
   const [type, setType] = useState<"INDIVIDUAL" | "COMPANY">("INDIVIDUAL");
@@ -25,9 +29,9 @@ export function ClientCreateDialog({ open, onClose, onCreated }: { open: boolean
   const [preferredChannel, setPreferredChannel] = useState("whatsapp");
   const [creditLimit, setCreditLimit] = useState("0");
 
-  // Inline Quick-Fill for new order — open by default
+  // Inline order entry — open by default
   const [showOrderSection, setShowOrderSection] = useState(true);
-  const [orderMode, setOrderMode] = useState<"quickfill" | "calculator">("quickfill");
+  const [orderTab, setOrderTab] = useState<"quickfill" | "calculator">("quickfill");
   const [paymentMethod, setPaymentMethod] = useState<"debt" | "cash" | "transfer">("debt");
   const [savePrices, setSavePrices] = useState(true);
   const [discountPercent, setDiscountPercent] = useState("0");
@@ -36,9 +40,34 @@ export function ClientCreateDialog({ open, onClose, onCreated }: { open: boolean
     totalQty: 0, totalMeterage: 0, totalAmount: 0, selectedCount: 0, priceChanges: 0,
   });
   const [createdClientId, setCreatedClientId] = useState<string | null>(null);
+  const [calcRows, setCalcRows] = useState<CalculatorRow[]>([]);
+  const [calcTotal, setCalcTotal] = useState(0);
+  const [stockError, setStockError] = useState<string[] | null>(null);
 
-  const discountAmount = Math.round((totals.totalAmount * (Math.min(100, Math.max(0, Number(discountPercent) || 0)))) / 100);
-  const finalTotal = Math.max(0, totals.totalAmount - discountAmount);
+  const onQfChange = useCallback((r: QuickFillRow[], t: QuickFillTotals) => {
+    setRows(r);
+    setTotals(t);
+  }, []);
+  const onCalcRowsChange = useCallback((r: CalculatorRow[]) => setCalcRows(r), []);
+  const onCalcTotalChange = useCallback((t: number) => setCalcTotal(t), []);
+
+  // Combined totals (unified receipt)
+  const combined = useMemo(() => {
+    const baseTotal = totals.totalAmount + calcTotal;
+    const pct = Math.min(100, Math.max(0, Number(discountPercent) || 0));
+    const discountAmount = Math.round((baseTotal * pct) / 100);
+    const finalTotal = Math.max(0, baseTotal - discountAmount);
+    const qfItemCount = rows.filter((r) => r.selected && (r.qty > 0 || r.meterage > 0)).length;
+    const calcItemCount = calcRows.filter((r) => (r.sum || 0) > 0).length;
+    return {
+      baseTotal,
+      discountAmount,
+      finalTotal,
+      qfItemCount,
+      calcItemCount,
+      totalItemCount: qfItemCount + calcItemCount,
+    };
+  }, [totals.totalAmount, calcTotal, discountPercent, rows, calcRows]);
 
   const qc = useQueryClient();
 
@@ -70,6 +99,7 @@ export function ClientCreateDialog({ open, onClose, onCreated }: { open: boolean
     },
     onError: (e: any) => {
       if (e?.stockError && e?.details) {
+        setStockError(e.details);
         toast.error(`Պահեստի սխալ՝ ${e.details.length} ապրանք`);
       } else {
         toast.error(e?.message ?? "Պատվերի սխալ");
@@ -82,6 +112,7 @@ export function ClientCreateDialog({ open, onClose, onCreated }: { open: boolean
     setPhone(""); setEmail(""); setPrimaryAddress(""); setCreditLimit("0");
     setCreatedClientId(null);
     setShowOrderSection(false);
+    setStockError(null);
   };
 
   const submit = async () => {
@@ -103,37 +134,47 @@ export function ClientCreateDialog({ open, onClose, onCreated }: { open: boolean
       toast.success("Հաճախորդը ստեղծված է");
       qc.invalidateQueries({ queryKey: ["clients"] });
 
-      // If user has selected products in QuickFill mode, create order immediately
-      if (orderMode === "quickfill" && showOrderSection) {
-        const orderItems = quickFillRowsToOrderItems(rows);
-        if (orderItems.length > 0) {
-          try {
+      // Build combined order items from both blocks
+      if (showOrderSection && combined.totalItemCount > 0) {
+        try {
+          const qfItems = quickFillRowsToOrderItems(rows);
+          const productsRes = await fetch("/api/products");
+          const productsData = await productsRes.json();
+          const calcItems = await buildItemsFromCalculatorRows(calcRows, productsData?.products ?? []);
+          const items = [...qfItems, ...calcItems];
+
+          if (items.length > 0) {
             const orderData: any = await createOrderMutation.mutateAsync({
               clientId: newClientId,
-              items: orderItems,
+              items,
               savePrices,
               paymentMethod,
               discountPercent: Number(discountPercent) || 0,
+              note: `Ստեղծված է նոր հաճախորդի հետ · Ընդհանուր՝ ${combined.finalTotal.toLocaleString("hy-AM")} դր`,
             });
             const msg = orderData?.priceUpdates > 0
               ? `Հաճախորդ և պատվեր ստեղծված են · ${orderData.priceUpdates} գին պահպանված է`
               : "Հաճախորդ և պատվեր ստեղծված են";
             toast.success(msg);
             qc.invalidateQueries({ queryKey: ["orders"] });
+            qc.invalidateQueries({ queryKey: ["products"] });
             reset();
             onCreated?.();
             onClose();
             return;
-          } catch (e: any) {
-            console.error("Order creation failed:", e);
-            // Client was created — show it and stay open
-            setCreatedClientId(newClientId);
-            return;
           }
+        } catch (e: any) {
+          console.error("Order creation failed:", e);
+          // Client was created — show it and stay open
+          setCreatedClientId(newClientId);
+          if (e?.stockError && e?.details) {
+            setStockError(e.details);
+          }
+          return;
         }
       }
 
-      // No order items or calculator mode — just close
+      // No order items — just close
       reset();
       onCreated?.();
       onClose();
@@ -284,96 +325,191 @@ export function ClientCreateDialog({ open, onClose, onCreated }: { open: boolean
 
               {showOrderSection && (
                 <div className="space-y-3">
-                  {/* Order mode toggle */}
-                  <div className="flex items-center gap-1 border border-hairline">
-                    <button
-                      type="button"
-                      onClick={() => setOrderMode("quickfill")}
-                      className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
-                        orderMode === "quickfill" ? "bg-primary text-primary-foreground" : "hover:bg-muted/40"
-                      }`}
-                    >
-                      <Zap className="size-4" />
-                      Պատվերի լրացում
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setOrderMode("calculator")}
-                      className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
-                        orderMode === "calculator" ? "bg-primary text-primary-foreground" : "hover:bg-muted/40"
-                      }`}
-                    >
-                      <DoorOpen className="size-4" />
-                      Դարպասի Հաշվարկ
-                    </button>
+                  {/* Shared controls: payment + discount + save prices */}
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <Label className="text-xs uppercase tracking-wider text-muted-foreground">Վճարման եղանակ՝</Label>
+                    <div className="flex items-center gap-1 border border-hairline bg-card rounded-md overflow-hidden">
+                      {([
+                        { v: "debt", label: "Պարտք" },
+                        { v: "cash", label: "Առձեռն" },
+                        { v: "transfer", label: "Փոխանցում" },
+                      ] as const).map((opt) => (
+                        <button
+                          key={opt.v}
+                          type="button"
+                          onClick={() => setPaymentMethod(opt.v)}
+                          className={`px-4 py-2 text-sm font-medium transition-colors ${
+                            paymentMethod === opt.v
+                              ? "bg-primary text-primary-foreground"
+                              : "hover:bg-muted/40 text-muted-foreground"
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                    <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={savePrices}
+                        onChange={(e) => setSavePrices(e.target.checked)}
+                        className="size-4 accent-primary"
+                      />
+                      <span>Պահպանել գները</span>
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <Label className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                        <Percent className="size-3" /> Զեղչ (%)
+                      </Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        max={100}
+                        step="0.5"
+                        value={discountPercent}
+                        onChange={(e) => setDiscountPercent(e.target.value)}
+                        placeholder="0"
+                        className="h-9 w-20 text-right tabular-nums focus-steel"
+                      />
+                    </div>
                   </div>
 
-                  {orderMode === "quickfill" ? (
-                    <>
-                      {/* Payment method */}
-                      <div className="flex items-center gap-3 flex-wrap">
-                        <Label className="text-xs uppercase tracking-wider text-muted-foreground">Վճարման եղանակ՝</Label>
-                        <div className="flex items-center gap-1 border border-hairline bg-card">
-                          {([
-                            { v: "debt", label: "Պարտք" },
-                            { v: "cash", label: "Առձեռն" },
-                            { v: "transfer", label: "Փոխանցում" },
-                          ] as const).map((opt) => (
-                            <button
-                              key={opt.v}
-                              type="button"
-                              onClick={() => setPaymentMethod(opt.v)}
-                              className={`px-4 py-2 text-sm font-medium transition-colors ${
-                                paymentMethod === opt.v
-                                  ? "bg-primary text-primary-foreground"
-                                  : "hover:bg-muted/40 text-muted-foreground"
-                              }`}
-                            >
-                              {opt.label}
-                            </button>
-                          ))}
-                        </div>
-                        <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
-                          <input
-                            type="checkbox"
-                            checked={savePrices}
-                            onChange={(e) => setSavePrices(e.target.checked)}
-                            className="size-4 accent-primary"
-                          />
-                          <span>Պահպանել գները</span>
-                        </label>
-                        <div className="flex items-center gap-2">
-                          <Label className="text-xs uppercase tracking-wider text-muted-foreground">Զեղչ (%)</Label>
-                          <Input
-                            type="number"
-                            min={0}
-                            max={100}
-                            step="0.5"
-                            value={discountPercent}
-                            onChange={(e) => setDiscountPercent(e.target.value)}
-                            placeholder="0"
-                            className="h-9 w-20 text-right tabular-nums focus-steel"
-                          />
-                        </div>
-                      </div>
+                  {/* Two blocks (tabs) */}
+                  <div className="border border-hairline rounded-lg overflow-hidden">
+                    <div className="flex items-center gap-1 border-b border-hairline p-1 bg-muted/20">
+                      <button
+                        type="button"
+                        onClick={() => setOrderTab("quickfill")}
+                        className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-all rounded-md ${
+                          orderTab === "quickfill" ? "bg-primary text-primary-foreground" : "hover:bg-muted/40"
+                        }`}
+                      >
+                        <Zap className="size-4" />
+                        Պատվերի լրացում
+                        {totals.selectedCount > 0 && (
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded border ${orderTab === "quickfill" ? "border-primary-foreground/40" : "border-hairline"}`}>
+                            {totals.selectedCount}
+                          </span>
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setOrderTab("calculator")}
+                        className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-all rounded-md ${
+                          orderTab === "calculator" ? "bg-primary text-primary-foreground" : "hover:bg-muted/40"
+                        }`}
+                      >
+                        <DoorOpen className="size-4" />
+                        Դարպասի պատվեր
+                        {calcRows.filter((r) => (r.sum || 0) > 0).length > 0 && (
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded border ${orderTab === "calculator" ? "border-primary-foreground/40" : "border-hairline"}`}>
+                            {calcRows.filter((r) => (r.sum || 0) > 0).length}
+                          </span>
+                        )}
+                      </button>
+                    </div>
 
-                      {/* Quick Fill panel inline */}
-                      <div className="border border-hairline">
-                        <QuickFillPanel
-                          embedded
-                          onChange={(r, t) => { setRows(r); setTotals(t); }}
+                    <div className="p-3">
+                      {orderTab === "quickfill" ? (
+                        <QuickFillPanel embedded onChange={onQfChange} />
+                      ) : (
+                        <RolshutterCalculator
+                          products={[]}
+                          onRowsChange={onCalcRowsChange}
+                          onTotalChange={onCalcTotalChange}
                         />
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Stock error banner */}
+                  {stockError && (
+                    <div className="px-3 py-2 border border-status-red/30 bg-status-red/5 rounded text-xs text-status-red">
+                      <div className="flex items-start gap-2">
+                        <AlertTriangle className="size-4 shrink-0 mt-0.5" />
+                        <div className="flex-1 min-w-0">
+                          <div className="font-semibold uppercase tracking-wider">Պատվերը հնարավոր չէ ընդունել — անբավարար պաշար</div>
+                          <ul className="mt-1 space-y-0.5">
+                            {stockError.map((err, i) => (
+                              <li key={i}>• {err}</li>
+                            ))}
+                          </ul>
+                        </div>
+                        <button onClick={() => setStockError(null)} className="text-status-red/60 hover:text-status-red px-1">✕</button>
                       </div>
-                    </>
-                  ) : (
-                    /* Door calculator mode */
-                    <div className="border border-hairline p-3">
-                      <p className="text-xs text-muted-foreground mb-2">
-                        Լցրեք հաշվարկը, ապա ստեղծեք հաճախորդը — պատվերը կստեղծվի ավտոմատ
-                      </p>
-                      <RolshutterCalculatorWithOrder />
                     </div>
                   )}
+
+                  {/* Unified receipt */}
+                  <div className="border-2 border-primary/30 bg-primary/5 rounded-lg overflow-hidden">
+                    <div className="px-4 py-2.5 border-b border-primary/20 flex items-center gap-2 bg-primary/5">
+                      <Receipt className="size-4 text-primary" />
+                      <span className="text-sm font-semibold">Միասնական չեկ</span>
+                    </div>
+                    <div className="p-4">
+                      <div className="space-y-1.5">
+                        {rows.filter((r) => r.selected && (r.qty > 0 || r.meterage > 0)).map((r) => {
+                          const qtyForCalc = r.meterage > 0 ? r.meterage : r.qty;
+                          return (
+                            <div key={r.productId} className="flex items-center gap-2 text-sm">
+                              <Package2 className="size-3.5 text-muted-foreground shrink-0" />
+                              <span className="flex-1 truncate">{r.name}</span>
+                              <span className="text-xs text-muted-foreground tabular-nums">
+                                {r.meterage > 0 ? `${r.meterage} մ` : `${r.qty} ${r.unitSymbol}`}
+                              </span>
+                              <span className="text-xs text-muted-foreground tabular-nums w-20 text-right">{r.unitPrice.toLocaleString("hy-AM")} դր</span>
+                              <span className="text-sm font-medium tabular-nums w-24 text-right">
+                                {Math.round(qtyForCalc * r.unitPrice).toLocaleString("hy-AM")} դր
+                              </span>
+                            </div>
+                          );
+                        })}
+                        {calcRows.filter((r) => (r.sum || 0) > 0).map((r, i) => (
+                          <div key={`calc-${i}`} className="flex items-center gap-2 text-sm">
+                            <DoorOpen className="size-3.5 text-muted-foreground shrink-0" />
+                            <span className="flex-1 truncate">{r.name}</span>
+                            <span className="text-xs text-muted-foreground tabular-nums">
+                              {r.meters ? `${r.meters} մ` : `${r.qty} հատ`}
+                            </span>
+                            <span className="text-xs text-muted-foreground tabular-nums w-20 text-right">{r.price.toLocaleString("hy-AM")} դր</span>
+                            <span className="text-sm font-medium tabular-nums w-24 text-right">
+                              {Math.round(r.sum).toLocaleString("hy-AM")} դր
+                            </span>
+                          </div>
+                        ))}
+                        {combined.totalItemCount === 0 && (
+                          <div className="py-4 text-center text-sm text-muted-foreground">
+                            Չեկը դատարկ է — լրացրեք ապրանքները վերևի բլոկներից
+                          </div>
+                        )}
+                      </div>
+
+                      {combined.totalItemCount > 0 && (
+                        <div className="mt-3 pt-3 border-t border-hairline space-y-1.5">
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-muted-foreground">Ապրանքների քանակ</span>
+                            <span className="font-medium tabular-nums">{combined.totalItemCount}</span>
+                          </div>
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-muted-foreground">Ընդհանուր (նախքան զեղչ)</span>
+                            <span className="font-medium tabular-nums">{combined.baseTotal.toLocaleString("hy-AM")} դր</span>
+                          </div>
+                          {Number(discountPercent) > 0 && (
+                            <div className="flex items-center justify-between text-sm text-status-yellow">
+                              <span>Զեղչ ({discountPercent}%)</span>
+                              <span className="font-medium tabular-nums">−{combined.discountAmount.toLocaleString("hy-AM")} դր</span>
+                            </div>
+                          )}
+                          <div className="flex items-center justify-between pt-1">
+                            <span className="text-sm font-semibold">Վճարման ենթակա</span>
+                            <span className="text-xl font-bold tabular-nums text-primary">
+                              {combined.finalTotal.toLocaleString("hy-AM")} դր
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
@@ -383,24 +519,19 @@ export function ClientCreateDialog({ open, onClose, onCreated }: { open: boolean
         {/* Footer */}
         <DialogFooter className="px-6 py-4 border-t border-hairline bg-card flex items-center justify-between gap-3 shrink-0">
           <div className="flex items-center gap-4 text-sm">
-            {showOrderSection && orderMode === "quickfill" && (
+            {showOrderSection && combined.totalItemCount > 0 && (
               <>
-                <span className="text-muted-foreground">Ընտրված՝ <strong className="text-foreground">{totals.selectedCount}</strong></span>
+                <span className="text-muted-foreground">Ապրանքներ՝ <strong className="text-foreground">{combined.totalItemCount}</strong></span>
                 {Number(discountPercent) > 0 ? (
                   <span className="text-muted-foreground">Ընդհանուր՝
-                    <span className="text-xs line-through text-muted-foreground ml-1 tabular-nums">{new Intl.NumberFormat("hy-AM").format(totals.totalAmount)} դր</span>
-                    <strong className="text-primary text-base ml-1 tabular-nums">{new Intl.NumberFormat("hy-AM").format(finalTotal)} դր</strong>
+                    <span className="text-xs line-through text-muted-foreground ml-1 tabular-nums">{combined.baseTotal.toLocaleString("hy-AM")} դր</span>
+                    <strong className="text-primary text-base ml-1 tabular-nums">{combined.finalTotal.toLocaleString("hy-AM")} դր</strong>
                     <span className="text-status-yellow ml-1 text-xs">−{discountPercent}%</span>
                   </span>
                 ) : (
-                  <span className="text-muted-foreground">Ընդհանուր՝ <strong className="text-primary text-base">{new Intl.NumberFormat("hy-AM").format(totals.totalAmount)} դր</strong></span>
+                  <span className="text-muted-foreground">Ընդհանուր՝ <strong className="text-primary text-base">{combined.baseTotal.toLocaleString("hy-AM")} դր</strong></span>
                 )}
               </>
-            )}
-            {showOrderSection && orderMode === "calculator" && (
-              <span className="text-xs text-muted-foreground">
-                Դարպասի Հաշվարկ — պատվերը կստեղծվի հաշվարկի լցոնումից
-              </span>
             )}
           </div>
           <div className="flex items-center gap-2">
@@ -408,7 +539,7 @@ export function ClientCreateDialog({ open, onClose, onCreated }: { open: boolean
             {!createdClientId ? (
               <Button onClick={submit} disabled={createClientMutation.isPending || createOrderMutation.isPending} size="lg" className="bg-primary gap-2">
                 {(createClientMutation.isPending || createOrderMutation.isPending) && <Loader2 className="size-5 animate-spin" />}
-                {totals.selectedCount > 0 ? "Ստեղծել հաճախորդ և պատվեր" : "Ստեղծել հաճախորդ"}
+                {combined.totalItemCount > 0 ? "Ստեղծել հաճախորդ և պատվեր" : "Ստեղծել հաճախորդ"}
               </Button>
             ) : (
               <Button

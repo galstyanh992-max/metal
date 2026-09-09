@@ -1,19 +1,21 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Search, Users, ShoppingCart, Zap, FileSpreadsheet, Loader2, DoorOpen, TrendingDown } from "lucide-react";
-import { useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { KpiCard, SectionHeader } from "@/components/shared/primitives";
+import {
+  Plus, Search, Users, ShoppingCart, FileSpreadsheet, Loader2,
+  TrendingDown, TrendingUp, ChevronRight, ClipboardList,
+} from "lucide-react";
+import { useState, useMemo } from "react";
 import { ClientCreateDialog } from "./client-create-dialog";
 import { ClientDetailDrawer } from "./client-detail-drawer";
 import { OrderDetailDrawer } from "./order-detail-drawer";
-import { CreateOrderDialog, QuickFillOrderDialog } from "./orders-module";
-import { exportToExcel, fmtAMD, fmtDate } from "@/lib/export/excel";
+import { exportToExcel, fmtDate } from "@/lib/export/excel";
 import { ModuleFooter, MODULE_FOOTERS } from "@/components/shared/module-footer";
-import { RolshutterCalculatorWithOrder } from "@/components/rolshutter/rolshutter-calculator-with-order";
-import { ErrorBoundary } from "@/components/shared/error-boundary";
-import { DebtsModule } from "./debts-module";
+import { AcceptOrderModule } from "./accept-order-module";
 
 async function fetchClients() {
   const res = await fetch("/api/clients");
@@ -50,34 +52,57 @@ const ORDER_STATUS_LABELS: Record<string, string> = {
   DRAFT: "Սևագիր", CONFIRMED: "Հաստատված", PICKING: "Ընտրման մեջ", READY: "Պատրաստ", DELIVERED: "Հանձնված", CANCELLED: "Չեղարկված",
 };
 
+function clientDisplayName(c: any): string {
+  return c.type === "COMPANY" ? (c.companyName ?? "") : `${c.firstName ?? ""} ${c.lastName ?? ""}`.trim();
+}
+
+/**
+ * ClientsOrdersModule — unified workspace for clients + orders.
+ *
+ * Single screen:
+ *  - KPI row (clients, orders, total debt, turnover)
+ *  - Master-detail: clients list (left) → orders of selected client (right)
+ *  - Debtors filter, search, Excel export
+ *  - Quick actions: new client, quick-fill order, door calculator
+ */
 export function ClientsOrdersModule({ role }: { role: string }) {
+  const qc = useQueryClient();
   const { data: clientsData, isLoading: clientsLoading } = useQuery({ queryKey: ["clients"], queryFn: fetchClients });
   const { data: ordersData, isLoading: ordersLoading, refetch: refetchOrders } = useQuery({ queryKey: ["orders"], queryFn: fetchOrders });
-  const [tab, setTab] = useState<"clients" | "orders" | "rolshutter" | "debts">("clients");
+
+  const [tab, setTab] = useState<"clients" | "accept-order">("clients");
   const [search, setSearch] = useState("");
+  const [debtorsOnly, setDebtorsOnly] = useState(false);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [createClientOpen, setCreateClientOpen] = useState(false);
-  const [createOrderOpen, setCreateOrderOpen] = useState(false);
-  const [quickFillOpen, setQuickFillOpen] = useState(false);
-
-  const clients = (clientsData?.clients ?? []).filter((c: any) => {
-    if (!search) return true;
-    const q = search.toLowerCase();
-    const name = c.type === "COMPANY" ? c.companyName : `${c.firstName} ${c.lastName}`;
-    return name?.toLowerCase().includes(q) || c.phone?.includes(q) || c.email?.toLowerCase().includes(q);
-  });
-
-  const orders = (ordersData?.orders ?? []).filter((o: any) => {
-    if (!search) return true;
-    const q = search.toLowerCase();
-    return o.number?.toLowerCase().includes(q) ||
-      o.client?.companyName?.toLowerCase().includes(q) ||
-      o.client?.firstName?.toLowerCase().includes(q) ||
-      o.client?.lastName?.toLowerCase().includes(q);
-  });
-
   const [exporting, setExporting] = useState<"clients" | "orders" | null>(null);
+
+  const clients = (clientsData?.clients ?? []) as any[];
+  const orders = (ordersData?.orders ?? []) as any[];
+
+  // Filter clients
+  const filteredClients = useMemo(() => {
+    return clients.filter((c) => {
+      if (debtorsOnly && !(c.currentDebt > 0)) return false;
+      if (!search) return true;
+      const q = search.toLowerCase();
+      const name = clientDisplayName(c).toLowerCase();
+      return name.includes(q) || c.phone?.includes(q) || c.email?.toLowerCase().includes(q);
+    });
+  }, [clients, search, debtorsOnly]);
+
+  // Orders for selected client (or all)
+  const visibleOrders = useMemo(() => {
+    if (selectedClientId) return orders.filter((o) => o.client?.id === selectedClientId);
+    return orders;
+  }, [orders, selectedClientId]);
+
+  const selectedClient = clients.find((c) => c.id === selectedClientId) ?? null;
+
+  // KPIs
+  const totalDebt = clients.reduce((s: number, c: any) => s + (c.currentDebt ?? 0), 0);
+  const totalTurnover = clients.reduce((s: number, c: any) => s + (c.lifetimeTurnover ?? 0), 0);
 
   const exportClients = () => {
     setExporting("clients");
@@ -85,27 +110,18 @@ export function ClientsOrdersModule({ role }: { role: string }) {
       exportToExcel(
         `հաճախորդներ-${new Date().toISOString().slice(0, 10)}.xlsx`,
         "Հաճախորդներ",
-        clients,
+        filteredClients,
         [
-          { header: "Տիպ", width: 12, get: c => c.type === "COMPANY" ? "Ընկերություն" : "Անհատ" },
-          {
-            header: "Անուն / Ընկերություն",
-            width: 32,
-            get: c => c.type === "COMPANY" ? c.companyName : `${c.firstName ?? ""} ${c.lastName ?? ""}`.trim(),
-          },
-          { header: "Հեռախոս", width: 16, get: c => c.phone ?? "" },
-          { header: "Էլ. հասցե", width: 24, get: c => c.email ?? "" },
-          { header: "ՀՎՀՀ", width: 14, get: c => c.taxId ?? "" },
-          { header: "Հասցե", width: 30, get: c => c.primaryAddress ?? c.actualAddress ?? c.legalAddress ?? "" },
-          {
-            header: "Կարգավիճակ",
-            width: 14,
-            get: c => ({ GREEN: "Առողջ", YELLOW: "Պարտք", ORANGE: "Մոտ ժամկետ", RED: "Ժամկետանց", CRITICAL: "Սպառված" }[c.status as string] ?? c.status),
-          },
-          { header: "Պարտք (դր)", width: 14, get: c => c.currentDebt ?? 0 },
-          { header: "Շրջանառություն (դր)", width: 16, get: c => c.lifetimeTurnover ?? 0 },
-          { header: "Պատվերներ", width: 10, get: c => c.totalOrders ?? 0 },
-          { header: "Ստեղծված", width: 12, get: c => fmtDate(c.createdAt) },
+          { header: "Տիպ", width: 12, get: (c: any) => c.type === "COMPANY" ? "Ընկերություն" : "Անհատ" },
+          { header: "Անուն / Ընկերություն", width: 32, get: (c: any) => clientDisplayName(c) },
+          { header: "Հեռախոս", width: 16, get: (c: any) => c.phone ?? "" },
+          { header: "Էլ. հասցե", width: 24, get: (c: any) => c.email ?? "" },
+          { header: "ՀՎՀՀ", width: 14, get: (c: any) => c.taxId ?? "" },
+          { header: "Կարգավիճակ", width: 14, get: (c: any) => STATUS_LABELS[c.status] ?? c.status },
+          { header: "Պարտք (դր)", width: 14, get: (c: any) => c.currentDebt ?? 0 },
+          { header: "Շրջանառություն (դր)", width: 16, get: (c: any) => c.lifetimeTurnover ?? 0 },
+          { header: "Պատվերներ", width: 10, get: (c: any) => c.totalOrders ?? 0 },
+          { header: "Ստեղծված", width: 12, get: (c: any) => fmtDate(c.createdAt) },
         ],
       );
     } finally {
@@ -119,30 +135,17 @@ export function ClientsOrdersModule({ role }: { role: string }) {
       exportToExcel(
         `պատվերներ-${new Date().toISOString().slice(0, 10)}.xlsx`,
         "Պատվերներ",
-        orders,
+        visibleOrders,
         [
-          { header: "Համար", width: 16, get: o => o.number ?? "" },
-          {
-            header: "Հաճախորդ",
-            width: 30,
-            get: o => o.client?.type === "COMPANY"
-              ? o.client?.companyName ?? ""
-              : `${o.client?.firstName ?? ""} ${o.client?.lastName ?? ""}`.trim(),
-          },
-          { header: "Հեռախոս", width: 16, get: o => o.client?.phone ?? "" },
-          {
-            header: "Կարգավիճակ",
-            width: 14,
-            get: o => ({ DRAFT: "Սևագիր", CONFIRMED: "Հաստատված", PICKING: "Ընտրման մեջ", READY: "Պատրաստ", DELIVERED: "Հանձնված", CANCELLED: "Չեղարկված" }[o.status as string] ?? o.status),
-          },
-          { header: "Պարտադիր քանակ", width: 10, get: o => o.items?.length ?? 0 },
-          { header: "Գումար (դր)", width: 14, get: o => o.totalAmount ?? 0 },
-          { header: "Վճարված (դր)", width: 14, get: o => o.paidAmount ?? 0 },
-          { header: "Մնացորդ (դր)", width: 14, get: o => o.outstandingAmount ?? 0 },
-          { header: "Շահույթ (դր)", width: 14, get: o => o.grossProfit ?? 0 },
-          { header: "Մարժա (%)", width: 10, get: o => o.marginPercent ? (o.marginPercent / 100).toFixed(2) : "0" },
-          { header: "Ստեղծված", width: 12, get: o => fmtDate(o.createdAt) },
-          { header: "Ժամկետ", width: 12, get: o => fmtDate(o.dueDate) },
+          { header: "Համար", width: 16, get: (o: any) => o.number ?? "" },
+          { header: "Հաճախորդ", width: 30, get: (o: any) => clientDisplayName(o.client ?? {}) },
+          { header: "Հեռախոս", width: 16, get: (o: any) => o.client?.phone ?? "" },
+          { header: "Կարգավիճակ", width: 14, get: (o: any) => ORDER_STATUS_LABELS[o.status] ?? o.status },
+          { header: "Քանակ", width: 10, get: (o: any) => o.items?.length ?? 0 },
+          { header: "Գումար (դր)", width: 14, get: (o: any) => o.totalAmount ?? 0 },
+          { header: "Վճարված (դր)", width: 14, get: (o: any) => o.paidAmount ?? 0 },
+          { header: "Մնացորդ (դր)", width: 14, get: (o: any) => o.outstandingAmount ?? 0 },
+          { header: "Ստեղծված", width: 12, get: (o: any) => fmtDate(o.createdAt) },
         ],
       );
     } finally {
@@ -153,172 +156,176 @@ export function ClientsOrdersModule({ role }: { role: string }) {
   return (
     <div className="space-y-4">
       {/* Header with tabs */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-1 border border-hairline rounded-lg p-1 bg-card" style={{ boxShadow: "0 1px 3px oklch(0 0 0 / 0.03)" }}>
-          <button
-            onClick={() => setTab("clients")}
-            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-all rounded-md ${tab === "clients" ? "bg-primary text-primary-foreground tab-3d-active" : "hover:bg-muted/40"}`}
-          >
-            <Users className="size-4" />
-            Հաճախորդներ
-            <span className="text-xs tabular-nums opacity-70">{clients.length}</span>
-          </button>
-          <button
-            onClick={() => setTab("orders")}
-            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-all rounded-md ${tab === "orders" ? "bg-primary text-primary-foreground tab-3d-active" : "hover:bg-muted/40"}`}
-          >
-            <ShoppingCart className="size-4" />
-            Պատվերներ
-            <span className="text-xs tabular-nums opacity-70">{orders.length}</span>
-          </button>
-          <button
-            onClick={() => setTab("rolshutter")}
-            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-all rounded-md ${tab === "rolshutter" ? "bg-primary text-primary-foreground tab-3d-active" : "hover:bg-muted/40"}`}
-          >
-            <DoorOpen className="size-4" />
-            Դարպասի Հաշվարկ
-          </button>
-          <button
-            onClick={() => setTab("debts")}
-            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-all rounded-md ${tab === "debts" ? "bg-primary text-primary-foreground tab-3d-active" : "hover:bg-muted/40"}`}
-          >
-            <TrendingDown className="size-4" />
-            Պարտատերեր
-          </button>
-        </div>
-        {role !== "WAREHOUSE" && tab !== "rolshutter" && tab !== "debts" && (
-          <div className="flex items-center gap-2">
-            {tab === "clients" && (
-              <Button
-                size="sm"
-                variant="outline"
-                className="gap-2"
-                onClick={exportClients}
-                disabled={exporting === "clients" || clients.length === 0}
-                title="Արտահանել Excel ֆորմատով"
+      <SectionHeader
+        title="Հաճախորդներ և Պատվերներ"
+        description="Միասնական աշխատանքային տարածք՝ հաճախորդների, պատվերների կառավարման և պատվերի ընդունման համար"
+        action={
+          <div className="flex items-center gap-1 border border-hairline rounded-lg p-1 bg-card">
+            <button
+              onClick={() => setTab("clients")}
+              className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-all rounded-md ${
+                tab === "clients" ? "bg-primary text-primary-foreground" : "hover:bg-muted/40"
+              }`}
+            >
+              <Users className="size-4" />
+              Հաճախորդներ
+              <span className="text-xs tabular-nums opacity-70">{clients.length}</span>
+            </button>
+            {role !== "WAREHOUSE" && (
+              <button
+                onClick={() => setTab("accept-order")}
+                className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-all rounded-md ${
+                  tab === "accept-order" ? "bg-primary text-primary-foreground" : "hover:bg-muted/40"
+                }`}
               >
-                {exporting === "clients" ? <Loader2 className="size-4 animate-spin" /> : <FileSpreadsheet className="size-4 text-status-green" />}
-                Excel
-              </Button>
+                <ClipboardList className="size-4" />
+                Ընդունել պատվեր
+              </button>
             )}
-            {tab === "orders" && (
-              <Button
-                size="sm"
-                variant="outline"
-                className="gap-2"
-                onClick={exportOrders}
-                disabled={exporting === "orders" || orders.length === 0}
-                title="Արտահանել Excel ֆորմատով"
-              >
-                {exporting === "orders" ? <Loader2 className="size-4 animate-spin" /> : <FileSpreadsheet className="size-4 text-status-green" />}
-                Excel
-              </Button>
-            )}
-            <Button size="sm" className="gap-2 bg-primary" onClick={() => tab === "clients" ? setCreateClientOpen(true) : setQuickFillOpen(true)}>
-              <Plus className="size-4" /> {tab === "clients" ? "Նոր հաճախորդ" : "Պատվերի լրացում"}
-            </Button>
           </div>
-        )}
+        }
+      />
+
+      {/* Accept order tab */}
+      {tab === "accept-order" && role !== "WAREHOUSE" && <AcceptOrderModule role={role} />}
+
+      {/* Clients tab */}
+      {tab === "clients" && (
+        <>
+      {/* KPI row */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <KpiCard label="Հաճախորդներ" value={String(clients.length)} icon={Users} />
+        <KpiCard label="Պատվերներ" value={String(orders.length)} icon={ShoppingCart} />
+        <KpiCard label="Ընդհանուր պարտք" value={fmt(totalDebt)} icon={TrendingDown} accent="red" />
+        <KpiCard label="Շրջանառություն" value={fmt(totalTurnover)} icon={TrendingUp} accent="green" />
       </div>
 
-      {/* Search */}
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={tab === "clients" ? "Որոնում՝ անուն, հեռախոս, էլ․ հասցե…" : "Որոնում՝ համար, հաճախորդ…"}
-            className="pl-9 focus-steel"
-          />
-        </div>
-      </div>
-
-      {/* Rolshutter calculator tab */}
-      {tab === "rolshutter" && (
-        <div className="border border-hairline bg-card p-4">
-          <ErrorBoundary>
-            <RolshutterCalculatorWithOrder />
-          </ErrorBoundary>
-        </div>
-      )}
-
-      {/* Debts tab */}
-      {tab === "debts" && <DebtsModule />}
-
-      {/* Excel-like table — hidden on rolshutter + debts tabs */}
-      {tab !== "rolshutter" && tab !== "debts" && (
-      <div className="border border-hairline overflow-x-auto bg-card">
-        {tab === "clients" ? (
-          <>
-            {/* Client headers */}
-            <div className="grid grid-cols-[minmax(200px,1fr)_140px_100px_120px_120px_80px] gap-0 border-b border-hairline bg-muted/30">
-              <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline">Անուն / Ընկերություն</div>
-              <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline">Հեռախոս</div>
-              <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline">Կարգավիճակ</div>
-              {role !== "WAREHOUSE" && <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-right">Պարտք</div>}
-              {role === "ADMIN" && <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-right">Շրջանառություն</div>}
-              <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground text-right">Պատվերներ</div>
-            </div>
-            {/* Client rows */}
-            {clients.map((c: any, idx: number) => (
-              <div
-                key={c.id}
-                className={`grid grid-cols-[minmax(200px,1fr)_140px_100px_120px_120px_80px] gap-0 border-b border-hairline hover:bg-muted/30 cursor-pointer transition-colors ${idx % 2 === 1 ? "bg-muted/10" : ""}`}
-                onClick={() => setSelectedClientId(c.id)}
+      {/* Master-detail layout */}
+      <div className="grid lg:grid-cols-[minmax(300px,2fr)_3fr] gap-4 items-start">
+        {/* Clients panel */}
+        <div className="border border-hairline bg-card rounded-lg overflow-hidden">
+          <div className="p-3 border-b border-hairline space-y-2 bg-muted/20">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-sm font-semibold">
+                <Users className="size-4 text-primary" />
+                Հաճախորդներ
+                <Badge variant="outline" className="text-[10px] border-hairline px-1.5 py-0.5">{filteredClients.length}</Badge>
+              </div>
+              <button
+                onClick={() => setDebtorsOnly((v) => !v)}
+                className={`inline-flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-md border transition-colors ${
+                  debtorsOnly ? "bg-status-red/10 text-status-red border-status-red/30" : "border-hairline text-muted-foreground hover:bg-muted/40"
+                }`}
               >
-                <div className="px-3 py-2.5 border-r border-hairline flex items-center gap-2 min-w-0">
-                  <div className="size-6 bg-muted flex items-center justify-center text-[10px] font-medium shrink-0 rounded-sm">
+                <TrendingDown className="size-3.5" />
+                Պարտատերեր
+              </button>
+            </div>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Որոնում՝ անուն, հեռախոս…"
+                className="h-8 pl-8 text-xs focus-steel"
+              />
+            </div>
+          </div>
+
+          <div className="max-h-[520px] overflow-y-auto">
+            {clientsLoading && <div className="p-6 text-center text-xs text-muted-foreground">Բեռնվում է…</div>}
+            {!clientsLoading && filteredClients.length === 0 && (
+              <div className="p-6 text-center text-xs text-muted-foreground">
+                {search || debtorsOnly ? "Որոնման արդյունքներ չկան" : "Հաճախորդներ չկան"}
+              </div>
+            )}
+            {filteredClients.map((c: any) => {
+              const isSelected = c.id === selectedClientId;
+              return (
+                <div
+                  key={c.id}
+                  onClick={() => setSelectedClientId(isSelected ? null : c.id)}
+                  className={`flex items-center gap-2.5 px-3 py-2.5 border-b border-hairline cursor-pointer transition-colors ${
+                    isSelected ? "bg-primary/5 border-l-2 border-l-primary" : "hover:bg-muted/30"
+                  }`}
+                >
+                  <div className="size-7 bg-muted flex items-center justify-center text-[10px] font-medium shrink-0 rounded-sm">
                     {c.type === "COMPANY" ? "Ը" : (c.firstName?.[0] ?? "?")}
                   </div>
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium truncate">{c.type === "COMPANY" ? c.companyName : `${c.firstName} ${c.lastName}`}</div>
-                    {c.type === "COMPANY" && c.taxId && <div className="text-[10px] text-muted-foreground font-mono">ՀՎՀՀ {c.taxId}</div>}
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-medium truncate">{clientDisplayName(c)}</div>
+                    <div className="text-[10px] text-muted-foreground tabular-nums truncate">{c.phone}</div>
                   </div>
-                </div>
-                <div className="px-3 py-2.5 border-r border-hairline text-sm text-muted-foreground tabular-nums flex items-center">{c.phone}</div>
-                <div className="px-3 py-2.5 border-r border-hairline flex items-center">
-                  <span className={`inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium border ${STATUS_STYLES[c.status] ?? "bg-muted text-muted-foreground"}`}>
-                    {STATUS_LABELS[c.status] ?? c.status}
-                  </span>
-                </div>
-                {role !== "WAREHOUSE" && (
-                  <div className="px-3 py-2.5 border-r border-hairline text-right tabular-nums text-sm flex items-center justify-end">
-                    {c.currentDebt > 0 ? <span className="text-status-red font-medium">{fmt(c.currentDebt)}</span> : <span className="text-muted-foreground">—</span>}
+                  <div className="flex flex-col items-end gap-1 shrink-0">
+                    <span className={`inline-flex items-center px-1.5 py-0.5 text-[9px] font-medium border ${STATUS_STYLES[c.status] ?? "bg-muted text-muted-foreground"}`}>
+                      {STATUS_LABELS[c.status] ?? c.status}
+                    </span>
+                    {c.currentDebt > 0 && (
+                      <span className="text-[10px] text-status-red font-medium tabular-nums">{fmt(c.currentDebt)}</span>
+                    )}
                   </div>
-                )}
-                {role === "ADMIN" && (
-                  <div className="px-3 py-2.5 border-r border-hairline text-right tabular-nums text-sm text-muted-foreground flex items-center justify-end">{fmt(c.lifetimeTurnover)}</div>
-                )}
-                <div className="px-3 py-2.5 text-right tabular-nums text-sm flex items-center justify-end">{c.totalOrders}</div>
-              </div>
-            ))}
-            {clients.length === 0 && !clientsLoading && (
-              <div className="px-3 py-12 text-center text-sm text-muted-foreground">{search ? "Որոնման արդյունքներ չկան" : "Հաճախորդներ չկան"}</div>
-            )}
-          </>
-        ) : (
-          <>
-            {/* Order headers */}
-            <div className="grid grid-cols-[120px_minmax(180px,1fr)_110px_70px_120px_120px_100px] gap-0 border-b border-hairline bg-muted/30">
+                  <ChevronRight className="size-3.5 text-muted-foreground/50 shrink-0" />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Orders panel */}
+        <div className="border border-hairline bg-card rounded-lg overflow-hidden">
+          <div className="p-3 border-b border-hairline flex items-center justify-between gap-2 bg-muted/20">
+            <div className="flex items-center gap-2 text-sm font-semibold min-w-0">
+              <ShoppingCart className="size-4 text-primary shrink-0" />
+              {selectedClient ? (
+                <span className="truncate">
+                  {clientDisplayName(selectedClient)}
+                  <span className="ml-2 text-xs text-muted-foreground font-normal">· {selectedClient.phone}</span>
+                </span>
+              ) : (
+                "Բոլոր պատվերները"
+              )}
+              <Badge variant="outline" className="text-[10px] border-hairline px-1.5 py-0.5">{visibleOrders.length}</Badge>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" onClick={exportOrders} disabled={exporting === "orders" || visibleOrders.length === 0}>
+                {exporting === "orders" ? <Loader2 className="size-3.5 animate-spin" /> : <FileSpreadsheet className="size-3.5 text-status-green" />}
+                Excel
+              </Button>
+              {role !== "WAREHOUSE" && (
+                <Button size="sm" className="h-7 gap-1.5 text-xs bg-primary" onClick={() => setCreateClientOpen(true)}>
+                  <Plus className="size-3.5" />
+                  Նոր հաճախորդ
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {/* Orders table */}
+          <div className="overflow-x-auto">
+            <div className="grid grid-cols-[110px_minmax(160px,1fr)_100px_60px_110px_90px] gap-0 border-b border-hairline bg-muted/30 min-w-[560px]">
               <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline">Համար</div>
               <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline">Հաճախորդ</div>
               <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline">Կարգավիճակ</div>
               <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-right">Քանակ</div>
               {role !== "WAREHOUSE" && <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-right">Գումար</div>}
-              {role === "ADMIN" && <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-right">Շահույթ</div>}
               <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Ամսաթիվ</div>
             </div>
-            {/* Order rows */}
-            {orders.map((o: any, idx: number) => (
+
+            {ordersLoading && <div className="p-6 text-center text-xs text-muted-foreground">Բեռնվում է…</div>}
+            {!ordersLoading && visibleOrders.length === 0 && (
+              <div className="p-6 text-center text-xs text-muted-foreground">
+                {selectedClient ? "Այս հաճախորդի պատվերներ չկան" : "Պատվերներ չկան"}
+              </div>
+            )}
+            {visibleOrders.map((o: any, idx: number) => (
               <div
                 key={o.id}
-                className={`grid grid-cols-[120px_minmax(180px,1fr)_110px_70px_120px_120px_100px] gap-0 border-b border-hairline hover:bg-muted/30 cursor-pointer transition-colors ${idx % 2 === 1 ? "bg-muted/10" : ""}`}
+                className={`grid grid-cols-[110px_minmax(160px,1fr)_100px_60px_110px_90px] gap-0 border-b border-hairline hover:bg-muted/30 cursor-pointer transition-colors min-w-[560px] ${idx % 2 === 1 ? "bg-muted/10" : ""}`}
                 onClick={() => setSelectedOrderId(o.id)}
               >
                 <div className="px-3 py-2.5 border-r border-hairline text-xs font-mono flex items-center">{o.number}</div>
                 <div className="px-3 py-2.5 border-r border-hairline text-sm font-medium flex items-center min-w-0">
-                  <span className="truncate">{o.client?.type === "COMPANY" ? o.client?.companyName : `${o.client?.firstName ?? ""} ${o.client?.lastName ?? ""}`}</span>
+                  <span className="truncate">{clientDisplayName(o.client ?? {})}</span>
                 </div>
                 <div className="px-3 py-2.5 border-r border-hairline flex items-center">
                   <span className={`inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium border ${ORDER_STATUS_STYLES[o.status] ?? "bg-muted text-muted-foreground"}`}>
@@ -329,33 +336,33 @@ export function ClientsOrdersModule({ role }: { role: string }) {
                 {role !== "WAREHOUSE" && (
                   <div className="px-3 py-2.5 border-r border-hairline text-right tabular-nums text-sm font-medium flex items-center justify-end">{fmt(o.totalAmount)}</div>
                 )}
-                {role === "ADMIN" && (
-                  <div className="px-3 py-2.5 border-r border-hairline text-right tabular-nums text-sm text-status-green flex items-center justify-end">{fmt(o.grossProfit)}</div>
-                )}
                 <div className="px-3 py-2.5 text-xs text-muted-foreground flex items-center">{new Date(o.createdAt).toLocaleDateString("hy-AM")}</div>
               </div>
             ))}
-            {orders.length === 0 && !ordersLoading && (
-              <div className="px-3 py-12 text-center text-sm text-muted-foreground">{search ? "Որոնման արդյունքներ չկան" : "Պատվերներ չկան"}</div>
-            )}
-          </>
-        )}
+          </div>
+        </div>
       </div>
-      )}
 
-      {/* Drawers */}
-      <ClientCreateDialog open={createClientOpen} onClose={() => setCreateClientOpen(false)} />
+      {/* Drawers + dialogs */}
+      <ClientCreateDialog
+        open={createClientOpen}
+        onClose={() => setCreateClientOpen(false)}
+        onCreated={() => {
+          qc.invalidateQueries({ queryKey: ["clients"] });
+          refetchOrders();
+        }}
+      />
       <ClientDetailDrawer clientId={selectedClientId} open={!!selectedClientId} onClose={() => setSelectedClientId(null)} role={role} />
-      {createOrderOpen && <CreateOrderDialog onClose={() => setCreateOrderOpen(false)} onCreated={() => setCreateOrderOpen(false)} />}
-      {quickFillOpen && <QuickFillOrderDialog onClose={() => setQuickFillOpen(false)} onCreated={() => { setQuickFillOpen(false); refetchOrders(); }} />}
       <OrderDetailDrawer orderId={selectedOrderId} open={!!selectedOrderId} onClose={() => setSelectedOrderId(null)} role={role} />
 
       <ModuleFooter {...MODULE_FOOTERS.clientsOrders} />
+        </>
+      )}
     </div>
   );
 }
 
-function fmt(v: number): string {
+function fmt(v: number | undefined): string {
   if (!v) return "0 դր";
   return new Intl.NumberFormat("hy-AM").format(v) + " դր";
 }

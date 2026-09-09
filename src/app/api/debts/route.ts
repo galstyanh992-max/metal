@@ -49,13 +49,18 @@ export async function GET(req: Request) {
         const totalPaid = orders.reduce((s, o) => s + o.paidAmount, 0);
         const totalOrdered = orders.reduce((s, o) => s + o.totalAmount, 0);
         const name = c.type === "COMPANY" ? c.companyName : `${c.firstName ?? ""} ${c.lastName ?? ""}`.trim();
+        const address = c.primaryAddress ?? c.actualAddress ?? c.legalAddress ?? c.secondaryAddress ?? "";
         return {
           id: c.id,
           type: c.type,
+          firstName: c.firstName,
+          lastName: c.lastName,
+          companyName: c.companyName,
           name,
           phone: c.phone,
           email: c.email,
           taxId: c.taxId,
+          address,
           orders,
           orderCount: orders.length,
           totalDebt,

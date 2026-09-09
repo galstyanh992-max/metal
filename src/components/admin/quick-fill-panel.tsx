@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Search, Save, RotateCcw, Calculator, Package2, TrendingUp, Star } from "lucide-react";
+import { Search, Save, RotateCcw, Calculator, Package2, TrendingUp, Star, Check as CheckIcon } from "lucide-react";
 import { toast } from "sonner";
 
 async function fetchProducts() {
@@ -28,6 +28,7 @@ export type QuickFillRow = {
   selected: boolean;
   salePriceOriginal: number; // from catalog
   isFavorite: boolean;       // հիմնական — показывать первой
+  stock: number;             // available stock (onHand - reserved)
 };
 
 export type QuickFillTotals = {
@@ -87,6 +88,7 @@ export function QuickFillPanel({
         selected: false,
         salePriceOriginal: p.salePrice ?? 0,
         isFavorite: !!p.isFavorite,
+        stock: p.stock?.available ?? 0,
       }))
     );
   }, [data]);
@@ -226,7 +228,9 @@ export function QuickFillPanel({
               className="h-7 gap-1.5 text-xs"
               onClick={() => setShowSelectedOnly((v) => !v)}
             >
-              <Checkbox checked={showSelectedOnly} className="size-3" />
+              <span className={`size-3 rounded-[3px] border flex items-center justify-center ${showSelectedOnly ? "bg-primary border-primary text-primary-foreground" : "border-input"}`}>
+                {showSelectedOnly && <CheckIcon className="size-2.5" />}
+              </span>
               Ընտրված ({totals.selectedCount})
             </Button>
             <Button variant="ghost" size="sm" className="h-7 gap-1.5 text-xs" onClick={reset}>
@@ -248,11 +252,12 @@ export function QuickFillPanel({
       {/* Grid — full width, no horizontal scroll, responsive columns */}
       <div className="flex-1 min-h-0 overflow-hidden">
         {/* Grid header */}
-        <div className="grid grid-cols-[36px_36px_1fr_60px_80px_80px_110px] gap-0 border-b border-hairline bg-muted/30 sticky top-0 z-10">
+        <div className="grid grid-cols-[36px_36px_1fr_60px_60px_80px_80px_110px] gap-0 border-b border-hairline bg-muted/30 sticky top-0 z-10">
           <div className="px-1.5 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-center">✓</div>
           <div className="px-1.5 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-center">★</div>
           <div className="px-2 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline">Ապրանք</div>
           <div className="px-2 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-right">Միավ.</div>
+          <div className="px-2 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-right">Մնացորդ</div>
           <div className="px-2 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-right">Քանակ</div>
           <div className="px-2 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-right">Մետրաժ</div>
           <div className="px-2 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground text-right">Գին (դր)</div>
@@ -276,17 +281,20 @@ export function QuickFillPanel({
             const lineTotal = qtyForCalc * r.unitPrice;
             const isQuickFill = r.sku.startsWith("QF-");
             const priceChanged = r.unitPrice !== r.salePriceOriginal;
+            const outOfStock = r.stock <= 0;
+            const overStock = r.qty > r.stock;
             return (
               <div
                 key={r.productId}
-                className={`grid grid-cols-[36px_36px_1fr_60px_80px_80px_110px] gap-0 border-b border-hairline hover:bg-muted/20 transition-colors ${
+                className={`grid grid-cols-[36px_36px_1fr_60px_60px_80px_80px_110px] gap-0 border-b border-hairline hover:bg-muted/20 transition-colors ${
                   r.selected ? "bg-primary/5" : ""
-                } ${isQuickFill ? "border-l-2 border-l-primary/40" : ""} ${r.isFavorite ? "bg-status-yellow/5" : ""}`}
+                } ${isQuickFill ? "border-l-2 border-l-primary/40" : ""} ${r.isFavorite ? "bg-status-yellow/5" : ""} ${outOfStock ? "opacity-60" : ""}`}
               >
                   {/* Checkbox */}
                   <div className="px-1.5 py-2 border-r border-hairline flex items-center justify-center">
                     <Checkbox
                       checked={r.selected}
+                      disabled={outOfStock}
                       onCheckedChange={(v) => updateRow(absIdx, { selected: !!v })}
                       className="size-3.5"
                     />
@@ -313,15 +321,27 @@ export function QuickFillPanel({
                   <div className="px-1.5 py-2 border-r border-hairline text-right">
                     <span className="text-xs text-muted-foreground">{r.unitSymbol}</span>
                   </div>
-                  {/* Qty — always enabled */}
+                  {/* Stock */}
+                  <div className="px-1.5 py-2 border-r border-hairline text-right">
+                    <span className={`text-xs tabular-nums font-medium ${outOfStock ? "text-status-red" : r.stock < 10 ? "text-status-orange" : "text-muted-foreground"}`}>
+                      {outOfStock ? "0" : r.stock}
+                    </span>
+                  </div>
+                  {/* Qty — capped at available stock */}
                   <div className="px-1.5 py-1.5 border-r border-hairline">
                     <Input
                       type="number"
                       min={0}
+                      max={outOfStock ? 0 : r.stock}
                       value={r.qty || ""}
-                      onChange={(e) => updateRow(absIdx, { qty: Number(e.target.value) || 0, selected: r.selected || !!e.target.value })}
+                      disabled={outOfStock}
+                      onChange={(e) => {
+                        const v = Number(e.target.value) || 0;
+                        const capped = outOfStock ? 0 : Math.min(v, r.stock);
+                        updateRow(absIdx, { qty: capped, selected: r.selected || !!e.target.value });
+                      }}
                       placeholder="0"
-                      className="h-7 text-xs text-right tabular-nums px-1.5 focus-steel"
+                      className={`h-7 text-xs text-right tabular-nums px-1.5 focus-steel ${overStock ? "border-status-red" : ""}`}
                     />
                   </div>
                   {/* Meterage — always enabled, even for piece items */}

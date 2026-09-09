@@ -14,9 +14,38 @@ export async function GET() {
       ],
     });
 
+    // Bulk compute available stock (onHand - reserved) for all products
+    const movements = await db.inventoryMovement.findMany({
+      select: { productId: true, type: true, qty: true },
+    });
+    const stockMap = new Map<string, { onHand: number; reserved: number }>();
+    for (const m of movements) {
+      if (!stockMap.has(m.productId)) stockMap.set(m.productId, { onHand: 0, reserved: 0 });
+      const st = stockMap.get(m.productId)!;
+      if (["RECEIVE", "RETURN"].includes(m.type)) st.onHand += m.qty;
+      else if (["ISSUE", "WRITE_OFF"].includes(m.type)) st.onHand -= m.qty;
+      else if (m.type === "ADJUSTMENT") st.onHand += m.qty;
+      else if (m.type === "RESERVE") st.reserved += m.qty;
+      else if (["RELEASE_RESERVATION", "ISSUE"].includes(m.type)) st.reserved -= m.qty;
+    }
+
+    const withStock = products.map((p) => {
+      const st = stockMap.get(p.id) ?? { onHand: 0, reserved: 0 };
+      const onHand = Math.max(0, st.onHand);
+      const reserved = Math.max(0, st.reserved);
+      return {
+        ...p,
+        stock: {
+          onHand,
+          reserved,
+          available: Math.max(0, onHand - reserved),
+        },
+      };
+    });
+
     if (role === "WAREHOUSE") {
       return NextResponse.json({
-        products: products.map((p) => {
+        products: withStock.map((p) => {
           const { salePrice, purchasePrice, ...rest } = p as any;
           return rest;
         }),
@@ -24,13 +53,13 @@ export async function GET() {
     }
     if (role === "OPERATOR") {
       return NextResponse.json({
-        products: products.map((p) => {
+        products: withStock.map((p) => {
           const { purchasePrice, ...rest } = p as any;
           return rest;
         }),
       });
     }
-    return NextResponse.json({ products });
+    return NextResponse.json({ products: withStock });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message ?? "failed" }, { status: 403 });
   }

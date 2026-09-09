@@ -48,6 +48,7 @@ export function DebtsModule() {
             client: d.name,
             phone: d.phone,
             type: d.type === "COMPANY" ? "Ընկերություն" : "Անհատ",
+            address: d.address,
             orderNumber: "—",
             orderDate: "—",
             orderTotal: 0,
@@ -61,6 +62,7 @@ export function DebtsModule() {
               client: d.name,
               phone: d.phone,
               type: d.type === "COMPANY" ? "Ընկերություն" : "Անհատ",
+              address: d.address,
               orderNumber: o.number,
               orderDate: fmtDate(o.createdAt),
               orderTotal: o.totalAmount,
@@ -79,10 +81,11 @@ export function DebtsModule() {
           { header: "Հաճախորդ", width: 30, get: (r) => r.client },
           { header: "Հեռախոս", width: 16, get: (r) => r.phone },
           { header: "Տիպ", width: 12, get: (r) => r.type },
+          { header: "Հասցե", width: 30, get: (r) => r.address },
           { header: "Պատվերի համար", width: 16, get: (r) => r.orderNumber },
           { header: "Ամսաթիվ", width: 12, get: (r) => r.orderDate },
           { header: "Պատվերի գումար (դր)", width: 16, get: (r) => r.orderTotal },
-          { header: "Վճարված (դր)", width: 14, get: (r) => r.paid },
+          { header: "Փակված (դր)", width: 14, get: (r) => r.paid },
           { header: "Մնացորդ պարտք (դր)", width: 18, get: (r) => r.outstanding },
           { header: "Կարգավիճակ", width: 14, get: (r) => r.status },
         ],
@@ -182,14 +185,15 @@ export function DebtsModule() {
       </div>
 
       {/* Debtors table — expandable per client */}
-      <div className="border border-hairline bg-card">
+      <div className="border border-hairline bg-card overflow-x-auto">
         {/* Header */}
-        <div className="grid grid-cols-[40px_1fr_140px_110px_110px_110px_40px] gap-0 border-b border-hairline bg-muted/30">
+        <div className="grid grid-cols-[40px_minmax(180px,1.4fr)_130px_minmax(160px,1fr)_90px_110px_110px_40px] gap-0 border-b border-hairline bg-muted/30 min-w-[820px]">
           <div className="px-2 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-center"></div>
           <div className="px-3 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline">Հաճախորդ</div>
           <div className="px-3 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline">Հեռախոս</div>
+          <div className="px-3 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline">Հասցե</div>
           <div className="px-3 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-right">Պատվերներ</div>
-          <div className="px-3 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-right">Վճարված</div>
+          <div className="px-3 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-right">Փակված</div>
           <div className="px-3 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground text-right">Մնացորդ պարտք</div>
           <div className="px-2 py-2.5"></div>
         </div>
@@ -209,7 +213,7 @@ export function DebtsModule() {
             <div key={d.id} className={idx % 2 === 1 ? "bg-muted/5" : ""}>
               {/* Client row */}
               <div
-                className={`grid grid-cols-[40px_1fr_140px_110px_110px_110px_40px] gap-0 border-b border-hairline hover:bg-muted/30 cursor-pointer transition-colors ${isOpen ? "bg-primary/5" : ""}`}
+                className={`grid grid-cols-[40px_minmax(180px,1.4fr)_130px_minmax(160px,1fr)_90px_110px_110px_40px] gap-0 border-b border-hairline hover:bg-muted/30 cursor-pointer transition-colors min-w-[820px] ${isOpen ? "bg-primary/5" : ""}`}
                 onClick={() => toggle(d.id)}
               >
                 <div className="px-2 py-3 border-r border-hairline flex items-center justify-center text-muted-foreground">
@@ -224,6 +228,9 @@ export function DebtsModule() {
                 </div>
                 <div className="px-3 py-2.5 border-r border-hairline text-sm text-muted-foreground tabular-nums flex items-center">
                   {d.phone}
+                </div>
+                <div className="px-3 py-2.5 border-r border-hairline text-xs text-muted-foreground flex items-center min-w-0">
+                  <span className="truncate" title={d.address}>{d.address || "—"}</span>
                 </div>
                 <div className="px-3 py-2.5 border-r border-hairline text-right text-sm tabular-nums flex items-center justify-end">
                   {d.orderCount}
@@ -248,18 +255,18 @@ export function DebtsModule() {
                 <div className="bg-muted/10 border-b border-hairline">
                   <div className="px-4 py-3">
                     <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">Պատվերների մանրամասներ</div>
-                    <div className="border border-hairline rounded">
-                      <div className="grid grid-cols-[140px_1fr_110px_110px_110px_110px_100px] gap-0 border-b border-hairline bg-muted/30">
+                    <div className="border border-hairline rounded overflow-x-auto">
+                      <div className="grid grid-cols-[140px_1fr_110px_110px_110px_110px_100px] gap-0 border-b border-hairline bg-muted/30 min-w-[780px]">
                         <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline">Պատվեր N</div>
                         <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline">Ամսաթիվ</div>
                         <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-right">Պատվերի գումար</div>
-                        <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-right">Վճարված</div>
+                        <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-right">Փակված</div>
                         <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-right">Մնացորդ</div>
                         <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-right">Ժամկետ</div>
                         <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Կարգ.</div>
                       </div>
                       {d.orders.map((o: any) => (
-                        <div key={o.id} className="grid grid-cols-[140px_1fr_110px_110px_110px_110px_100px] gap-0 border-b border-hairline last:border-b-0 hover:bg-muted/20">
+                        <div key={o.id} className="grid grid-cols-[140px_1fr_110px_110px_110px_110px_100px] gap-0 border-b border-hairline last:border-b-0 hover:bg-muted/20 min-w-[780px]">
                           <div className="px-3 py-2 text-xs font-mono border-r border-hairline">{o.number}</div>
                           <div className="px-3 py-2 text-xs text-muted-foreground border-r border-hairline">
                             {fmtDate(o.createdAt)}

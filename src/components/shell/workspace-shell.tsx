@@ -9,7 +9,7 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import {
-  LayoutDashboard, Users, Package, ShoppingCart, Warehouse as WarehouseIcon,
+  LayoutDashboard, Users, Package, Warehouse as WarehouseIcon,
   Truck, FileText, Settings, LogOut, Menu, Search, Bell, Factory, Building2, BarChart3,
   ChevronDown, Sparkles, Receipt, Crown, Calculator, Mail, MessageCircle, DoorOpen,
   type LucideIcon,
