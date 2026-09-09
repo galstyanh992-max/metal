@@ -170,13 +170,13 @@ export function evaluateCondition(expr: string, ctx: Record<string, any>): boole
       .replace(/!=/g, "!==")
       .replace(/&&/g, " && ")
       .replace(/\|\|/g, " || ");
-    // Whitelist characters
-    if (!/^[\w\s"()+\-*/<>=&|!.,]+$/.test(safe)) {
+    // Whitelist characters — allow Unicode letters (Armenian) and digits
+    if (!/^[\p{L}\p{N}\s"()+\-*/<>=&|!.,]+$/u.test(safe)) {
       console.warn("Unsafe condition expression rejected:", expr);
       return false;
     }
-    const keys = Object.keys(ctx);
-    const vals = Object.values(ctx);
+    const keys = Object.keys(ctx).filter((k) => /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(k));
+    const vals = keys.map((k) => ctx[k]);
     const fn = new Function(...keys, `"use strict"; return (${safe});`);
     return !!fn(...vals);
   } catch (e) {

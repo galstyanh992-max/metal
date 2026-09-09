@@ -10,9 +10,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Wallet, TrendingUp, AlertTriangle, Plus, Loader2, Receipt } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Wallet, TrendingUp, AlertTriangle, Plus, Loader2, Receipt, Users } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { DebtsModule } from "@/components/admin/debts-module";
 
 async function fetchPayments() {
   const res = await fetch("/api/payments");
@@ -45,6 +47,13 @@ export function FinanceModule({ role }: { role: string }) {
     <div className="space-y-6">
       <SectionHeader title="Ֆինանսներ" description="Վճարումներ և պարտքեր" />
 
+      <Tabs defaultValue="payments">
+        <TabsList className="w-full sm:w-auto">
+          <TabsTrigger value="payments" className="gap-1.5"><Wallet className="size-3.5" /> Վճարումներ</TabsTrigger>
+          <TabsTrigger value="debtors" className="gap-1.5"><Users className="size-3.5" /> Պարտատերեր</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="payments" className="space-y-6 mt-4">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <KpiCard label="Ընդհանուր վճարումներ" value={String(payments.length)} icon={Receipt} />
         <KpiCard label="Ընդհանուր գանձում" value={fmt(totalCollected)} icon={Wallet} />
@@ -120,6 +129,12 @@ export function FinanceModule({ role }: { role: string }) {
       {payForOrder && (
         <PaymentDialog orderId={payForOrder} onClose={() => setPayForOrder(null)} />
       )}
+        </TabsContent>
+
+        <TabsContent value="debtors" className="mt-4">
+          <DebtsModule />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

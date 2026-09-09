@@ -72,7 +72,7 @@ export function ClientsModule({ role }: { role: string }) {
       {/* Excel-like table */}
       <div className="border border-hairline overflow-x-auto bg-card">
         {/* Column headers */}
-        <div className="grid grid-cols-[minmax(200px,1fr)_140px_100px_120px_120px_80px] gap-0 border-b border-hairline bg-muted/30">
+        <div className="grid grid-cols-[minmax(200px,1fr)_140px_100px_120px_120px_80px] gap-0 border-b border-hairline bg-muted/30 min-w-[760px]">
           <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline">Անուն / Ընկերություն</div>
           <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline">Հեռախոս</div>
           <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline">Կարգավիճակ</div>
@@ -85,7 +85,7 @@ export function ClientsModule({ role }: { role: string }) {
         {clients.map((c: any, idx: number) => (
           <div
             key={c.id}
-            className={`grid grid-cols-[minmax(200px,1fr)_140px_100px_120px_120px_80px] gap-0 border-b border-hairline hover:bg-muted/30 cursor-pointer transition-colors ${idx % 2 === 1 ? "bg-muted/10" : ""}`}
+            className={`grid grid-cols-[minmax(200px,1fr)_140px_100px_120px_120px_80px] gap-0 border-b border-hairline hover:bg-muted/30 cursor-pointer transition-colors min-w-[760px] ${idx % 2 === 1 ? "bg-muted/10" : ""}`}
             onClick={() => setSelectedId(c.id)}
           >
             <div className="px-3 py-2.5 border-r border-hairline flex items-center gap-2 min-w-0">

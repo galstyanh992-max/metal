@@ -21,7 +21,8 @@ import { InventoryModule } from "@/components/admin/inventory-module";
 import { OperatorDashboard } from "@/components/operator/dashboard";
 import { WarehouseDashboard } from "@/components/warehouse/dashboard";
 import { WarehousePicks } from "@/components/warehouse/picks";
-import { AIAssistant } from "@/components/admin/ai-assistant";
+import { ProjectAssistant } from "@/components/assistant/project-assistant";
+import { AssistantCloud } from "@/components/assistant/assistant-cloud";
 import { CommandPalette } from "@/components/shell/command-palette";
 import { NotificationsBell } from "@/components/shell/notifications-bell";
 import { FinanceModule } from "@/components/admin/finance-module";
@@ -52,7 +53,7 @@ const NAV: NavItem[] = [
   { key: "documents", label: "Փաստաթղթեր", icon: FileText, module: "documents", roles: ["ADMIN", "OPERATOR", "WAREHOUSE"] },
   { key: "reports", label: "Հաշվետվություններ", icon: BarChart3, module: "reports", roles: ["ADMIN"] },
   { key: "comms", label: "Հաղորդակցություն", icon: Mail, module: "comms", roles: ["ADMIN", "OPERATOR"] },
-  { key: "ai", label: "AI Օգնական", icon: Sparkles, module: "ai", roles: ["ADMIN", "OPERATOR"] },
+  { key: "ai", label: "Նախագծի օգնական", icon: Sparkles, module: "ai", roles: ["ADMIN", "OPERATOR", "WAREHOUSE"] },
   { key: "forms", label: "Դինամիկ ձևեր", icon: FileText, module: "forms", roles: ["ADMIN"] },
   { key: "settings", label: "Կարգավորումներ", icon: Settings, module: "settings", roles: ["ADMIN"] },
 ];
@@ -102,7 +103,7 @@ export function WorkspaceShell() {
     if (active === "clients-orders") return <ClientsOrdersModule role={role} />;
     if (active === "products") return <ProductsModule role={role} />;
     if (active === "inventory") return <ErrorBoundary><InventoryModule role={role} /></ErrorBoundary>;
-    if (active === "ai") return <AIAssistant role={role} />;
+    if (active === "ai") return <ProjectAssistant />;
     if (active === "finance" && role === "ADMIN") return <FinanceModule role={role} />;
     if (active === "procurement" && role === "ADMIN") return <ProcurementModule />;
     if (active === "suppliers" && role === "ADMIN") return <SuppliersModule />;
@@ -168,6 +169,8 @@ export function WorkspaceShell() {
       </div>
 
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} items={items} onSelect={(k) => { setActive(k); setPaletteOpen(false); }} />
+
+      <AssistantCloud />
     </div>
   );
 }
