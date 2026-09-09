@@ -74,12 +74,13 @@ export async function POST(req: Request) {
     const { userId } = await requireAction("product.create");
     const body = await req.json();
     const {
-      sku, name, unitId, categoryId, color, description,
+      sku, name, unitId, unitCode, categoryId, color, description,
       salePrice, purchasePrice, minStock, barcode,
     } = body as {
       sku: string;
       name: string;
-      unitId: string;
+      unitId?: string;
+      unitCode?: string;
       categoryId?: string;
       color?: string;
       description?: string;
@@ -89,7 +90,14 @@ export async function POST(req: Request) {
       barcode?: string;
     };
 
-    if (!sku || !name || !unitId) {
+    // Resolve unit by id or code (code is used by the calculator auto-create path)
+    let resolvedUnitId = unitId;
+    if (!resolvedUnitId && unitCode) {
+      const unit = await db.unit.findUnique({ where: { code: unitCode } });
+      resolvedUnitId = unit?.id;
+    }
+
+    if (!sku || !name || !resolvedUnitId) {
       return NextResponse.json({ error: "sku, name, unitId required" }, { status: 400 });
     }
 
@@ -103,7 +111,7 @@ export async function POST(req: Request) {
       data: {
         sku: sku.trim(),
         name: name.trim(),
-        unitId,
+        unitId: resolvedUnitId,
         categoryId: categoryId || null,
         color: color?.trim() || null,
         description: description?.trim() || null,

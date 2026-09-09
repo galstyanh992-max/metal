@@ -332,6 +332,7 @@ export function AcceptOrderModule({ role }: { role: string }) {
               <div key={`calc-${i}`} className="flex items-center gap-2 text-sm">
                 <DoorOpen className="size-3.5 text-muted-foreground shrink-0" />
                 <span className="flex-1 truncate">{r.name}</span>
+                {r.color && <span className="text-xs text-muted-foreground truncate max-w-[140px]">{r.color}</span>}
                 <span className="text-xs text-muted-foreground tabular-nums">
                   {r.meters ? `${r.meters} մ` : `${r.qty} հատ`}
                 </span>

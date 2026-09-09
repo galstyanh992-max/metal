@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { requireAction } from "@/lib/rbac";
 import { computeInventoryState } from "@/lib/inventory/ledger";
 import { addAMD, subAMD } from "@/lib/finance/money";
+import { computeLineTotal, parseDecimal } from "@/lib/orders/calc-math";
 
 export async function GET() {
   try {
@@ -75,6 +76,7 @@ export async function POST(req: Request) {
         qty: number;
         parameters: Record<string, string>;
         unitPrice?: number;       // optional override (Quick-Fill)
+        lineTotal?: number;       // optional authoritative line total (calculator)
         savePriceToProduct?: boolean; // persist override back to product
       }>;
       note?: string;
@@ -93,7 +95,10 @@ export async function POST(req: Request) {
 
     // Fetch products with prices (admin captures cost too)
     const productIds = items.map((i) => i.productId);
-    const products = await db.product.findMany({ where: { id: { in: productIds } } });
+    const products = await db.product.findMany({
+      where: { id: { in: productIds } },
+      include: { unit: true },
+    });
     const productMap = new Map(products.map((p) => [p.id, p]));
 
     // ====== INVENTORY CHECK (OPTIMIZED — bulk query) ======
@@ -120,6 +125,9 @@ export async function POST(req: Request) {
         stockErrors.push(`Ապրանքը չի գտնվել (ID: ${it.productId})`);
         continue;
       }
+      // Services (Հավաքում / Առաքում) are not stock items — skip stock check.
+      const isService = it.parameters?.isService === "true" || p.unit?.code === "service";
+      if (isService) continue;
       const available = Math.max(0, stockMap.get(p.id) ?? 0);
       if (available < it.qty) {
         stockErrors.push(
@@ -150,9 +158,22 @@ export async function POST(req: Request) {
       const unitPrice = typeof it.unitPrice === "number" && it.unitPrice > 0
         ? Math.floor(it.unitPrice)
         : p.salePrice;
-      const lineTotal = unitPrice * it.qty;
+      const unitCode = p.unit?.code;
+      const isService = it.parameters?.isService === "true" || unitCode === "service";
+      const meterage = it.parameters?.meterage != null ? parseDecimal(it.parameters.meterage) : null;
+
+      // Line total — single source of truth (shared with calculator-order.ts)
+      const lineTotal = computeLineTotal({
+        unitCode,
+        price: unitPrice,
+        qty: it.qty,
+        meters: meterage,
+        isService,
+        explicitLineTotal: it.lineTotal,
+      });
+
       baseAmount += lineTotal;
-      costAmount += p.purchasePrice * it.qty;
+      costAmount += isService ? 0 : p.purchasePrice * it.qty;
       orderItemsData.push({
         productId: p.id,
         productName: p.name,
@@ -169,8 +190,8 @@ export async function POST(req: Request) {
           })),
         },
       });
-      // Collect price updates if requested
-      if ((savePrices || it.savePriceToProduct) && unitPrice !== p.salePrice) {
+      // Collect price updates if requested (never for services)
+      if (!isService && (savePrices || it.savePriceToProduct) && unitPrice !== p.salePrice) {
         priceUpdates.push({ productId: p.id, salePrice: unitPrice });
       }
     }

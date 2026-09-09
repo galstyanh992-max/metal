@@ -11,11 +11,17 @@ import {
   Loader2, User, Building2, ChevronDown, ChevronRight, DoorOpen, Zap,
   Receipt, Package2, Percent, CheckCircle2, AlertTriangle,
 } from "lucide-react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { QuickFillPanel, quickFillRowsToOrderItems, type QuickFillRow, type QuickFillTotals } from "./quick-fill-panel";
 import { RolshutterCalculator } from "@/components/rolshutter/rolshutter-calculator";
 import { buildItemsFromCalculatorRows, type CalculatorRow } from "@/lib/orders/calculator-order";
+
+async function fetchProducts() {
+  const res = await fetch("/api/products");
+  if (!res.ok) throw new Error("failed");
+  return res.json();
+}
 
 export function ClientCreateDialog({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated?: () => void }) {
   const [type, setType] = useState<"INDIVIDUAL" | "COMPANY">("INDIVIDUAL");
@@ -43,6 +49,8 @@ export function ClientCreateDialog({ open, onClose, onCreated }: { open: boolean
   const [calcRows, setCalcRows] = useState<CalculatorRow[]>([]);
   const [calcTotal, setCalcTotal] = useState(0);
   const [stockError, setStockError] = useState<string[] | null>(null);
+  const { data: productsData } = useQuery({ queryKey: ["products"], queryFn: fetchProducts });
+  const products = productsData?.products ?? [];
 
   const onQfChange = useCallback((r: QuickFillRow[], t: QuickFillTotals) => {
     setRows(r);
@@ -138,9 +146,7 @@ export function ClientCreateDialog({ open, onClose, onCreated }: { open: boolean
       if (showOrderSection && combined.totalItemCount > 0) {
         try {
           const qfItems = quickFillRowsToOrderItems(rows);
-          const productsRes = await fetch("/api/products");
-          const productsData = await productsRes.json();
-          const calcItems = await buildItemsFromCalculatorRows(calcRows, productsData?.products ?? []);
+          const calcItems = await buildItemsFromCalculatorRows(calcRows, products);
           const items = [...qfItems, ...calcItems];
 
           if (items.length > 0) {
@@ -414,7 +420,7 @@ export function ClientCreateDialog({ open, onClose, onCreated }: { open: boolean
                         <QuickFillPanel embedded onChange={onQfChange} />
                       ) : (
                         <RolshutterCalculator
-                          products={[]}
+                          products={products}
                           onRowsChange={onCalcRowsChange}
                           onTotalChange={onCalcTotalChange}
                         />
@@ -468,6 +474,7 @@ export function ClientCreateDialog({ open, onClose, onCreated }: { open: boolean
                           <div key={`calc-${i}`} className="flex items-center gap-2 text-sm">
                             <DoorOpen className="size-3.5 text-muted-foreground shrink-0" />
                             <span className="flex-1 truncate">{r.name}</span>
+                            {r.color && <span className="text-xs text-muted-foreground truncate max-w-[140px]">{r.color}</span>}
                             <span className="text-xs text-muted-foreground tabular-nums">
                               {r.meters ? `${r.meters} մ` : `${r.qty} հատ`}
                             </span>

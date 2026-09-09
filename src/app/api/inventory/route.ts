@@ -25,7 +25,10 @@ export async function GET(req: Request) {
           barcode: true,
           minStock: true,
           unitId: true,
-          unit: { select: { symbol: true } },
+          color: true,
+          categoryId: true,
+          unit: { select: { symbol: true, code: true } },
+          category: { select: { id: true, name: true } },
         },
       }),
       db.branch.findMany({

@@ -65,12 +65,31 @@ export async function generateOrderPdf(orderId: string, type: DocumentType, role
     where: { id: orderId },
     include: {
       client: true,
-      items: { include: { product: { include: { unit: true } } } },
+      items: {
+        include: {
+          product: { include: { unit: true } },
+          parameters: true,
+        },
+        orderBy: { sortOrder: "asc" },
+      },
       payments: true,
     },
   });
 
   if (!order) throw new Error("Order not found");
+
+  // Helper: read a parameter value from an order item.
+  const param = (item: any, key: string): string | null => {
+    const p = item.parameters?.find((x: any) => x.fieldKey === key);
+    return p?.value != null && p.value !== "" ? String(p.value) : null;
+  };
+  // Helper: parse a numeric parameter (accepts comma or dot decimal).
+  const paramNum = (item: any, key: string): number | null => {
+    const v = param(item, key);
+    if (v == null) return null;
+    const n = Number(v.replace(",", "."));
+    return isFinite(n) ? n : null;
+  };
 
   const doc = new PDFDocument({ size: "A4", margin: 50 });
   registerFonts(doc);
@@ -101,12 +120,17 @@ export async function generateOrderPdf(orderId: string, type: DocumentType, role
   doc.fillColor("#000");
 
   // Items table
+  const isWarehouseDoc = type === "WAREHOUSE_ORDER";
+  const showPrices = role !== "WAREHOUSE" && !isWarehouseDoc;
+
   const tableTop = 210;
   doc.fontSize(9).font(FONT_BOLD).fillColor("#666");
-  doc.text("#", 50, tableTop, { width: 30 });
-  doc.text("ԱՊՐԱՆՔ", 85, tableTop, { width: 200 });
+  doc.text("#", 50, tableTop, { width: 20 });
+  doc.text("ԱՊՐԱՆՔ", 70, tableTop, { width: 150 });
+  doc.text("ԳՈՒՅՆ", 220, tableTop, { width: 90 });
+  doc.text("ՄԵՏՐ", 310, tableTop, { width: 50, align: "right" });
   doc.text("ՔԱՆԱԿ", 360, tableTop, { width: 50, align: "right" });
-  if (role !== "WAREHOUSE" && type !== "WAREHOUSE_ORDER") {
+  if (showPrices) {
     doc.text("ԳԻՆ", 420, tableTop, { width: 60, align: "right" });
     doc.text("ԳՈՒՄԱՐ", 480, tableTop, { width: 65, align: "right" });
   }
@@ -115,11 +139,23 @@ export async function generateOrderPdf(orderId: string, type: DocumentType, role
 
   let y = tableTop + 25;
   order.items.forEach((item, idx) => {
+    const meterage = paramNum(item, "meterage");
+    const color = param(item, "color") ?? item.product?.color ?? null;
+
     doc.fontSize(9).font(FONT_REG).fillColor("#000");
-    doc.text(String(idx + 1), 50, y, { width: 30 });
-    doc.text(item.productName, 85, y, { width: 200 });
-    doc.text(`${item.qty} ${item.product?.unit?.symbol ?? ""}`, 360, y, { width: 50, align: "right" });
-    if (role !== "WAREHOUSE" && type !== "WAREHOUSE_ORDER") {
+    doc.text(String(idx + 1), 50, y, { width: 20 });
+    doc.text(item.productName, 70, y, { width: 150 });
+    doc.text(color ?? "—", 220, y, { width: 90 });
+    // Մետր — length of one piece (or total meterage for meter-priced rows).
+    // For piece/service items without a length, show "—".
+    if (meterage != null) {
+      doc.text(meterage.toFixed(3), 310, y, { width: 50, align: "right" });
+    } else {
+      doc.text("—", 310, y, { width: 50, align: "right" });
+    }
+    // Քանակ — piece count (services show 1).
+    doc.text(String(item.qty), 360, y, { width: 50, align: "right" });
+    if (showPrices) {
       doc.text(`${item.unitPriceSnapshot.toLocaleString("hy-AM")} դր`, 420, y, { width: 60, align: "right" });
       doc.text(`${item.lineTotal.toLocaleString("hy-AM")} դր`, 480, y, { width: 65, align: "right" });
     }
@@ -127,7 +163,7 @@ export async function generateOrderPdf(orderId: string, type: DocumentType, role
   });
 
   // Totals
-  if (role !== "WAREHOUSE" && type !== "WAREHOUSE_ORDER") {
+  if (showPrices) {
     y += 10;
     doc.moveTo(350, y).lineTo(545, y).strokeColor("#999").lineWidth(0.5).stroke();
     y += 10;

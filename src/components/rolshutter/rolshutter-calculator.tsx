@@ -296,6 +296,16 @@ function formatAmd(n) {
   return Math.round(n).toLocaleString("ru-RU") + " ֏";
 }
 
+// Parse a numeric string, accepting both decimal comma and dot.
+// "2,990" → 2.99, "6.20" → 6.2. Never applied to product names or color codes.
+function parseNum(v) {
+  if (typeof v === "number") return isFinite(v) ? v : NaN;
+  if (typeof v !== "string") return NaN;
+  const s = v.trim().replace(",", ".");
+  if (s === "") return NaN;
+  return Number(s);
+}
+
 function buildCatalog(products) {
   const catalog = {};
   DEFAULT_MATERIALS.forEach((m) => {
@@ -337,7 +347,7 @@ export function RolshutterCalculator({ products = [], onRowsChange, onTotalChang
   const setOverride = (key, field, value) => {
     setOverrides((prev) => ({
       ...prev,
-      [key]: { ...prev[key], [field]: value === "" ? "" : Number(value) },
+      [key]: { ...prev[key], [field]: value === "" ? "" : parseNum(value) },
     }));
   };
 
@@ -450,6 +460,8 @@ export function RolshutterCalculator({ products = [], onRowsChange, onTotalChang
       let meters = null;
       let qty = ov.qty !== undefined && ov.qty !== "" ? ov.qty : m.qty;
       let price = ov.price !== undefined && ov.price !== "" ? ov.price : (selectedProduct ? selectedProduct.price : m.price);
+      // Manual meter override — when set, it replaces the auto-computed length.
+      const manualMeters = ov.meters !== undefined && ov.meters !== "" ? Number(ov.meters) : null;
 
       let sum = 0;
 
@@ -458,23 +470,23 @@ export function RolshutterCalculator({ products = [], onRowsChange, onTotalChang
           let offset = m.offset;
           if (m.key === "korob") offset = depth === 35 || depth === 40 ? -0.005 : -0.01;
           if (m.key === "takatsu" || m.key === "rezin") offset = lineOffset;
-          meters = w + offset;
+          meters = manualMeters !== null ? manualMeters : w + offset;
           sum = meters * (price || 0);
           break;
         }
         case "meters_qty": {
-          meters = w + lineOffset;
+          meters = manualMeters !== null ? manualMeters : w + lineOffset;
           sum = meters * (qty || 0) * (price || 0);
           break;
         }
         case "napravl": {
-          meters = h - depth * 0.01;
+          meters = manualMeters !== null ? manualMeters : h - depth * 0.01;
           sum = meters * (qty || 0) * (price || 0);
           break;
         }
         case "chotka": {
           const napravlMeters = h - depth * 0.01;
-          meters = napravlMeters * 4;
+          meters = manualMeters !== null ? manualMeters : napravlMeters * 4;
           sum = meters * (price || 0);
           break;
         }
@@ -515,13 +527,20 @@ export function RolshutterCalculator({ products = [], onRowsChange, onTotalChang
       const summary = [
         ...visibleRows
           .filter((r) => (Number(r.sum) || 0) > 0)
-          .map((r) => ({
-            name: String(r.name || ""),
-            qty: Number(r.qty) || 0,
-            meters: r.meters ?? null,
-            price: Number(r.price) || 0,
-            sum: Number(r.sum) || 0,
-          })),
+          .map((r) => {
+            const selectedProduct = (catalog[r.key] || []).find((p) => p.id === r.selectedId);
+            const unitCode = selectedProduct?.unit?.code ?? (r.mode === "count" || r.mode === "zaglushka" ? "piece" : "m");
+            return {
+              name: String(r.name || ""),
+              qty: Number(r.qty) || 0,
+              meters: r.meters ?? null,
+              price: Number(r.price) || 0,
+              sum: Number(r.sum) || 0,
+              color: color ?? null,
+              unitCode,
+              isService: false,
+            };
+          }),
         ...customRows
           .filter((r) => (Number(r.qty) || 0) * (Number(r.price) || 0) > 0)
           .map((r) => ({
@@ -530,6 +549,9 @@ export function RolshutterCalculator({ products = [], onRowsChange, onTotalChang
             meters: null,
             price: Number(r.price) || 0,
             sum: (Number(r.qty) || 0) * (Number(r.price) || 0),
+            color: null,
+            unitCode: "piece",
+            isService: false,
           })),
       ];
       if (assemblyOn && assemblySum > 0) {
@@ -539,6 +561,9 @@ export function RolshutterCalculator({ products = [], onRowsChange, onTotalChang
           meters: null,
           price: Math.round(assemblySum),
           sum: Math.round(assemblySum),
+          color: null,
+          unitCode: "service",
+          isService: true,
         });
       }
       if (deliveryOn && deliverySum > 0) {
@@ -548,6 +573,9 @@ export function RolshutterCalculator({ products = [], onRowsChange, onTotalChang
           meters: null,
           price: Math.round(deliverySum),
           sum: Math.round(deliverySum),
+          color: null,
+          unitCode: "service",
+          isService: true,
         });
       }
       // Only call parent if summary actually changed (prevents infinite loop)
@@ -560,7 +588,7 @@ export function RolshutterCalculator({ products = [], onRowsChange, onTotalChang
       // silent
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visibleRows, customRows, assemblyOn, assemblySum, deliveryOn, deliverySum]);
+  }, [visibleRows, customRows, assemblyOn, assemblySum, deliveryOn, deliverySum, color, catalog]);
 
   const lastTotalRef = useRef(0);
   useEffect(() => {
@@ -745,7 +773,17 @@ export function RolshutterCalculator({ products = [], onRowsChange, onTotalChang
                     )}
                   </td>
                   <td className="px-3 py-2 text-right text-neutral-500 print:px-1 print:py-1">
-                    {r.meters !== null ? r.meters.toFixed(3) : "—"}
+                    {r.meters !== null ? (
+                      <input
+                        type="number"
+                        step="0.001"
+                        value={r.meters}
+                        onChange={(e) => setOverride(r.key, "meters", e.target.value)}
+                        className="w-20 border border-neutral-200 rounded px-1 py-0.5 text-right print:w-14 print:px-0 print:py-0"
+                      />
+                    ) : (
+                      "—"
+                    )}
                   </td>
                   <td className="px-3 py-2 text-right print:px-1 print:py-1">
                     {r.mode === "count" || r.mode === "meters_qty" || r.mode === "napravl" ? (

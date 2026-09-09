@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Package, AlertTriangle, Layers, Boxes, Plus, Minus, Sliders, Loader2,
-  ArrowRightLeft, Building2, FileSpreadsheet,
+  ArrowRightLeft, Building2, FileSpreadsheet, Search,
 } from "lucide-react";
 import { useState, useMemo } from "react";
 import { InventoryHistoryDrawer } from "./inventory-history-drawer";
@@ -32,13 +32,22 @@ async function fetchBranches() {
   return res.json();
 }
 
+async function fetchCategories() {
+  const res = await fetch("/api/categories");
+  if (!res.ok) throw new Error("failed");
+  return res.json();
+}
+
 export function InventoryModule({ role }: { role: string }) {
   const { data, isLoading } = useQuery({ queryKey: ["inventory"], queryFn: fetchInventory });
   const { data: branchesData } = useQuery({ queryKey: ["branches"], queryFn: fetchBranches });
+  const { data: categoriesData } = useQuery({ queryKey: ["categories"], queryFn: fetchCategories });
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [adjustProduct, setAdjustProduct] = useState<any | null>(null);
   const [transferOpen, setTransferOpen] = useState(false);
   const [filterBranchId, setFilterBranchId] = useState<string>("");
+  const [filterCategoryId, setFilterCategoryId] = useState<string>("");
+  const [search, setSearch] = useState("");
   const [exporting, setExporting] = useState(false);
   const qc = useQueryClient();
 
@@ -66,10 +75,11 @@ export function InventoryModule({ role }: { role: string }) {
 
   const items = data?.inventory ?? [];
   const branches = branchesData?.branches ?? [];
+  const categories = categoriesData?.categories ?? [];
   const isAdmin = role === "ADMIN";
 
   // Apply branch filter
-  const filteredItems = useMemo(() => {
+  const branchFiltered = useMemo(() => {
     if (!filterBranchId || filterBranchId === "all") return items;
     // Show items that have stock in this branch
     return items.map((p: any) => {
@@ -86,6 +96,16 @@ export function InventoryModule({ role }: { role: string }) {
     }).filter(Boolean);
   }, [items, filterBranchId]);
 
+  // Apply category + search filters (work together, within the selected branch)
+  const filteredItems = useMemo(() => {
+    return branchFiltered.filter((p: any) => {
+      if (filterCategoryId && filterCategoryId !== "all" && p.categoryId !== filterCategoryId) return false;
+      if (!search) return true;
+      const q = search.toLowerCase();
+      return (p.name ?? "").toLowerCase().includes(q) || (p.sku ?? "").toLowerCase().includes(q);
+    });
+  }, [branchFiltered, filterCategoryId, search]);
+
   const totalOnHand = filteredItems.reduce((s: number, p: any) => s + p.state.onHand, 0);
   const totalReserved = filteredItems.reduce((s: number, p: any) => s + p.state.reserved, 0);
   const totalAvailable = filteredItems.reduce((s: number, p: any) => s + p.state.available, 0);
@@ -97,7 +117,38 @@ export function InventoryModule({ role }: { role: string }) {
         title="Պահեստ"
         description={isAdmin ? "Գույքագրում և շարժումներ · 4 ֆիլիալներով" : "Գույքագրում (միայն դիտում)"}
         action={
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Որոնում՝ անուն, SKU…"
+                className="h-8 w-48 pl-8 text-xs focus-steel"
+              />
+            </div>
+            <Select value={filterCategoryId} onValueChange={setFilterCategoryId}>
+              <SelectTrigger className="h-8 w-44 text-xs">
+                <SelectValue placeholder="Բոլոր կատեգորիաները" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Բոլոր կատեգորիաները</SelectItem>
+                {categories.map((c: any) => (
+                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={filterBranchId} onValueChange={setFilterBranchId}>
+              <SelectTrigger className="h-8 w-44 text-xs">
+                <SelectValue placeholder="Բոլոր ֆիլիալները" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Բոլոր ֆիլիալները</SelectItem>
+                {branches.map((b: any) => (
+                  <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Button
               size="sm"
               variant="outline"
@@ -108,17 +159,6 @@ export function InventoryModule({ role }: { role: string }) {
               {exporting ? <Loader2 className="size-4 animate-spin" /> : <FileSpreadsheet className="size-4 text-status-green" />}
               Excel
             </Button>
-            <Select value={filterBranchId} onValueChange={setFilterBranchId}>
-              <SelectTrigger className="h-8 w-48 text-xs">
-                <SelectValue placeholder="Բոլոր ֆիլիալները" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Բոլոր ֆիլիալները</SelectItem>
-                {branches.map((b: any) => (
-                  <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
             {isAdmin && (
               <Button
                 size="sm"
@@ -240,7 +280,9 @@ export function InventoryModule({ role }: { role: string }) {
                 );
               })}
               {filteredItems.length === 0 && !isLoading && (
-                <TableRow><TableCell colSpan={isAdmin ? 7 + branches.length : 6 + branches.length}><EmptyState title="Պահեստի տվյալներ չկան" /></TableCell></TableRow>
+                <TableRow><TableCell colSpan={isAdmin ? 7 + branches.length : 6 + branches.length}>
+                  <EmptyState title={search || filterCategoryId ? "Ոչինչ չի գտնվել" : "Պահեստի տվյալներ չկան"} />
+                </TableCell></TableRow>
               )}
             </TableBody>
           </Table>

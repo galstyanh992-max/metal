@@ -17,12 +17,22 @@ export type CalculatorRow = {
   meters: number | null;
   price: number;
   sum: number;
+  color?: string | null;
+  unitCode?: string;
+  isService?: boolean;
 };
 
 /**
  * Build order items from calculator rows (find or auto-create products).
  * Does NOT post the order — used by both the standalone calculator and the
  * unified "Ընդունել պատվեր" module.
+ *
+ * Pricing unit rules (mirror the calculator's own formulas):
+ *  - unitCode "m"  → line total = meters × price (per meter)
+ *  - unitCode "piece" → line total = qty × price (per piece)
+ *  - unitCode "service" → line total = price (flat service fee, qty = 1)
+ * The `sum` field is the authoritative line total from the calculator and is
+ * used to derive the per-unit price so the saved order matches the calculator.
  */
 export async function buildItemsFromCalculatorRows(
   rows: CalculatorRow[],
@@ -31,6 +41,9 @@ export async function buildItemsFromCalculatorRows(
   const items: any[] = [];
   for (const r of rows) {
     if (!r.name || (r.sum || 0) <= 0) continue;
+
+    const isService = !!r.isService || r.unitCode === "service";
+    const unitCode = r.unitCode ?? (r.meters != null ? "m" : "piece");
 
     // Find by exact name (case-insensitive)
     let product = products.find((p: any) => p.name.toLowerCase() === r.name.toLowerCase());
@@ -47,7 +60,7 @@ export async function buildItemsFromCalculatorRows(
     if (product) {
       productId = product.id;
     } else {
-      // Auto-create new product
+      // Auto-create new product (services get the "service" unit)
       const sku = `CALC-${Date.now().toString(36).toUpperCase()}-${r.name.replace(/\s/g, "").slice(0, 8).toUpperCase()}`;
       const createRes = await fetch("/api/products", {
         method: "POST",
@@ -55,7 +68,7 @@ export async function buildItemsFromCalculatorRows(
         body: JSON.stringify({
           sku,
           name: r.name,
-          unitId: "1", // հատ (piece) — fallback ID
+          unitCode: isService ? "service" : unitCode,
           salePrice: Math.round(r.price || 0),
           categoryId: null,
         }),
@@ -68,16 +81,34 @@ export async function buildItemsFromCalculatorRows(
       productId = created.product.id;
     }
 
-    const qty = r.meters ? Math.max(1, Math.round(r.meters)) : Math.max(1, Math.round(r.qty || 1));
+    // qty: for meter-priced rows the order item qty is the piece count (or 1);
+    // for piece-priced rows it is the piece count; services are always 1.
+    let qty: number;
+    if (isService) {
+      qty = 1;
+    } else if (unitCode === "m") {
+      qty = Math.max(1, Math.round(r.qty || 1));
+    } else {
+      qty = Math.max(1, Math.round(r.qty || 1));
+    }
+
+    // unitPrice: the calculator's per-unit price (per meter / per piece / flat
+    // service fee). The authoritative line total is passed separately as
+    // `lineTotal` so the saved order always matches the calculator total.
+    const unitPrice = Math.round(r.price || 0);
+
     items.push({
       productId,
       qty,
-      unitPrice: Math.round(r.price || 0),
+      unitPrice,
+      lineTotal: Math.round(r.sum || 0),
       parameters: {
         quantity: String(r.qty ?? 1),
-        ...(r.meters ? { meterage: String(r.meters) } : {}),
-        unitPrice: String(Math.round(r.price || 0)),
+        ...(r.meters != null ? { meterage: String(r.meters) } : {}),
+        ...(r.color ? { color: String(r.color) } : {}),
+        unitPrice: String(unitPrice),
         fromCalculator: "rolshutter",
+        ...(isService ? { isService: "true" } : {}),
       },
     });
   }
