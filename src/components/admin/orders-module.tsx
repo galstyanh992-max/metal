@@ -107,7 +107,7 @@ export function OrdersModule({ role }: { role: string }) {
       {/* Excel-like table */}
       <div className="border border-hairline overflow-x-auto bg-card">
         {/* Headers */}
-        <div className="grid grid-cols-[120px_minmax(180px,1fr)_110px_70px_120px_120px_100px] gap-0 border-b border-hairline bg-muted/30">
+        <div className="grid grid-cols-[120px_minmax(180px,1fr)_110px_70px_120px_120px_100px] gap-0 border-b border-hairline bg-muted/30 min-w-[820px]">
           <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline">Համար</div>
           <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline">Հաճախորդ</div>
           <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline">Կարգավիճակ</div>
@@ -121,7 +121,7 @@ export function OrdersModule({ role }: { role: string }) {
         {orders.map((o: any, idx: number) => (
           <div
             key={o.id}
-            className={`grid grid-cols-[120px_minmax(180px,1fr)_110px_70px_120px_120px_100px] gap-0 border-b border-hairline hover:bg-muted/30 cursor-pointer transition-colors ${idx % 2 === 1 ? "bg-muted/10" : ""}`}
+            className={`grid grid-cols-[120px_minmax(180px,1fr)_110px_70px_120px_120px_100px] gap-0 border-b border-hairline hover:bg-muted/30 cursor-pointer transition-colors min-w-[820px] ${idx % 2 === 1 ? "bg-muted/10" : ""}`}
             onClick={() => setSelectedId(o.id)}
           >
             <div className="px-3 py-2.5 border-r border-hairline text-xs font-mono flex items-center">{o.number}</div>

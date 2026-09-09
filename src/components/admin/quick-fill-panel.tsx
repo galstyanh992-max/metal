@@ -249,10 +249,10 @@ export function QuickFillPanel({
         </div>
       </div>
 
-      {/* Grid — full width, no horizontal scroll, responsive columns */}
-      <div className="flex-1 min-h-0 overflow-hidden">
+      {/* Grid — horizontal scroll on small screens */}
+      <div className="flex-1 min-h-0 overflow-x-auto">
         {/* Grid header */}
-        <div className="grid grid-cols-[36px_36px_1fr_60px_60px_80px_80px_110px] gap-0 border-b border-hairline bg-muted/30 sticky top-0 z-10">
+        <div className="grid grid-cols-[36px_36px_minmax(160px,1fr)_60px_60px_80px_80px_110px] gap-0 border-b border-hairline bg-muted/30 sticky top-0 z-10 min-w-[620px]">
           <div className="px-1.5 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-center">✓</div>
           <div className="px-1.5 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-center">★</div>
           <div className="px-2 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline">Ապրանք</div>
@@ -286,7 +286,7 @@ export function QuickFillPanel({
             return (
               <div
                 key={r.productId}
-                className={`grid grid-cols-[36px_36px_1fr_60px_60px_80px_80px_110px] gap-0 border-b border-hairline hover:bg-muted/20 transition-colors ${
+                className={`grid grid-cols-[36px_36px_minmax(160px,1fr)_60px_60px_80px_80px_110px] gap-0 border-b border-hairline hover:bg-muted/20 transition-colors min-w-[620px] ${
                   r.selected ? "bg-primary/5" : ""
                 } ${isQuickFill ? "border-l-2 border-l-primary/40" : ""} ${r.isFavorite ? "bg-status-yellow/5" : ""} ${outOfStock ? "opacity-60" : ""}`}
               >
