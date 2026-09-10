@@ -1,11 +1,14 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { KpiCard, SectionHeader, EmptyState } from "@/components/shared/primitives";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Crown, Users, Percent } from "lucide-react";
+import { Crown, Users, Percent, Pencil, Save, X, Loader2 } from "lucide-react";
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 async function fetchLoyalty() {
   const res = await fetch("/api/loyalty");
@@ -14,7 +17,29 @@ async function fetchLoyalty() {
 }
 
 export function LoyaltyModule() {
+  const queryClient = useQueryClient();
   const { data, isLoading } = useQuery({ queryKey: ["loyalty"], queryFn: fetchLoyalty });
+  const [editingTierId, setEditingTierId] = useState<string | null>(null);
+  const [threshold, setThreshold] = useState("");
+  const thresholdMutation = useMutation({
+    mutationFn: async ({ tierId, thresholdTurnover }: { tierId: string; thresholdTurnover: number }) => {
+      const response = await fetch("/api/loyalty", {
+        method: "PATCH", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ tierId, thresholdTurnover }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? "Չհաջողվեց պահպանել շեմը։");
+      return data.tier;
+    },
+    onSuccess: (tier) => {
+      queryClient.setQueryData(["loyalty"], (previous: any) => previous ? {
+        ...previous, tiers: previous.tiers.map((item: any) => item.id === tier.id ? { ...item, ...tier } : item),
+      } : previous);
+      void queryClient.invalidateQueries({ queryKey: ["loyalty"] });
+      setEditingTierId(null);
+      setThreshold("");
+    },
+  });
 
   const tiers = data?.tiers ?? [];
   const overrides = data?.overrides ?? [];
@@ -42,6 +67,7 @@ export function LoyaltyModule() {
                 <TableHead className="text-xs uppercase text-right">Շեմ (դր)</TableHead>
                 <TableHead className="text-xs uppercase text-right">Զեղչ</TableHead>
                 <TableHead className="text-xs uppercase text-right">Հաճախորդներ</TableHead>
+                <TableHead className="w-12"><span className="sr-only">Խմբագրել</span></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -55,18 +81,60 @@ export function LoyaltyModule() {
                       <span className="text-sm font-medium">{t.name}</span>
                     </div>
                   </TableCell>
-                  <TableCell className="text-right tabular-nums">{new Intl.NumberFormat("hy-AM").format(t.thresholdTurnover)} դր</TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {editingTierId === t.id ? (
+                      <Input
+                        aria-label={`${t.name}՝ շեմ`}
+                        type="number"
+                        min="0"
+                        max="2000000000"
+                        step="1"
+                        value={threshold}
+                        disabled={thresholdMutation.isPending}
+                        onChange={(event) => setThreshold(event.target.value)}
+                        className="ml-auto h-8 w-40 text-right tabular-nums"
+                      />
+                    ) : `${new Intl.NumberFormat("hy-AM").format(t.thresholdTurnover)} դր`}
+                  </TableCell>
                   <TableCell className="text-right tabular-nums font-medium text-copper">{t.discountPercent}%</TableCell>
                   <TableCell className="text-right tabular-nums">{t._count?.clients ?? 0}</TableCell>
+                  <TableCell className="text-right">
+                    {editingTierId === t.id ? (
+                      <div className="flex justify-end gap-1">
+                        <Button
+                          size="icon"
+                          title="Պահպանել շեմը"
+                          aria-label="Պահպանել շեմը"
+                          disabled={thresholdMutation.isPending || !/^\d+$/.test(threshold)}
+                          onClick={() => thresholdMutation.mutate({ tierId: t.id, thresholdTurnover: Number(threshold) })}
+                        >
+                          {thresholdMutation.isPending ? <Loader2 className="animate-spin" /> : <Save />}
+                        </Button>
+                        <Button size="icon" variant="ghost" title="Չեղարկել" aria-label="Չեղարկել" disabled={thresholdMutation.isPending}
+                          onClick={() => { setEditingTierId(null); setThreshold(""); thresholdMutation.reset(); }}>
+                          <X />
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button size="icon" variant="ghost" title="Փոխել շեմը" aria-label={`${t.name}՝ փոխել շեմը`}
+                        onClick={() => { setEditingTierId(t.id); setThreshold(String(t.thresholdTurnover)); thresholdMutation.reset(); }}>
+                        <Pencil />
+                      </Button>
+                    )}
+                  </TableCell>
                 </TableRow>
               ))}
               {tiers.length === 0 && !isLoading && (
-                <TableRow><TableCell colSpan={4}><EmptyState title="Մակարդակներ չկան" /></TableCell></TableRow>
+                <TableRow><TableCell colSpan={5}><EmptyState title="Մակարդակներ չկան" /></TableCell></TableRow>
               )}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
+
+      {thresholdMutation.isError && (
+        <p role="alert" className="text-sm text-destructive">{thresholdMutation.error.message}</p>
+      )}
 
       {overrides.length > 0 && (
         <Card className="border-hairline shadow-none">
