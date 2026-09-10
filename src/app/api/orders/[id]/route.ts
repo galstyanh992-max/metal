@@ -123,7 +123,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       }
 
       await db.order.update({ where: { id }, data: { status: "CONFIRMED" } });
-      await db.orderStatusHistory.create({ data: { orderId: id, status: "CONFIRMED", byUserId: userId, note: "Պաշարները պահված են (BOM-ով)" } });
+      await db.orderStatusHistory.create({ data: { orderId: id, status: "CONFIRMED", byUserId: userId, note: "Ապրանքները ամրագրված են (BOM-ով)" } });
     } else if (action === "cancel") {
       if (order.status === "DELIVERED") return NextResponse.json({ error: "cannot cancel delivered" }, { status: 400 });
       // Release main product reservations

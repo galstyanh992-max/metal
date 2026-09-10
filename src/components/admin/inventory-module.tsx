@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Package, AlertTriangle, Layers, Boxes, Plus, Minus, Sliders, Loader2,
-  ArrowRightLeft, Building2, FileSpreadsheet, Search,
+  ArrowRightLeft, Building2, FileSpreadsheet, Search, X,
 } from "lucide-react";
 import { useState, useMemo } from "react";
 import { InventoryHistoryDrawer } from "./inventory-history-drawer";
@@ -63,7 +63,7 @@ export function InventoryModule({ role }: { role: string }) {
           { header: "SKU", width: 16, get: (p: any) => p.sku },
           { header: "Միավոր", width: 10, get: (p: any) => p.unit?.symbol ?? "" },
           { header: "Մնացորդ", width: 12, get: (p: any) => p.state.onHand },
-          { header: "Պահված", width: 12, get: (p: any) => p.state.reserved },
+          { header: "Ամրագրված", width: 12, get: (p: any) => p.state.reserved },
           { header: "Մատչելի", width: 12, get: (p: any) => p.state.available },
           { header: "Նվազագույն", width: 12, get: (p: any) => p.minStock ?? 0 },
         ],
@@ -115,7 +115,7 @@ export function InventoryModule({ role }: { role: string }) {
     <div className="space-y-6">
       <SectionHeader
         title="Պահեստ"
-        description={isAdmin ? "Գույքագրում և շարժումներ · 4 ֆիլիալներով" : "Գույքագրում (միայն դիտում)"}
+        description={isAdmin ? `Պահեստի մնացորդներ և շարժումներ · ${branches.length} մասնաճյուղ` : "Պահեստի մնացորդներ (միայն դիտում)"}
         action={
           <div className="flex items-center gap-2 flex-wrap">
             <div className="relative">
@@ -140,15 +140,25 @@ export function InventoryModule({ role }: { role: string }) {
             </Select>
             <Select value={filterBranchId} onValueChange={setFilterBranchId}>
               <SelectTrigger className="h-8 w-44 text-xs">
-                <SelectValue placeholder="Բոլոր ֆիլիալները" />
+                <SelectValue placeholder="Բոլոր մասնաճյուղերը" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Բոլոր ֆիլիալները</SelectItem>
+                <SelectItem value="all">Բոլոր մասնաճյուղերը</SelectItem>
                 {branches.map((b: any) => (
                   <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            {(search || filterCategoryId || filterBranchId) && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-8 gap-1 text-xs"
+                onClick={() => { setSearch(""); setFilterCategoryId(""); setFilterBranchId(""); }}
+              >
+                <X className="size-3.5" /> Մաքրել
+              </Button>
+            )}
             <Button
               size="sm"
               variant="outline"
@@ -207,7 +217,7 @@ export function InventoryModule({ role }: { role: string }) {
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <KpiCard label="Ընդհանուր մնացորդ" value={String(totalOnHand)} icon={Boxes} />
-        <KpiCard label="Պահված" value={String(totalReserved)} icon={Layers} />
+        <KpiCard label="Ամրագրված" value={String(totalReserved)} icon={Layers} />
         <KpiCard label="Մատչելի" value={String(totalAvailable)} icon={Package} />
         <KpiCard label="Ցածր մնացորդ" value={String(lowStockCount)} icon={AlertTriangle} />
       </div>
@@ -260,18 +270,18 @@ export function InventoryModule({ role }: { role: string }) {
                     <TableCell>
                       {isCritical ? <Badge variant="destructive" className="text-[10px] uppercase">Սպառված</Badge>
                         : isLow ? <Badge className="text-[10px] uppercase bg-status-orange/15 text-status-orange border-status-orange/30">Ցածր</Badge>
-                        : <Badge variant="outline" className="text-[10px] uppercase bg-status-green/10 text-status-green border-status-green/30">Նորմա</Badge>}
+                        : <Badge variant="outline" className="text-[10px] uppercase bg-status-green/10 text-status-green border-status-green/30">Բավարար</Badge>}
                     </TableCell>
                     {isAdmin && (
                       <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1">
                           <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs text-status-green"
                             onClick={() => setAdjustProduct({ product: p, mode: "RECEIVE" })}>
-                            <Plus className="size-3.5" /> Ընդունել
+                            <Plus className="size-3.5" /> Մուտքագրել
                           </Button>
                           <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs text-status-red"
                             onClick={() => setAdjustProduct({ product: p, mode: "WRITE_OFF" })}>
-                            <Minus className="size-3.5" /> Գրել
+                            <Minus className="size-3.5" /> Դուրս գրել
                           </Button>
                         </div>
                       </TableCell>
@@ -291,7 +301,7 @@ export function InventoryModule({ role }: { role: string }) {
 
       {!isAdmin && (
         <div className="p-3 border border-hairline bg-muted/20 text-xs text-muted-foreground">
-          ℹ️ Միայն Ադմինիստրատորը կարող է ընդունել, գրել ավելորդ կամ տեղափոխել պահեստի մնացորդները։
+          ℹ️ Միայն ադմինիստրատորը կարող է մուտքագրել, դուրս գրել կամ տեղափոխել պահեստի մնացորդները։
         </div>
       )}
 
@@ -327,13 +337,13 @@ export function InventoryModule({ role }: { role: string }) {
 
 const MODE_LABELS: Record<string, { title: string; description: string; icon: any; color: string }> = {
   RECEIVE: {
-    title: "Ընդունել պահեստ",
+    title: "Մուտքագրել պահեստ",
     description: "Ավելացնել նոր քանակ պահեստում (գնում, վերադարձ)",
     icon: Plus,
     color: "text-status-green",
   },
   WRITE_OFF: {
-    title: "Գրել ավելորդ",
+    title: "Դուրս գրել",
     description: "Հանել քանակ պահեստից (վնաս, կորուստ, սպառում)",
     icon: Minus,
     color: "text-status-red",
@@ -385,7 +395,7 @@ function InventoryAdjustDialog({
       return;
     }
     if (!branchId) {
-      toast.error("Ընտրեք ֆիլիալը");
+      toast.error("Ընտրեք մասնաճյուղը");
       return;
     }
     mutation.mutate();
@@ -407,9 +417,9 @@ function InventoryAdjustDialog({
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs uppercase tracking-wider text-muted-foreground">Ֆիլիալ *</Label>
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground">Մասնաճյուղ *</Label>
             <Select value={branchId} onValueChange={setBranchId}>
-              <SelectTrigger><SelectValue placeholder="Ընտրեք ֆիլիալը" /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder="Ընտրեք մասնաճյուղը" /></SelectTrigger>
               <SelectContent>
                 {branches.map((b: any) => (
                   <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>

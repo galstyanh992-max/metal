@@ -12,6 +12,7 @@
  */
 
 export type CalculatorRow = {
+  productId?: string | null;
   name: string;
   qty: number;
   meters: number | null;
@@ -54,6 +55,10 @@ export async function buildItemsFromCalculatorRows(
           p.name.toLowerCase().includes(r.name.toLowerCase()) ||
           r.name.toLowerCase().includes(p.name.toLowerCase())
       );
+    }
+
+    if (!product) {
+      throw new Error(`Product "${r.name}" is not mapped to the warehouse. Create or map it before creating an order.`);
     }
 
     let productId: string;

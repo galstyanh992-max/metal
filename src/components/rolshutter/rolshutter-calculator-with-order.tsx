@@ -74,7 +74,9 @@ export function RolshutterCalculatorWithOrder({
 
   // Report state to parent (embedded mode) so it can create the order itself
   const onStateChangeRef = useRef(onStateChange);
-  onStateChangeRef.current = onStateChange;
+  useEffect(() => {
+    onStateChangeRef.current = onStateChange;
+  }, [onStateChange]);
   useEffect(() => {
     if (embedded) {
       onStateChangeRef.current?.({
@@ -206,7 +208,11 @@ export function RolshutterCalculatorWithOrder({
 
       {/* MIDDLE: Calculator */}
       <div className="border border-hairline bg-card rounded-lg p-3">
-        <RolshutterCalculator onRowsChange={onRowsChange} onTotalChange={onTotalChange} />
+        <RolshutterCalculator
+          products={products}
+          onRowsChange={onRowsChange}
+          onTotalChange={onTotalChange}
+        />
       </div>
 
       {/* BOTTOM: price + discount summary + create button */}

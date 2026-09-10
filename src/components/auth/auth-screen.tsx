@@ -95,7 +95,7 @@ export function AuthScreen({ mode, onModeChange }: { mode: "signin" | "signup"; 
             <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">Դեմո հաշիվներ</div>
             <div className="grid grid-cols-2 gap-2">
               <button onClick={() => fillDemo("admin1@armroll.am", "admin123")} className="text-left p-2 rounded-lg hover:bg-muted/40 transition-colors">
-                <div className="text-xs font-medium">Ադմին</div>
+                <div className="text-xs font-medium">Ադմինիստրատոր</div>
                 <div className="text-[10px] text-muted-foreground">admin1@armroll.am</div>
               </button>
               <button onClick={() => fillDemo("operator@armroll.am", "operator123")} className="text-left p-2 rounded-lg hover:bg-muted/40 transition-colors">
@@ -107,7 +107,7 @@ export function AuthScreen({ mode, onModeChange }: { mode: "signin" | "signup"; 
                 <div className="text-[10px] text-muted-foreground">warehouse@armroll.am</div>
               </button>
               <button onClick={() => fillDemo("admin2@armroll.am", "admin123")} className="text-left p-2 rounded-lg hover:bg-muted/40 transition-colors">
-                <div className="text-xs font-medium">Ադմին 2</div>
+                <div className="text-xs font-medium">Ադմինիստրատոր 2</div>
                 <div className="text-[10px] text-muted-foreground">admin2@armroll.am</div>
               </button>
             </div>

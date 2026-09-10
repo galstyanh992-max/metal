@@ -57,7 +57,7 @@ const DOC_TYPE_LABELS: Record<string, string> = {
   PAYMENT_RECEIPT: "ՎՃԱՐՄԱՆ ԱՆԴՈՐՐԱԳԻՐ",
   DEBT_STATEMENT: "ՊԱՐՏՔԻ ՏԵՂԵԿԱԳԻՐ",
   DELIVERY_NOTE: "ՀԱՆՁՆՄԱՆ ԱԿՏ",
-  PROCUREMENT_DOCUMENT: "ԳՆՄԱՆ ՓԱՍՏԱԹՈՒԹԹ",
+  PROCUREMENT_DOCUMENT: "ԳՆՄԱՆ ՓԱՍՏԱԹՈՒՂԹ",
 };
 
 export async function generateOrderPdf(orderId: string, type: DocumentType, role: string): Promise<PdfGenResult> {
@@ -343,7 +343,7 @@ export async function generateProcurementPdf(poId: string): Promise<PdfGenResult
   doc.fontSize(8).font(FONT_REG).fillColor("#666").text("ERP · ARMENIA", 50, 75, { width: 200 });
   doc.fillColor("#000");
 
-  doc.fontSize(16).font(FONT_BOLD).text("ԳՆՄԱՆ ՓԱՍՏԱԹՈՒԹԹ", 350, 50, { align: "right", width: 200 });
+  doc.fontSize(16).font(FONT_BOLD).text("ԳՆՄԱՆ ՓԱՍՏԱԹՈՒՂԹ", 350, 50, { align: "right", width: 200 });
   doc.fontSize(10).font(FONT_REG).text(po.number, 350, 72, { align: "right", width: 200 });
   doc.text(new Date(po.createdAt).toLocaleDateString("hy-AM"), 350, 86, { align: "right", width: 200 });
 

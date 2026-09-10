@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -28,18 +28,18 @@ type ComponentRow = {
   productId: string;
   name: string;
   qty: number;        // Քանակ
-  unitPrice: number;  // Գումար (per unit)
-  // calculated: lineTotal = qty * unitPrice (Տոկոս)
+  unitPrice: number;  // Միավորի գին
+  // calculated: lineTotal = qty * unitPrice (Արժեք)
 };
 
 /**
  * ProductCostCalculator — table for restocking / BOM price calculation.
  *
  * Layout matches user's reference screenshot:
- * - Top parameters: Գործարան (factory), Լայնություն (W), Երկարություն (H), Տեսակ (type)
- * - Table columns: Շտեմարան | Քանակ | Գումար | Տոկոս (line total) | Որոշում (running total)
- * - Footer: Շարժականության ընդհանուր (grand total)
- * - Buttons: Ավելացնել (add row) | Պահպանել շարժականը (save price to product)
+ * - Top parameters: Արտադրող, Լայնություն, Բարձրություն, Տեսակ
+ * - Table columns: Ապրանք | Քանակ | Միավորի գին | Արժեք | Կուտակային գումար
+ * - Footer: Ընդհանուր արժեք
+ * - Buttons: Ավելացնել բաղադրիչ | Պահպանել հաշվարկը
  */
 export function ProductCostCalculator({
   productId,
@@ -58,26 +58,23 @@ export function ProductCostCalculator({
   const [factory, setFactory] = useState("ArmRoll — +374 55 25 55 99");
   const [width, setWidth] = useState("3,18");
   const [height, setHeight] = useState("2,50");
-  const [productType, setProductType] = useState("Մանրաթել 7016");
+  const [selectedProductType, setSelectedProductType] = useState<string | null>(null);
   const [components, setComponents] = useState<ComponentRow[]>([]);
 
   // Load existing product info
   const currentProduct = productsData?.products?.find((p: any) => p.id === productId);
-
-  useEffect(() => {
-    if (currentProduct) {
-      setProductType(currentProduct.category?.name ?? currentProduct.name ?? "");
-    }
-  }, [currentProduct]);
+  const productType = selectedProductType ?? currentProduct?.category?.name ?? currentProduct?.name ?? "Մանրաթել 7016";
 
   // Compute totals
   const totals = useMemo(() => {
-    let grandTotal = 0;
-    const rows = components.map((c) => {
-      const lineTotal = c.qty * c.unitPrice; // Տոկոս = քանակ × գումար
-      grandTotal += lineTotal;
-      return { ...c, lineTotal, runningTotal: grandTotal };
+    const rows = components.map((c, index) => {
+      const lineTotal = c.qty * c.unitPrice; // Արժեք = քանակ × միավորի գին
+      const runningTotal = components
+        .slice(0, index + 1)
+        .reduce((sum, component) => sum + component.qty * component.unitPrice, 0);
+      return { ...c, lineTotal, runningTotal };
     });
+    const grandTotal = rows.at(-1)?.runningTotal ?? 0;
     return { rows, grandTotal };
   }, [components]);
 
@@ -143,7 +140,7 @@ export function ProductCostCalculator({
         {/* Parameters section */}
         <div className="px-5 py-3 border-b border-hairline bg-muted/20 grid grid-cols-2 md:grid-cols-4 gap-3 shrink-0">
           <div className="space-y-1">
-            <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Գործարանը</Label>
+            <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Արտադրող</Label>
             <Input value={factory} onChange={(e) => setFactory(e.target.value)} className="h-8 text-xs focus-steel" />
           </div>
           <div className="space-y-1">
@@ -151,12 +148,12 @@ export function ProductCostCalculator({
             <Input value={width} onChange={(e) => setWidth(e.target.value)} className="h-8 text-xs tabular-nums focus-steel" />
           </div>
           <div className="space-y-1">
-            <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Երկարությունը (H)</Label>
+            <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Բարձրություն (H)</Label>
             <Input value={height} onChange={(e) => setHeight(e.target.value)} className="h-8 text-xs tabular-nums focus-steel" />
           </div>
           <div className="space-y-1">
             <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Տեսակ</Label>
-            <Select value={productType} onValueChange={setProductType}>
+            <Select value={productType} onValueChange={setSelectedProductType}>
               <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {(categoriesData?.categories ?? []).map((c: any) => (
@@ -177,11 +174,11 @@ export function ProductCostCalculator({
             {/* Header */}
             <div className="grid grid-cols-[40px_minmax(220px,1fr)_90px_110px_120px_120px_40px] gap-0 border-b border-hairline bg-muted/30 sticky top-0 z-10">
               <div className="px-2 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-center">#</div>
-              <div className="px-2 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline">Շտեմարան</div>
+              <div className="px-2 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline">Ապրանք</div>
               <div className="px-2 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-right">Քանակ</div>
-              <div className="px-2 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-right">Գումար (դր)</div>
-              <div className="px-2 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-right">Տոկոս (դր)</div>
-              <div className="px-2 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-right">Որոշում (դր)</div>
+              <div className="px-2 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-right">Միավորի գին (դր)</div>
+              <div className="px-2 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-right">Արժեք (դր)</div>
+              <div className="px-2 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline text-right">Կուտակային (դր)</div>
               <div className="px-2 py-2"></div>
             </div>
 
@@ -199,7 +196,7 @@ export function ProductCostCalculator({
                 <div className="px-2 py-2 border-r border-hairline flex items-center justify-center text-xs text-muted-foreground tabular-nums">
                   {idx + 1}
                 </div>
-                {/* Շտեմարան — product select */}
+                {/* Ապրանքի ընտրություն */}
                 <div className="px-2 py-1.5 border-r border-hairline">
                   <Select
                     value={row.productId}
@@ -232,7 +229,7 @@ export function ProductCostCalculator({
                     className="h-7 text-xs text-right tabular-nums px-1.5 focus-steel"
                   />
                 </div>
-                {/* Գումար (unit price) */}
+                {/* Միավորի գին */}
                 <div className="px-1.5 py-1.5 border-r border-hairline">
                   <Input
                     type="number"
@@ -243,11 +240,11 @@ export function ProductCostCalculator({
                     className="h-7 text-xs text-right tabular-nums px-1.5 focus-steel"
                   />
                 </div>
-                {/* Տոկոս (line total = qty * unit price) */}
+                {/* Արժեք = քանակ × միավորի գին */}
                 <div className="px-2 py-2 border-r border-hairline text-right text-xs tabular-nums font-medium">
                   {fmt(row.lineTotal)}
                 </div>
-                {/* Որոշում (running total) */}
+                {/* Կուտակային գումար */}
                 <div className="px-2 py-2 border-r border-hairline text-right text-xs tabular-nums text-primary font-medium">
                   {fmt(row.runningTotal)}
                 </div>
@@ -278,7 +275,7 @@ export function ProductCostCalculator({
         <DialogFooter className="px-5 py-3 border-t-2 border-primary/30 bg-primary/5 flex items-center justify-between gap-3 shrink-0">
           <div className="flex items-center gap-3 text-sm">
             <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground uppercase tracking-wider">Շարժականության ընդհանուր՝</span>
+              <span className="text-xs text-muted-foreground uppercase tracking-wider">Ընդհանուր արժեք՝</span>
               <span className="text-lg font-bold tabular-nums text-primary">
                 {fmt(totals.grandTotal)} դր
               </span>
@@ -297,7 +294,7 @@ export function ProductCostCalculator({
               className="bg-primary gap-2"
             >
               {saveMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
-              Պահպանել շարժականը
+              Պահպանել հաշվարկը
             </Button>
           </div>
         </DialogFooter>

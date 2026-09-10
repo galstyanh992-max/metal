@@ -8,7 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Users, Shield, Activity, ScrollText, Key, Mail, Pencil, Loader2 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Users, Shield, Activity, ScrollText, Key, Mail, Pencil, Loader2, Search, X, Plus, Trash2 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { ModuleFooter, MODULE_FOOTERS } from "@/components/shared/module-footer";
@@ -39,14 +40,69 @@ const ROLE_COLORS: Record<string, string> = {
   WAREHOUSE: "bg-steel/15 text-steel border-steel/30",
 };
 
-export function SettingsModule() {
+const ACTION_LABELS: Record<string, string> = {
+  "auth.login": "Մուտք է գործել",
+  "order.create": "Ստեղծել է պատվեր",
+  "order.confirm": "Հաստատել է պատվեր",
+  "order.cancel": "Չեղարկել է պատվեր",
+  "order.mark_ready": "Նշել է պատվերը պատրաստ",
+  "inventory.adjust": "Կարգավորել է պահեստի մնացորդը",
+  "inventory.transfer": "Տեղափոխել է ապրանքներ",
+  "payment.create": "Գրանցել է վճարում",
+  "payment.receipt_upload": "Կցել է վճարման չեկ",
+  "document.download": "Ներբեռնել է փաստաթուղթ",
+  "client.create": "Ստեղծել է հաճախորդ",
+  "product.create": "Ստեղծել է ապրանք",
+  "product.update": "Թարմացրել է ապրանք",
+  "price.update": "Փոխել է գինը",
+  "user.archive": "Հեռացրել է օգտատիրոջը",
+};
+
+function actionLabel(action: string) {
+  return ACTION_LABELS[action] ?? action.replace(/[._]/g, " ");
+}
+
+function changeSummary(log: any) {
+  const source = log.afterJson ?? log.beforeJson;
+  if (!source) return null;
+  try {
+    return Object.entries(JSON.parse(source)).slice(0, 4).map(([key, value]) => `${key}: ${typeof value === "object" ? "…" : String(value)}`).join(" · ");
+  } catch {
+    return null;
+  }
+}
+
+export function SettingsModule({ initialTab = "users" }: { initialTab?: "users" | "audit" }) {
+  const qc = useQueryClient();
   const { data: usersData, isLoading: usersLoading } = useQuery({ queryKey: ["users"], queryFn: fetchUsers });
   const { data: auditData, isLoading: auditLoading } = useQuery({ queryKey: ["audit"], queryFn: fetchAudit });
   const [editUser, setEditUser] = useState<any | null>(null);
+  const [createUserOpen, setCreateUserOpen] = useState(false);
+  const [auditSearch, setAuditSearch] = useState("");
+  const [auditRole, setAuditRole] = useState("all");
+
+  const deleteUserMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      const res = await fetch("/api/users", { method: "DELETE", headers: { "content-type": "application/json" }, body: JSON.stringify({ userId }) });
+      if (!res.ok) { const error = await res.json(); throw new Error(error.error ?? "failed"); }
+      return res.json();
+    },
+    onSuccess: () => {
+      toast.success("Օգտատերը հեռացված է");
+      qc.invalidateQueries({ queryKey: ["users"] });
+      qc.invalidateQueries({ queryKey: ["audit"] });
+    },
+    onError: (error: any) => toast.error(error?.message ?? "Սխալ"),
+  });
 
   const users = usersData?.users ?? [];
   const logs = auditData?.logs ?? [];
   const adminCount = users.filter((u: any) => u.role === "ADMIN").length;
+  const visibleLogs = logs.filter((log: any) => {
+    if (auditRole !== "all" && log.actor?.role !== auditRole) return false;
+    const query = auditSearch.trim().toLowerCase();
+    return !query || [log.action, log.entityType, log.actor?.name, log.actor?.email].filter(Boolean).some((value) => String(value).toLowerCase().includes(query));
+  });
 
   return (
     <div className="space-y-6">
@@ -54,18 +110,24 @@ export function SettingsModule() {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <KpiCard label="Ընդհանուր օգտատերեր" value={String(users.length)} icon={Users} />
-        <KpiCard label="Ադմիններ" value={String(adminCount)} icon={Shield} sub={adminCount >= 2 ? "Մինիմում 2 բավարարված է" : "Պահանջվում է մինիմում 2"} />
+        <KpiCard label="Ադմինիստրատորներ" value={String(adminCount)} icon={Shield} sub={adminCount >= 2 ? "Առնվազն 2 ադմինիստրատոր կա" : "Պահանջվում է առնվազն 2"} />
         <KpiCard label="Աուդիտի գրառումներ" value={String(logs.length)} icon={ScrollText} />
         <KpiCard label="Ակտիվություն" value={String(logs.filter((l: any) => new Date(l.at) > new Date(Date.now() - 24 * 3600 * 1000)).length)} icon={Activity} sub="Վերջին 24 ժամ" />
       </div>
 
-      <Tabs defaultValue="users">
+      <Tabs defaultValue={initialTab}>
         <TabsList className="bg-muted/40">
           <TabsTrigger value="users" className="text-xs">Օգտատերեր</TabsTrigger>
           <TabsTrigger value="audit" className="text-xs">Աուդիտի մատյան</TabsTrigger>
         </TabsList>
 
         <TabsContent value="users" className="mt-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <p className="text-sm text-muted-foreground">Ստեղծեք աշխատակիցների հաշիվներ և կառավարեք նրանց մուտքը։</p>
+            <Button size="sm" className="gap-2 bg-primary" onClick={() => setCreateUserOpen(true)}>
+              <Plus className="size-4" /> Նոր օգտատեր
+            </Button>
+          </div>
           <Card className="border-hairline shadow-none">
             <CardContent className="p-0">
               <Table>
@@ -101,14 +163,21 @@ export function SettingsModule() {
                         {u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleDateString("hy-AM") : "—"}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-7 gap-1.5 text-xs"
-                          onClick={() => setEditUser(u)}
-                        >
-                          <Key className="size-3.5" /> Փոխել
-                        </Button>
+                        <div className="flex justify-end gap-1">
+                          <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs" onClick={() => setEditUser(u)}>
+                            <Key className="size-3.5" /> Փոխել
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 text-destructive"
+                            disabled={deleteUserMutation.isPending}
+                            onClick={() => { if (confirm(`Հեռացնե՞լ «${u.name}» օգտատիրոջը։ Մուտքը կփակվի, իսկ գործողությունների պատմությունը կպահպանվի։`)) deleteUserMutation.mutate(u.id); }}
+                            title="Հեռացնել օգտատիրոջը"
+                          >
+                            <Trash2 className="size-3.5" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -124,29 +193,48 @@ export function SettingsModule() {
         <TabsContent value="audit" className="mt-4">
           <Card className="border-hairline shadow-none">
             <CardContent className="p-0">
+              <div className="p-3 border-b border-hairline flex flex-wrap gap-2 items-center">
+                <div className="relative flex-1 min-w-52">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+                  <Input value={auditSearch} onChange={(event) => setAuditSearch(event.target.value)} placeholder="Որոնում՝ աշխատակից, գործողություն…" className="h-8 pl-8 text-xs focus-steel" />
+                </div>
+                <Select value={auditRole} onValueChange={setAuditRole}>
+                  <SelectTrigger className="h-8 w-44 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Բոլոր աշխատակիցները</SelectItem>
+                    <SelectItem value="OPERATOR">Օպերատորներ</SelectItem>
+                    <SelectItem value="WAREHOUSE">Պահեստապետներ</SelectItem>
+                    <SelectItem value="ADMIN">Ադմինիստրատորներ</SelectItem>
+                  </SelectContent>
+                </Select>
+                {(auditSearch || auditRole !== "all") && <Button size="sm" variant="ghost" className="h-8 gap-1 text-xs" onClick={() => { setAuditSearch(""); setAuditRole("all"); }}><X className="size-3.5" /> Մաքրել</Button>}
+              </div>
               <div className="max-h-[600px] overflow-y-auto">
                 <Table>
                   <TableHeader className="sticky top-0 bg-card">
                     <TableRow className="border-hairline">
                       <TableHead className="text-xs uppercase">Գործողություն</TableHead>
                       <TableHead className="text-xs uppercase">Օգտատեր</TableHead>
-                      <TableHead className="text-xs uppercase">Տիպ</TableHead>
-                      <TableHead className="text-xs uppercase">ID</TableHead>
-                      <TableHead className="text-xs uppercase">Ամսաթիգ</TableHead>
+                      <TableHead className="text-xs uppercase">Փոփոխություն</TableHead>
+                      <TableHead className="text-xs uppercase">Ժամանակ</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {logs.map((l: any) => (
+                    {visibleLogs.map((l: any) => (
                       <TableRow key={l.id} className="border-hairline">
-                        <TableCell className="text-xs font-mono">{l.action}</TableCell>
-                        <TableCell className="text-sm">{l.actor?.name ?? "—"}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground">{l.entityType}</TableCell>
-                        <TableCell className="text-xs font-mono text-muted-foreground">{l.entityId?.slice(-8) ?? "—"}</TableCell>
+                        <TableCell className="text-sm font-medium">{actionLabel(l.action)}</TableCell>
+                        <TableCell>
+                          <div className="text-sm">{l.actor?.name ?? "—"}</div>
+                          <Badge variant="outline" className={`mt-1 text-[9px] ${ROLE_COLORS[l.actor?.role] ?? ""}`}>{ROLE_LABELS[l.actor?.role] ?? "—"}</Badge>
+                        </TableCell>
+                        <TableCell className="max-w-72 text-xs text-muted-foreground">
+                          <div className="truncate" title={changeSummary(l) ?? undefined}>{changeSummary(l) ?? `${l.entityType}${l.entityId ? ` · ${l.entityId.slice(-8)}` : ""}`}</div>
+                        </TableCell>
                         <TableCell className="text-xs text-muted-foreground">{new Date(l.at).toLocaleString("hy-AM")}</TableCell>
                       </TableRow>
                     ))}
-                    {logs.length === 0 && !auditLoading && (
-                      <TableRow><TableCell colSpan={5}><EmptyState title="Աուդիտի գրառումներ չկան" /></TableCell></TableRow>
+                    {visibleLogs.length === 0 && !auditLoading && (
+                      <TableRow><TableCell colSpan={4}><EmptyState title={logs.length ? "Ընտրված պայմաններով գրառումներ չկան" : "Աուդիտի գրառումներ չկան"} /></TableCell></TableRow>
                     )}
                   </TableBody>
                 </Table>
@@ -157,10 +245,72 @@ export function SettingsModule() {
       </Tabs>
 
       {/* User edit dialog */}
+      {createUserOpen && <UserCreateDialog onClose={() => setCreateUserOpen(false)} />}
       {editUser && <UserEditDialog user={editUser} onClose={() => setEditUser(null)} />}
 
       <ModuleFooter {...MODULE_FOOTERS.settings} />
     </div>
+  );
+}
+
+function UserCreateDialog({ onClose }: { onClose: () => void }) {
+  const qc = useQueryClient();
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState("OPERATOR");
+  const [password, setPassword] = useState("");
+  const [passwordConfirm, setPasswordConfirm] = useState("");
+
+  const mutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/users", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name, email, role, password }),
+      });
+      if (!res.ok) { const error = await res.json(); throw new Error(error.error ?? "failed"); }
+      return res.json();
+    },
+    onSuccess: () => {
+      toast.success("Օգտատերը ստեղծված է");
+      qc.invalidateQueries({ queryKey: ["users"] });
+      qc.invalidateQueries({ queryKey: ["audit"] });
+      onClose();
+    },
+    onError: (error: any) => toast.error(error?.message ?? "Սխալ"),
+  });
+
+  const submit = () => {
+    if (!name.trim() || !email.trim() || !password) { toast.error("Լրացրեք բոլոր դաշտերը"); return; }
+    if (password.length < 8) { toast.error("Գաղտնաբառը պետք է ունենա առնվազն 8 նիշ"); return; }
+    if (password !== passwordConfirm) { toast.error("Գաղտնաբառերը չեն համընկնում"); return; }
+    mutation.mutate();
+  };
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader><DialogTitle className="flex items-center gap-2"><Plus className="size-4 text-primary" /> Նոր օգտատեր</DialogTitle></DialogHeader>
+        <div className="space-y-3 py-2">
+          <div className="space-y-1.5"><Label className="text-xs uppercase tracking-wider text-muted-foreground">Անուն *</Label><Input value={name} onChange={(event) => setName(event.target.value)} autoFocus className="focus-steel" /></div>
+          <div className="space-y-1.5"><Label className="text-xs uppercase tracking-wider text-muted-foreground">Էլ․ հասցե *</Label><Input type="email" value={email} onChange={(event) => setEmail(event.target.value)} className="focus-steel" /></div>
+          <div className="space-y-1.5">
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground">Դեր *</Label>
+            <Select value={role} onValueChange={setRole}>
+              <SelectTrigger className="focus-steel"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ADMIN">Ադմինիստրատոր</SelectItem>
+                <SelectItem value="OPERATOR">Օպերատոր</SelectItem>
+                <SelectItem value="WAREHOUSE">Պահեստապետ</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5"><Label className="text-xs uppercase tracking-wider text-muted-foreground">Գաղտնաբառ *</Label><Input type="password" value={password} onChange={(event) => setPassword(event.target.value)} className="focus-steel" /><p className="text-[10px] text-muted-foreground">Առնվազն 8 նիշ</p></div>
+          <div className="space-y-1.5"><Label className="text-xs uppercase tracking-wider text-muted-foreground">Կրկնեք գաղտնաբառը *</Label><Input type="password" value={passwordConfirm} onChange={(event) => setPasswordConfirm(event.target.value)} className="focus-steel" /></div>
+        </div>
+        <DialogFooter><Button variant="outline" onClick={onClose}>Չեղարկել</Button><Button onClick={submit} disabled={mutation.isPending} className="bg-primary gap-2">{mutation.isPending && <Loader2 className="size-4 animate-spin" />} Ստեղծել օգտատեր</Button></DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

@@ -11,21 +11,20 @@ const globalForPrisma = globalThis as unknown as {
 const isProd = process.env.NODE_ENV === 'production'
 
 function buildDatabaseUrl(): string | undefined {
-  const baseUrl = process.env.DATABASE_URL
+  const baseUrl = process.env.DATABASE_URL?.trim()
   if (!baseUrl) return undefined
   const separator = baseUrl.includes('?') ? '&' : '?'
   return `${baseUrl}${separator}connection_limit=3&pool_timeout=10`
 }
 
+const databaseUrl = buildDatabaseUrl()
+
 export const db =
   globalForPrisma.prisma ??
   new PrismaClient({
     log: ['error'],
-    datasources: {
-      db: {
-        url: buildDatabaseUrl(),
-      },
-    },
+    // Omit the override when unset; Prisma rejects an explicit undefined URL.
+    ...(databaseUrl ? { datasources: { db: { url: databaseUrl } } } : {}),
   })
 
 if (!isProd) globalForPrisma.prisma = db

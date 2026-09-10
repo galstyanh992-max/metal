@@ -59,6 +59,24 @@ export async function POST(req: Request) {
         },
       });
 
+      const existingReceipt = await tx.generatedDocument.findFirst({
+        where: { entityType: "ORDER", entityId: orderId, type: "PAYMENT_RECEIPT" },
+        select: { id: true },
+      });
+      if (!existingReceipt) {
+        await tx.generatedDocument.create({
+          data: {
+            templateId: "template-payment_receipt",
+            templateVersion: 1,
+            type: "PAYMENT_RECEIPT",
+            entityType: "ORDER",
+            entityId: orderId,
+            url: `/api/orders/${orderId}/pdf?type=PAYMENT_RECEIPT`,
+            generatedById: userId,
+          },
+        });
+      }
+
       return payment;
     });
 

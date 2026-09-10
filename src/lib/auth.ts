@@ -25,6 +25,15 @@ export const authOptions: NextAuthOptions = {
           where: { id: user.id },
           data: { lastLoginAt: new Date() },
         });
+        await db.auditLog.create({
+          data: {
+            actorId: user.id,
+            action: "auth.login",
+            entityType: "User",
+            entityId: user.id,
+            afterJson: JSON.stringify({ role: user.role }),
+          },
+        });
         return {
           id: user.id,
           email: user.email,

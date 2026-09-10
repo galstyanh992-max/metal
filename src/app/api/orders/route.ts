@@ -128,6 +128,13 @@ export async function POST(req: Request) {
       // Services (Հավաքում / Առաքում) are not stock items — skip stock check.
       const isService = it.parameters?.isService === "true" || p.unit?.code === "service";
       if (isService) continue;
+      const requestedPrice = typeof it.unitPrice === "number" && it.unitPrice > 0
+        ? it.unitPrice
+        : p.salePrice;
+      if (requestedPrice <= 0) {
+        stockErrors.push(`«${p.sku}» ապրանքի վաճառքի գինը նշված չէ`);
+        continue;
+      }
       const available = Math.max(0, stockMap.get(p.id) ?? 0);
       if (available < it.qty) {
         stockErrors.push(
@@ -256,6 +263,23 @@ export async function POST(req: Request) {
         },
       });
     }
+
+    // Create the complete document package immediately. Each record points to a
+    // stable PDF endpoint, so the document is ready to download for both admins
+    // and operators as soon as the order is created.
+    const documentTypes: Array<"CUSTOMER_ORDER" | "WAREHOUSE_ORDER" | "INVOICE" | "PROCUREMENT_DOCUMENT" | "DELIVERY_NOTE" | "PAYMENT_RECEIPT"> = ["CUSTOMER_ORDER", "WAREHOUSE_ORDER", "INVOICE", "PROCUREMENT_DOCUMENT", "DELIVERY_NOTE"];
+    if (isPaidNow) documentTypes.push("PAYMENT_RECEIPT");
+    await db.generatedDocument.createMany({
+      data: documentTypes.map((type) => ({
+        templateId: `template-${type.toLowerCase()}`,
+        templateVersion: 1,
+        type,
+        entityType: "ORDER",
+        entityId: order.id,
+        url: `/api/orders/${order.id}/pdf?type=${type}`,
+        generatedById: userId,
+      })),
+    });
 
     // Audit log
     await db.auditLog.create({

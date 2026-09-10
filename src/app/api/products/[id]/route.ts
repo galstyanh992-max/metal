@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { requireAction } from "@/lib/rbac";
 import { requireRole } from "@/lib/rbac";
 
 /**

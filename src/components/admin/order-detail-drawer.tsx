@@ -34,6 +34,15 @@ const METHOD_LABELS: Record<string, string> = {
   contract: "Պայմանագրային",
 };
 
+const DOCUMENTS: Array<{ type: string; label: string; warehouse: boolean; needsPayment?: boolean }> = [
+  { type: "CUSTOMER_ORDER", label: "Հաճախորդի պատվեր", warehouse: false },
+  { type: "WAREHOUSE_ORDER", label: "Պահեստի հանձնարարական", warehouse: true },
+  { type: "INVOICE", label: "Հաշիվ-ապրանքագիր", warehouse: false },
+  { type: "PROCUREMENT_DOCUMENT", label: "Գնման փաստաթուղթ", warehouse: false },
+  { type: "PAYMENT_RECEIPT", label: "Վճարման անդորրագիր", warehouse: false, needsPayment: true },
+  { type: "DELIVERY_NOTE", label: "Հանձնման ակտ", warehouse: false },
+] as const;
+
 async function fetchOrder(id: string) {
   const res = await fetch(`/api/orders/${id}`);
   if (!res.ok) throw new Error("failed");
@@ -70,6 +79,7 @@ export function OrderDetailDrawer({ orderId, open, onClose, role }: { orderId: s
   const canConfirm = order.status === "DRAFT";
   const canCancel = order.status === "DRAFT" || order.status === "CONFIRMED";
   const canMarkReady = order.status === "CONFIRMED";
+  const documentUrls = new Map((order.documents ?? []).map((document: any) => [document.type, document.url]));
 
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
@@ -109,25 +119,28 @@ export function OrderDetailDrawer({ orderId, open, onClose, role }: { orderId: s
                 <XCircle className="size-3.5" /> Չեղարկել
               </Button>
             )}
-            {role !== "WAREHOUSE" && (
-              <Button size="sm" variant="outline" className="gap-2" asChild>
-                <a href={`/api/orders/${orderId}/pdf?type=CUSTOMER_ORDER`} target="_blank" rel="noopener">
-                  <Download className="size-3.5" /> PDF (Հաճախորդ)
-                </a>
-              </Button>
-            )}
-            <Button size="sm" variant="outline" className="gap-2" asChild>
-              <a href={`/api/orders/${orderId}/pdf?type=WAREHOUSE_ORDER`} target="_blank" rel="noopener">
-                <FileText className="size-3.5" /> PDF (Պահեստ)
-              </a>
-            </Button>
-            {role !== "WAREHOUSE" && (
-              <Button size="sm" variant="outline" className="gap-2" asChild>
-                <a href={`/api/orders/${orderId}/pdf?type=INVOICE`} target="_blank" rel="noopener">
-                  <Receipt className="size-3.5" /> Հաշիվ
-                </a>
-              </Button>
-            )}
+          </div>
+
+          <div className="space-y-2">
+            <h4 className="text-xs uppercase tracking-wider text-muted-foreground font-medium flex items-center gap-2">
+              <FileText className="size-3.5" /> Փաստաթղթեր
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {DOCUMENTS
+                .filter((document) => (role === "WAREHOUSE" ? document.warehouse : !document.warehouse))
+                .filter((document) => !document.needsPayment || (order.payments?.length ?? 0) > 0)
+                .map((document) => (
+                  <Button key={document.type} size="sm" variant="outline" className="justify-start gap-2" asChild>
+                    <a
+                      href={documentUrls.get(document.type) ?? `/api/orders/${order.id}/pdf?type=${document.type}`}
+                      target="_blank"
+                      rel="noopener"
+                    >
+                      <Download className="size-3.5" /> {document.label}
+                    </a>
+                  </Button>
+                ))}
+            </div>
           </div>
 
           {/* Financial summary */}
@@ -187,6 +200,7 @@ export function OrderDetailDrawer({ orderId, open, onClose, role }: { orderId: s
                       <TableHead className="text-xs uppercase">Ամսաթիվ</TableHead>
                       <TableHead className="text-xs uppercase">Մեթոդ</TableHead>
                       <TableHead className="text-xs uppercase text-right">Գումար</TableHead>
+                      {order.payments?.some((payment: any) => payment.receiptUrl) && <TableHead className="text-xs uppercase text-right">Չեկ</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -195,6 +209,11 @@ export function OrderDetailDrawer({ orderId, open, onClose, role }: { orderId: s
                         <TableCell className="text-xs text-muted-foreground">{new Date(p.paidAt).toLocaleDateString("hy-AM")}</TableCell>
                         <TableCell><Badge variant="outline" className="text-[10px]">{METHOD_LABELS[p.method] ?? p.method}</Badge></TableCell>
                         <TableCell className="text-right tabular-nums font-medium text-status-green">{fmt(p.amount)}</TableCell>
+                        {order.payments?.some((payment: any) => payment.receiptUrl) && (
+                          <TableCell className="text-right">
+                            {p.receiptUrl && <a href={p.receiptUrl} target="_blank" rel="noopener" className="text-xs text-primary underline">Չեկ</a>}
+                          </TableCell>
+                        )}
                       </TableRow>
                     ))}
                   </TableBody>

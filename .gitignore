@@ -50,5 +50,7 @@ test
 prompt
 
 server.log
+backups/
+public/uploads/
 # Skills directory
 /skills/

@@ -307,17 +307,17 @@ function parseNum(v) {
 }
 
 function buildCatalog(products) {
+  const warehouseProductsByName = new Map<string, any>(
+    (products || []).map((product: any) => [String(product.name || "").trim().toLocaleLowerCase(), product])
+  );
   const catalog = {};
   DEFAULT_MATERIALS.forEach((m) => {
-    catalog[m.key] = (DEFAULT_VARIANTS[m.key] || [{ id: `${m.key}-default`, name: m.name, price: m.price || 0 }]).map((v) => ({ ...v }));
-  });
-  const seenFromProducts = new Set();
-  (products || []).forEach((p) => {
-    if (!seenFromProducts.has(p.category)) {
-      catalog[p.category] = [];
-      seenFromProducts.add(p.category);
-    }
-    catalog[p.category].push(p);
+    catalog[m.key] = (DEFAULT_VARIANTS[m.key] || [{ id: `${m.key}-default`, name: m.name, price: m.price || 0 }]).map((v: any) => {
+      const warehouseProduct = warehouseProductsByName.get(String(v.name).trim().toLocaleLowerCase());
+      return warehouseProduct
+        ? { ...v, variantId: v.id, id: warehouseProduct.id, name: warehouseProduct.name, price: warehouseProduct.salePrice, unit: warehouseProduct.unit, stock: warehouseProduct.stock }
+        : { ...v, price: 0 };
+    });
   });
   return catalog;
 }
@@ -360,7 +360,7 @@ export function RolshutterCalculator({ products = [], onRowsChange, onTotalChang
       };
       // Կողային կափարիչ always follows whatever Կոռոբ size is chosen
       if (key === "korob") {
-        const size = productId.match(/\d+$/)?.[0];
+        const size = String(option?.variantId ?? productId).match(/\d+$/)?.[0];
         const bakovinaOption = size && (catalog["bakovina"] || []).find((p) => p.id === `bakovina-${size}`);
         if (bakovinaOption) {
           next["bakovina"] = { ...prev["bakovina"], productId: bakovinaOption.id, price: bakovinaOption.price };
@@ -435,14 +435,16 @@ export function RolshutterCalculator({ products = [], onRowsChange, onTotalChang
   const korobOverride = overrides["korob"] || {};
   const korobOptions = catalog["korob"] || [];
   const korobSelectedId = korobOverride.productId || korobOptions[0]?.id;
-  const boxDepth = Number((korobSelectedId || "").match(/\d+$/)?.[0]) || 30;
+  const korobVariantId = korobOptions.find((option) => option.id === korobSelectedId)?.variantId ?? korobSelectedId;
+  const boxDepth = Number(String(korobVariantId || "").match(/\d+$/)?.[0]) || 30;
 
   // Profile line (3,9 / 5,5 / 7,7) is derived from whichever Լամիլ is selected —
   // drives the Տակացու/Ռետինե ժապավեն/Լամիլ meterage offset and the lamel-count divisor.
   const lamilOverrideTop = overrides["lamil"] || {};
   const lamilOptionsTop = catalog["lamil"] || [];
   const lamilSelectedIdTop = lamilOverrideTop.productId || lamilOptionsTop[0]?.id || "";
-  const currentLine = lamilSelectedIdTop.includes("77") ? "7,7" : lamilSelectedIdTop.includes("55") ? "5,5" : "3,9";
+  const lamilVariantId = lamilOptionsTop.find((option) => option.id === lamilSelectedIdTop)?.variantId ?? lamilSelectedIdTop;
+  const currentLine = String(lamilVariantId).includes("77") ? "7,7" : String(lamilVariantId).includes("55") ? "5,5" : "3,9";
   const lineOffset = LINE_OFFSET[currentLine];
 
   const allRows = useMemo(() => {
@@ -531,6 +533,7 @@ export function RolshutterCalculator({ products = [], onRowsChange, onTotalChang
             const selectedProduct = (catalog[r.key] || []).find((p) => p.id === r.selectedId);
             const unitCode = selectedProduct?.unit?.code ?? (r.mode === "count" || r.mode === "zaglushka" ? "piece" : "m");
             return {
+              productId: selectedProduct?.id ?? null,
               name: String(r.name || ""),
               qty: Number(r.qty) || 0,
               meters: r.meters ?? null,
@@ -544,6 +547,7 @@ export function RolshutterCalculator({ products = [], onRowsChange, onTotalChang
         ...customRows
           .filter((r) => (Number(r.qty) || 0) * (Number(r.price) || 0) > 0)
           .map((r) => ({
+            productId: null,
             name: String(r.name || "Այլ ապրանք"),
             qty: Number(r.qty) || 0,
             meters: null,
@@ -556,6 +560,7 @@ export function RolshutterCalculator({ products = [], onRowsChange, onTotalChang
       ];
       if (assemblyOn && assemblySum > 0) {
         summary.push({
+          productId: null,
           name: "Հավաքում",
           qty: 1,
           meters: null,
@@ -568,6 +573,7 @@ export function RolshutterCalculator({ products = [], onRowsChange, onTotalChang
       }
       if (deliveryOn && deliverySum > 0) {
         summary.push({
+          productId: null,
           name: "Առաքում",
           qty: 1,
           meters: null,

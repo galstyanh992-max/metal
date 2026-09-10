@@ -612,6 +612,7 @@ model OrderPayment {
   orderId     String
   amount      Int
   method      String   // bank | card | contract
+  receiptUrl  String?
   paidAt      DateTime @default(now())
   note        String?
   byUserId    String

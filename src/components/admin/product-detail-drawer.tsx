@@ -68,7 +68,7 @@ export function ProductDetailDrawer({ productId, open, onClose, role }: { produc
             )}
             <StatCard label="Նվազագույն պաշար" value={String(product.minStock)} icon={Package} />
             <StatCard label="Մնացորդ" value={String(data?.state?.onHand ?? 0)} icon={Package} />
-            <StatCard label="Պահված" value={String(data?.state?.reserved ?? 0)} icon={Package} accent="yellow" />
+            <StatCard label="Ամրագրված" value={String(data?.state?.reserved ?? 0)} icon={Package} accent="yellow" />
             <StatCard label="Մատչելի" value={String(data?.state?.available ?? 0)} icon={Package} accent="green" />
           </div>
 
@@ -99,7 +99,7 @@ export function ProductDetailDrawer({ productId, open, onClose, role }: { produc
                   <div className="text-xl font-semibold tabular-nums">{data.state.onHand}</div>
                 </div>
                 <div className="bg-muted/30 border border-hairline p-3 text-center">
-                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Պահված</div>
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Ամրագրված</div>
                   <div className="text-xl font-semibold tabular-nums text-status-yellow">{data.state.reserved}</div>
                 </div>
                 <div className="bg-muted/30 border border-hairline p-3 text-center">

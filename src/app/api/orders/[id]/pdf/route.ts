@@ -3,27 +3,54 @@ import { requireAction } from "@/lib/rbac";
 import { generateOrderPdf } from "@/lib/docs/pdf";
 import { db } from "@/lib/db";
 
+const ORDER_PDF_TYPES = new Set([
+  "CUSTOMER_ORDER",
+  "WAREHOUSE_ORDER",
+  "INVOICE",
+  "PAYMENT_RECEIPT",
+  "DELIVERY_NOTE",
+  "PROCUREMENT_DOCUMENT",
+]);
+
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { role, userId } = await requireAction("doc.generate");
     const { id } = await params;
     const { searchParams } = new URL(_req.url);
     const type = (searchParams.get("type") || "CUSTOMER_ORDER") as any;
+    if (!ORDER_PDF_TYPES.has(type)) {
+      return NextResponse.json({ error: "Փաստաթղթի տեսակը սխալ է" }, { status: 400 });
+    }
 
     const result = await generateOrderPdf(id, type, role);
 
     // Save generated document record
-    await db.generatedDocument.create({
+    const existing = await db.generatedDocument.findFirst({
+      where: { entityType: "ORDER", entityId: id, type },
+      select: { id: true },
+    });
+    if (!existing) {
+      await db.generatedDocument.create({
+        data: {
+          templateId: "template-" + type.toLowerCase(),
+          templateVersion: 1,
+          type,
+          entityType: "ORDER",
+          entityId: id,
+          url: `/api/orders/${id}/pdf?type=${type}`,
+          generatedById: userId,
+        },
+      });
+    }
+    await db.auditLog.create({
       data: {
-        templateId: "template-" + type.toLowerCase(),
-        templateVersion: 1,
-        type: type,
-        entityType: "ORDER",
+        actorId: userId,
+        action: "document.download",
+        entityType: "Order",
         entityId: id,
-        url: `/api/orders/${id}/pdf?type=${type}`,
-        generatedById: userId,
+        afterJson: JSON.stringify({ type }),
       },
-    }).catch(() => null);
+    });
 
     return new NextResponse(result.buffer, {
       headers: {

@@ -64,7 +64,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "fromBranchId and toBranchId required" }, { status: 400 });
     }
     if (fromBranchId === toBranchId) {
-      return NextResponse.json({ error: "Հնարավոր չէ փոխանցել նույն ֆիլիալին" }, { status: 400 });
+      return NextResponse.json({ error: "Հնարավոր չէ փոխանցել նույն մասնաճյուղին" }, { status: 400 });
     }
     if (!items?.length) {
       return NextResponse.json({ error: "items required" }, { status: 400 });
@@ -104,7 +104,7 @@ export async function POST(req: Request) {
     }
     if (stockErrors.length > 0) {
       return NextResponse.json(
-        { error: "Անբավարար պաշար ֆիլիալում", details: stockErrors, stockError: true },
+        { error: "Մասնաճյուղում պաշարը բավարար չէ", details: stockErrors, stockError: true },
         { status: 409 }
       );
     }

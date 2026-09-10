@@ -7,12 +7,98 @@ export async function GET() {
   try {
     await requireAction("admin.manage_users");
     const users = await db.user.findMany({
+      where: { archivedAt: null },
       select: { id: true, email: true, name: true, role: true, active: true, lastLoginAt: true, createdAt: true },
       orderBy: { createdAt: "asc" },
     });
     return NextResponse.json({ users });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message ?? "failed" }, { status: 403 });
+  }
+}
+
+/** DELETE /api/users — archive an account while retaining the activity history. */
+export async function DELETE(req: Request) {
+  try {
+    const { userId: actorId } = await requireAction("admin.manage_users");
+    const { userId } = await req.json() as { userId?: string };
+    if (!userId) return NextResponse.json({ error: "Ընտրեք օգտատիրոջը" }, { status: 400 });
+    if (userId === actorId) return NextResponse.json({ error: "Դուք չեք կարող հեռացնել ձեր սեփական հաշիվը" }, { status: 400 });
+
+    const user = await db.user.findFirst({ where: { id: userId, archivedAt: null } });
+    if (!user) return NextResponse.json({ error: "Օգտատերը չի գտնվել" }, { status: 404 });
+    if (user.role === "ADMIN" && user.active) {
+      const activeAdminCount = await db.user.count({ where: { role: "ADMIN", active: true, archivedAt: null } });
+      if (activeAdminCount <= 1) {
+        return NextResponse.json({ error: "Չի կարելի հեռացնել վերջին ակտիվ ադմինիստրատորին" }, { status: 400 });
+      }
+    }
+
+    await db.$transaction(async (tx) => {
+      await tx.user.update({ where: { id: userId }, data: { active: false, archivedAt: new Date() } });
+      await tx.auditLog.create({
+        data: {
+          actorId,
+          action: "user.archive",
+          entityType: "User",
+          entityId: userId,
+          beforeJson: JSON.stringify({ name: user.name, email: user.email, role: user.role }),
+        },
+      });
+    });
+    return NextResponse.json({ deleted: true });
+  } catch (e: any) {
+    return NextResponse.json({ error: e?.message ?? "Չհաջողվեց հեռացնել օգտատիրոջը" }, { status: 500 });
+  }
+}
+
+/** POST /api/users — create an account for an administrator, operator, or warehouse worker. */
+export async function POST(req: Request) {
+  try {
+    const { userId: actorId } = await requireAction("admin.manage_users");
+    const body = await req.json();
+    const { name, email, password, role } = body as { name?: string; email?: string; password?: string; role?: string };
+
+    if (!name?.trim() || !email?.trim() || !password || !role) {
+      return NextResponse.json({ error: "Լրացրեք անունը, էլ․ հասցեն, գաղտնաբառը և դերը" }, { status: 400 });
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      return NextResponse.json({ error: "Նշեք ճիշտ էլ․ հասցե" }, { status: 400 });
+    }
+    if (password.length < 8) {
+      return NextResponse.json({ error: "Գաղտնաբառը պետք է ունենա առնվազն 8 նիշ" }, { status: 400 });
+    }
+    if (!(["ADMIN", "OPERATOR", "WAREHOUSE"] as const).includes(role as any)) {
+      return NextResponse.json({ error: "Դերը սխալ է" }, { status: 400 });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const taken = await db.user.findUnique({ where: { email: normalizedEmail }, select: { id: true } });
+    if (taken) return NextResponse.json({ error: "Այս էլ․ հասցեն արդեն օգտագործվում է" }, { status: 409 });
+
+    const user = await db.user.create({
+      data: {
+        name: name.trim(),
+        email: normalizedEmail,
+        passwordHash: await bcrypt.hash(password, 10),
+        role: role as any,
+        active: true,
+      },
+      select: { id: true, email: true, name: true, role: true, active: true, lastLoginAt: true, createdAt: true },
+    });
+    await db.auditLog.create({
+      data: {
+        actorId,
+        action: "user.create",
+        entityType: "User",
+        entityId: user.id,
+        afterJson: JSON.stringify({ name: user.name, email: user.email, role: user.role }),
+      },
+    });
+
+    return NextResponse.json({ user }, { status: 201 });
+  } catch (e: any) {
+    return NextResponse.json({ error: e?.message ?? "Չհաջողվեց ստեղծել օգտատերը" }, { status: 500 });
   }
 }
 

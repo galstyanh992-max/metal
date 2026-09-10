@@ -144,12 +144,20 @@ function PaymentDialog({ orderId, onClose }: { orderId: string; onClose: () => v
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState("bank");
   const [note, setNote] = useState("");
+  const [receipt, setReceipt] = useState<File | null>(null);
 
   const mutation = useMutation({
     mutationFn: async (payload: any) => {
       const res = await fetch("/api/payments", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
       if (!res.ok) { const e = await res.json(); throw new Error(e.error ?? "failed"); }
-      return res.json();
+      const data = await res.json();
+      if (receipt) {
+        const formData = new FormData();
+        formData.set("receipt", receipt);
+        const upload = await fetch(`/api/payments/${data.payment.id}/receipt`, { method: "POST", body: formData });
+        if (!upload.ok) { const e = await upload.json(); throw new Error(e.error ?? "Չհաջողվեց կցել չեկը"); }
+      }
+      return data;
     },
     onSuccess: () => {
       toast.success("Վճարումը գրանցված է");
@@ -189,6 +197,16 @@ function PaymentDialog({ orderId, onClose }: { orderId: string; onClose: () => v
           <div className="space-y-1.5">
             <Label className="text-xs uppercase tracking-wider text-muted-foreground">Նշում</Label>
             <Input value={note} onChange={(e) => setNote(e.target.value)} className="focus-steel" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground">Վճարման չեկ (ոչ պարտադիր)</Label>
+            <Input
+              type="file"
+              accept="application/pdf,image/jpeg,image/png,image/webp"
+              onChange={(e) => setReceipt(e.target.files?.[0] ?? null)}
+              className="focus-steel"
+            />
+            <p className="text-[10px] text-muted-foreground">PDF, JPG, PNG կամ WEBP · մինչև 10 ՄԲ</p>
           </div>
         </div>
         <DialogFooter>

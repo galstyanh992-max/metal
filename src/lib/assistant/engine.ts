@@ -161,7 +161,7 @@ export async function answerQuestion(question: string): Promise<AssistantReply> 
     const totalReserved = snapshots.reduce((s, i) => s + i.reserved, 0);
     const lowCount = snapshots.filter((i) => i.onHand <= i.product.minStock).length;
     return {
-      text: `Պահեստի ամփոփում՝\n• Ընդհանուր մնացորդ՝ ${fmt(totalOnHand)} միավոր\n• Պահված (reserved)՝ ${fmt(totalReserved)}\n• Ցածր մնացորդով ապրանքներ՝ ${lowCount}`,
+      text: `Պահեստի ամփոփում՝\n• Ընդհանուր մնացորդ՝ ${fmt(totalOnHand)} միավոր\n• Ամրագրված՝ ${fmt(totalReserved)}\n• Ցածր մնացորդով ապրանքներ՝ ${lowCount}`,
     };
   }
 

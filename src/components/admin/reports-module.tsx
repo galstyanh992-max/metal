@@ -82,7 +82,7 @@ export function ReportsModule() {
     <div className="space-y-6">
       <SectionHeader
         title="Հաշվետվություններ"
-        description="Վաճառքի, շահույթի և գումարման վերլուծություն"
+        description="Վաճառքի, շահույթի և եկամուտների վերլուծություն"
         action={
           <div className="flex items-center gap-2">
             <Button size="sm" variant="outline" className="gap-2" onClick={exportExcel} disabled={exporting || (!dailyData.length && !topProducts.length)}>

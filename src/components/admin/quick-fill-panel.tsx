@@ -74,7 +74,7 @@ export function QuickFillPanel({
       if (aQF !== bQF) return aQF - bQF;
       return (a.name ?? "").localeCompare(b.name ?? "");
     });
-    setRows(
+    queueMicrotask(() => setRows(
       sorted.map((p) => ({
         productId: p.id,
         name: p.name,
@@ -90,7 +90,7 @@ export function QuickFillPanel({
         isFavorite: !!p.isFavorite,
         stock: p.stock?.available ?? 0,
       }))
-    );
+    ));
   }, [data]);
 
   // Favorites-only filter state

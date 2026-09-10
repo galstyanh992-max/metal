@@ -2,40 +2,42 @@
 
 import { useSession } from "next-auth/react";
 import { useState, useEffect } from "react";
+import dynamic from "next/dynamic";
 import { signOut } from "next-auth/react";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard, Users, Package, Warehouse as WarehouseIcon,
-  Truck, FileText, Settings, LogOut, Menu, Search, Bell, Factory, Building2, BarChart3,
-  ChevronDown, Sparkles, Receipt, Crown, Calculator, Mail, MessageCircle, DoorOpen,
+  Truck, FileText, Settings, LogOut, Menu, Search, Bell, Factory, Building2, BarChart3, Activity,
+  ChevronDown, Receipt, Crown, Calculator, Mail, MessageCircle, DoorOpen,
   type LucideIcon,
 } from "lucide-react";
-import { AdminDashboard } from "@/components/admin/dashboard";
-import { ClientsOrdersModule } from "@/components/admin/clients-orders-module";
-import { ProductsModule } from "@/components/admin/products-module";
-import { InventoryModule } from "@/components/admin/inventory-module";
-import { OperatorDashboard } from "@/components/operator/dashboard";
-import { WarehouseDashboard } from "@/components/warehouse/dashboard";
-import { WarehousePicks } from "@/components/warehouse/picks";
-import { ProjectAssistant } from "@/components/assistant/project-assistant";
 import { AssistantCloud } from "@/components/assistant/assistant-cloud";
 import { CommandPalette } from "@/components/shell/command-palette";
 import { NotificationsBell } from "@/components/shell/notifications-bell";
-import { FinanceModule } from "@/components/admin/finance-module";
-import { ProcurementModule } from "@/components/admin/procurement-module";
-import { TaxModule } from "@/components/admin/tax-module";
-import { LoyaltyModule } from "@/components/admin/loyalty-module";
-import { DocumentsModule } from "@/components/admin/documents-module";
-import { CommsModule } from "@/components/admin/comms-module";
-import { SettingsModule } from "@/components/admin/settings-module";
-import { FormBuilderModule } from "@/components/forms/form-builder";
-import { SuppliersModule } from "@/components/admin/suppliers-module";
-import { ReportsModule } from "@/components/admin/reports-module";
 import { ErrorBoundary } from "@/components/shared/error-boundary";
+
+const moduleLoading = () => <div className="h-40 animate-pulse rounded-lg bg-muted/40" />;
+const AdminDashboard = dynamic(() => import("@/components/admin/dashboard").then((module) => module.AdminDashboard), { loading: moduleLoading });
+const ClientsOrdersModule = dynamic(() => import("@/components/admin/clients-orders-module").then((module) => module.ClientsOrdersModule), { loading: moduleLoading });
+const ProductsModule = dynamic(() => import("@/components/admin/products-module").then((module) => module.ProductsModule), { loading: moduleLoading });
+const InventoryModule = dynamic(() => import("@/components/admin/inventory-module").then((module) => module.InventoryModule), { loading: moduleLoading });
+const OperatorDashboard = dynamic(() => import("@/components/operator/dashboard").then((module) => module.OperatorDashboard), { loading: moduleLoading });
+const WarehouseDashboard = dynamic(() => import("@/components/warehouse/dashboard").then((module) => module.WarehouseDashboard), { loading: moduleLoading });
+const WarehousePicks = dynamic(() => import("@/components/warehouse/picks").then((module) => module.WarehousePicks), { loading: moduleLoading });
+const FinanceModule = dynamic(() => import("@/components/admin/finance-module").then((module) => module.FinanceModule), { loading: moduleLoading });
+const ProcurementModule = dynamic(() => import("@/components/admin/procurement-module").then((module) => module.ProcurementModule), { loading: moduleLoading });
+const TaxModule = dynamic(() => import("@/components/admin/tax-module").then((module) => module.TaxModule), { loading: moduleLoading });
+const LoyaltyModule = dynamic(() => import("@/components/admin/loyalty-module").then((module) => module.LoyaltyModule), { loading: moduleLoading });
+const DocumentsModule = dynamic(() => import("@/components/admin/documents-module").then((module) => module.DocumentsModule), { loading: moduleLoading });
+const CommsModule = dynamic(() => import("@/components/admin/comms-module").then((module) => module.CommsModule), { loading: moduleLoading });
+const SettingsModule = dynamic(() => import("@/components/admin/settings-module").then((module) => module.SettingsModule), { loading: moduleLoading });
+const FormBuilderModule = dynamic(() => import("@/components/forms/form-builder").then((module) => module.FormBuilderModule), { loading: moduleLoading });
+const SuppliersModule = dynamic(() => import("@/components/admin/suppliers-module").then((module) => module.SuppliersModule), { loading: moduleLoading });
+const ReportsModule = dynamic(() => import("@/components/admin/reports-module").then((module) => module.ReportsModule), { loading: moduleLoading });
 
 type NavItem = { key: string; label: string; icon: LucideIcon; module: string; roles: string[] };
 
@@ -53,9 +55,16 @@ const NAV: NavItem[] = [
   { key: "documents", label: "Փաստաթղթեր", icon: FileText, module: "documents", roles: ["ADMIN", "OPERATOR", "WAREHOUSE"] },
   { key: "reports", label: "Հաշվետվություններ", icon: BarChart3, module: "reports", roles: ["ADMIN"] },
   { key: "comms", label: "Հաղորդակցություն", icon: Mail, module: "comms", roles: ["ADMIN", "OPERATOR"] },
-  { key: "ai", label: "Նախագծի օգնական", icon: Sparkles, module: "ai", roles: ["ADMIN", "OPERATOR", "WAREHOUSE"] },
   { key: "forms", label: "Դինամիկ ձևեր", icon: FileText, module: "forms", roles: ["ADMIN"] },
+  { key: "activity", label: "Գործողությունների մատյան", icon: Activity, module: "activity", roles: ["ADMIN"] },
   { key: "settings", label: "Կարգավորումներ", icon: Settings, module: "settings", roles: ["ADMIN"] },
+];
+
+const NAV_GROUPS = [
+  { label: "Աշխատանք", keys: ["dashboard", "clients-orders", "products", "inventory", "picks"] },
+  { label: "Գնումներ և ֆինանսներ", keys: ["procurement", "suppliers", "finance", "loyalty", "tax"] },
+  { label: "Վերլուծություն և կապ", keys: ["documents", "reports", "comms"] },
+  { label: "Կարգավորումներ", keys: ["forms", "activity", "settings"] },
 ];
 
 export function WorkspaceShell() {
@@ -103,7 +112,6 @@ export function WorkspaceShell() {
     if (active === "clients-orders") return <ClientsOrdersModule role={role} />;
     if (active === "products") return <ProductsModule role={role} />;
     if (active === "inventory") return <ErrorBoundary><InventoryModule role={role} /></ErrorBoundary>;
-    if (active === "ai") return <ProjectAssistant />;
     if (active === "finance" && role === "ADMIN") return <FinanceModule role={role} />;
     if (active === "procurement" && role === "ADMIN") return <ProcurementModule />;
     if (active === "suppliers" && role === "ADMIN") return <SuppliersModule />;
@@ -113,7 +121,8 @@ export function WorkspaceShell() {
     if (active === "reports" && role === "ADMIN") return <ReportsModule />;
     if (active === "comms") return <CommsModule />;
     if (active === "forms" && role === "ADMIN") return <FormBuilderModule />;
-    if (active === "settings" && role === "ADMIN") return <SettingsModule />;
+    if (active === "activity" && role === "ADMIN") return <SettingsModule key="activity" initialTab="audit" />;
+    if (active === "settings" && role === "ADMIN") return <SettingsModule key="settings" />;
     return <ComingSoon label={items.find((i) => i.key === active)?.label ?? active} />;
   };
 
@@ -130,6 +139,9 @@ export function WorkspaceShell() {
           </Button>
         </SheetTrigger>
         <SheetContent side="left" className="w-60 p-0">
+          <SheetHeader className="sr-only">
+            <SheetTitle>Հիմնական ցանկ</SheetTitle>
+          </SheetHeader>
           <SidebarContent items={items} active={active} onSelect={(k) => { setActive(k); setMobileOpen(false); }} role={role} userName={session?.user?.name ?? ""} userEmail={session?.user?.email ?? ""} />
         </SheetContent>
       </Sheet>
@@ -141,7 +153,7 @@ export function WorkspaceShell() {
               {items.find((i) => i.key === active)?.label ?? "Վահանակ"}
             </h2>
             <Badge variant="outline" className="hidden sm:inline-flex text-[10px] uppercase tracking-wider rounded-md">
-              {role === "ADMIN" ? "Ադմին" : role === "OPERATOR" ? "Օպերատոր" : "Պահեստ"}
+              {role === "ADMIN" ? "Ադմինիստրատոր" : role === "OPERATOR" ? "Օպերատոր" : "Պահեստապետ"}
             </Badge>
           </div>
           <div className="flex items-center gap-2">
@@ -194,24 +206,33 @@ function SidebarContent({ items, active, onSelect, role, userName, userEmail }: 
           </div>
         </div>
       </div>
-      <nav className="flex-1 overflow-y-auto p-2 space-y-0.5">
-        {items.map((item) => {
-          const Icon = item.icon;
-          const isActive = active === item.key;
+      <nav className="flex-1 overflow-y-auto p-2 space-y-4">
+        {NAV_GROUPS.map((group) => {
+          const groupItems = items.filter((item) => group.keys.includes(item.key));
+          if (groupItems.length === 0) return null;
           return (
-            <button
-              key={item.key}
-              onClick={() => onSelect(item.key)}
-              className={cn(
-                "w-full flex items-center gap-2.5 px-3 py-2 text-sm transition-colors text-left rounded-lg",
-                isActive
-                  ? "bg-primary text-primary-foreground font-medium"
-                  : "text-sidebar-foreground hover:bg-sidebar-accent"
-              )}
-            >
-              <Icon className="size-4 shrink-0" />
-              <span className="truncate">{item.label}</span>
-            </button>
+            <div key={group.label} className="space-y-0.5">
+              <div className="px-3 pb-1 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">{group.label}</div>
+              {groupItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = active === item.key;
+                return (
+                  <button
+                    key={item.key}
+                    onClick={() => onSelect(item.key)}
+                    className={cn(
+                      "w-full flex items-center gap-2.5 px-3 py-2 text-sm transition-colors text-left rounded-lg",
+                      isActive
+                        ? "bg-primary text-primary-foreground font-medium"
+                        : "text-sidebar-foreground hover:bg-sidebar-accent"
+                    )}
+                  >
+                    <Icon className="size-4 shrink-0" />
+                    <span className="truncate">{item.label}</span>
+                  </button>
+                );
+              })}
+            </div>
           );
         })}
       </nav>

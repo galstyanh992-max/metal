@@ -80,7 +80,7 @@ export function ProductEditDialog({
   // Auto-select first unit when available and not set
   useEffect(() => {
     if (!unitId && unitsData?.units?.length > 0) {
-      setUnitId(unitsData.units[0].id);
+      queueMicrotask(() => setUnitId(unitsData.units[0].id));
     }
   }, [unitsData, unitId]);
 

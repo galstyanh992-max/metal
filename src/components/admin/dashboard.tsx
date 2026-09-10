@@ -1,15 +1,20 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import dynamic from "next/dynamic";
 import { KpiCard, SectionHeader, Money } from "@/components/shared/primitives";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { TrendingUp, AlertTriangle, Package, Users, ShoppingCart, Wallet, Activity } from "lucide-react";
-import { DashboardCharts } from "@/components/charts/dashboard-charts";
 import { formatArmenianDateShort } from "@/lib/i18n/date";
 import { ModuleFooter, MODULE_FOOTERS } from "@/components/shared/module-footer";
+
+const DashboardCharts = dynamic(
+  () => import("@/components/charts/dashboard-charts").then((module) => module.DashboardCharts),
+  { loading: () => <div className="h-64 animate-pulse border border-hairline bg-muted/30" /> },
+);
 
 async function fetchDashboard() {
   const res = await fetch("/api/dashboard");

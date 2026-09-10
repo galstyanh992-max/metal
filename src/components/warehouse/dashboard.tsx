@@ -37,7 +37,7 @@ export function WarehouseDashboard() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <KpiCard label="Սպասում են ընտրման" value={String(picks.length)} icon={Package} />
         <KpiCard label="Ընդհանուր մնացորդ" value={String(totalOnHand)} icon={Boxes} />
-        <KpiCard label="Պահված" value={String(totalReserved)} icon={Layers} />
+        <KpiCard label="Ամրագրված" value={String(totalReserved)} icon={Layers} />
         <KpiCard label="Ցածր մնացորդ" value={String(lowStockCount)} icon={AlertTriangle} />
       </div>
 

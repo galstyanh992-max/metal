@@ -2,8 +2,10 @@
 
 import { useSession } from "next-auth/react";
 import { useState } from "react";
-import { AuthScreen } from "@/components/auth/auth-screen";
-import { WorkspaceShell } from "@/components/shell/workspace-shell";
+import dynamic from "next/dynamic";
+
+const AuthScreen = dynamic(() => import("@/components/auth/auth-screen").then((module) => module.AuthScreen));
+const WorkspaceShell = dynamic(() => import("@/components/shell/workspace-shell").then((module) => module.WorkspaceShell));
 
 export default function Home() {
   const { data: session, status } = useSession();

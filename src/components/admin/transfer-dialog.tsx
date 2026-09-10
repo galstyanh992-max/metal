@@ -69,8 +69,8 @@ export function TransferDialog({
 
   const mutation = useMutation({
     mutationFn: async () => {
-      if (!fromBranchId || !toBranchId) throw new Error("Ընտրեք ֆիլիալները");
-      if (sameBranch) throw new Error("Հնարավոր չէ փոխանցել նույն ֆիլիալին");
+      if (!fromBranchId || !toBranchId) throw new Error("Ընտրեք մասնաճյուղերը");
+      if (sameBranch) throw new Error("Հնարավոր չէ փոխանցել նույն մասնաճյուղին");
       const items = Object.entries(quantities)
         .filter(([_, qty]) => qty > 0)
         .map(([productId, qty]) => ({ productId, qty }));
@@ -108,7 +108,7 @@ export function TransferDialog({
         <DialogHeader className="px-5 py-4 border-b border-hairline bg-card shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <ArrowRightLeft className="size-5 text-primary" />
-            Տեղափոխել ապրանքներ ֆիլիալների միջև
+            Տեղափոխել ապրանքներ մասնաճյուղերի միջև
           </DialogTitle>
         </DialogHeader>
 
@@ -116,7 +116,7 @@ export function TransferDialog({
           {/* Branch selectors */}
           <div className="grid grid-cols-[1fr_auto_1fr] gap-3 items-end">
             <div className="space-y-1.5">
-              <Label className="text-xs uppercase tracking-wider text-muted-foreground">Որ ֆիլիալից *</Label>
+              <Label className="text-xs uppercase tracking-wider text-muted-foreground">Որ մասնաճյուղից *</Label>
               <Select value={fromBranchId} onValueChange={(v) => { setFromBranchId(v); setQuantities({}); }}>
                 <SelectTrigger><SelectValue placeholder="Ընտրեք" /></SelectTrigger>
                 <SelectContent>
@@ -132,7 +132,7 @@ export function TransferDialog({
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs uppercase tracking-wider text-muted-foreground">Որ ֆիլիալ *</Label>
+              <Label className="text-xs uppercase tracking-wider text-muted-foreground">Որ մասնաճյուղ *</Label>
               <Select value={toBranchId} onValueChange={setToBranchId}>
                 <SelectTrigger><SelectValue placeholder="Ընտրեք" /></SelectTrigger>
                 <SelectContent>
@@ -147,7 +147,7 @@ export function TransferDialog({
           {sameBranch && (
             <div className="p-2 border border-status-red/30 bg-status-red/5 text-xs text-status-red flex items-center gap-2">
               <AlertTriangle className="size-4" />
-              Հնարավոր չէ փոխանցել նույն ֆիլիալին
+              Հնարավոր չէ փոխանցել նույն մասնաճյուղին
             </div>
           )}
 
@@ -221,7 +221,7 @@ export function TransferDialog({
 
           {fromBranchId && availableInBranch.length === 0 && (
             <div className="p-6 text-center text-sm text-muted-foreground">
-              {search ? "Որոնման արդյունքներ չկան" : "Ընտրված ֆիլիալում ապրանքներ չկան"}
+              {search ? "Որոնման արդյունքներ չկան" : "Ընտրված մասնաճյուղում ապրանքներ չկան"}
             </div>
           )}
 

@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Plus, ShoppingCart, Loader2, Search, Trash2, Zap, AlertTriangle, Percent } from "lucide-react";
+import { Plus, ShoppingCart, Loader2, Search, Trash2, Zap, AlertTriangle, Percent, X } from "lucide-react";
 import { useState, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -61,8 +61,10 @@ export function OrdersModule({ role }: { role: string }) {
   const [quickFillOpen, setQuickFillOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
 
   const orders = (data?.orders ?? []).filter((o: any) => {
+    if (statusFilter !== "all" && o.status !== statusFilter) return false;
     if (!search) return true;
     const q = search.toLowerCase();
     return o.number?.toLowerCase().includes(q) ||
@@ -70,6 +72,15 @@ export function OrdersModule({ role }: { role: string }) {
       o.client?.firstName?.toLowerCase().includes(q) ||
       o.client?.lastName?.toLowerCase().includes(q);
   });
+  const gridColumns = role === "ADMIN"
+    ? "grid-cols-[120px_minmax(180px,1fr)_110px_70px_120px_120px_100px]"
+    : role === "OPERATOR"
+      ? "grid-cols-[120px_minmax(180px,1fr)_110px_70px_120px_100px]"
+      : "grid-cols-[120px_minmax(180px,1fr)_110px_70px_100px]";
+  const statusCounts = (data?.orders ?? []).reduce((counts: Record<string, number>, order: any) => {
+    counts[order.status] = (counts[order.status] ?? 0) + 1;
+    return counts;
+  }, {});
 
   return (
     <div className="space-y-4">
@@ -82,17 +93,17 @@ export function OrdersModule({ role }: { role: string }) {
         {role !== "WAREHOUSE" && (
           <div className="flex items-center gap-2">
             <Button size="sm" variant="outline" className="gap-2" onClick={() => setQuickFillOpen(true)}>
-              <Zap className="size-4 text-primary" /> Պատվերի լրացում
+              <Zap className="size-4 text-primary" /> Արագ լրացում
             </Button>
             <Button size="sm" className="gap-2 bg-primary" onClick={() => setCreateOpen(true)}>
-              <Plus className="size-4" /> Նոր
+              <Plus className="size-4" /> Նոր պատվեր
             </Button>
           </div>
         )}
       </div>
 
       {/* Search */}
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
           <Input
@@ -102,12 +113,27 @@ export function OrdersModule({ role }: { role: string }) {
             className="pl-9 focus-steel"
           />
         </div>
+        <div className="flex items-center gap-1 overflow-x-auto">
+          <Button size="sm" variant={statusFilter === "all" ? "secondary" : "ghost"} className="h-8 text-xs" onClick={() => setStatusFilter("all")}>
+            Բոլորը ({(data?.orders ?? []).length})
+          </Button>
+          {Object.entries(statusCounts).map(([status, count]) => (
+            <Button key={status} size="sm" variant={statusFilter === status ? "secondary" : "ghost"} className="h-8 text-xs whitespace-nowrap" onClick={() => setStatusFilter(status)}>
+              {STATUS_LABELS[status] ?? status} ({count as number})
+            </Button>
+          ))}
+          {(search || statusFilter !== "all") && (
+            <Button size="sm" variant="ghost" className="h-8 text-xs gap-1" onClick={() => { setSearch(""); setStatusFilter("all"); }}>
+              <X className="size-3" /> Մաքրել
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Excel-like table */}
       <div className="border border-hairline overflow-x-auto bg-card">
         {/* Headers */}
-        <div className="grid grid-cols-[120px_minmax(180px,1fr)_110px_70px_120px_120px_100px] gap-0 border-b border-hairline bg-muted/30 min-w-[820px]">
+        <div className={`grid ${gridColumns} gap-0 border-b border-hairline bg-muted/30 min-w-[680px]`}>
           <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline">Համար</div>
           <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline">Հաճախորդ</div>
           <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-hairline">Կարգավիճակ</div>
@@ -121,7 +147,7 @@ export function OrdersModule({ role }: { role: string }) {
         {orders.map((o: any, idx: number) => (
           <div
             key={o.id}
-            className={`grid grid-cols-[120px_minmax(180px,1fr)_110px_70px_120px_120px_100px] gap-0 border-b border-hairline hover:bg-muted/30 cursor-pointer transition-colors min-w-[820px] ${idx % 2 === 1 ? "bg-muted/10" : ""}`}
+            className={`grid ${gridColumns} gap-0 border-b border-hairline hover:bg-muted/30 cursor-pointer transition-colors min-w-[680px] ${idx % 2 === 1 ? "bg-muted/10" : ""}`}
             onClick={() => setSelectedId(o.id)}
           >
             <div className="px-3 py-2.5 border-r border-hairline text-xs font-mono flex items-center">{o.number}</div>
@@ -147,7 +173,7 @@ export function OrdersModule({ role }: { role: string }) {
         {/* Empty */}
         {orders.length === 0 && !isLoading && (
           <div className="px-3 py-12 text-center text-sm text-muted-foreground">
-            {search ? "Որոնման արդյունքներ չկան" : "Պատվերներ չկան"}
+            {search || statusFilter !== "all" ? "Ընտրված պայմաններով պատվերներ չկան" : "Պատվերներ չկան։ Սեղմեք «Նոր պատվեր»՝ սկսելու համար։"}
           </div>
         )}
       </div>
@@ -214,17 +240,20 @@ export function CreateOrderDialog({ onClose, onCreated }: { onClose: () => void;
         </DialogHeader>
         <div className="space-y-4 py-2">
           <div className="space-y-1.5">
-            <Label className="text-xs uppercase tracking-wider text-muted-foreground">Հաճախորդ</Label>
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground">1. Հաճախորդ *</Label>
             <SearchableClientSelect
               clients={clientsData?.clients ?? []}
               value={clientId}
               onChange={setClientId}
               placeholder="Ընտրեք հաճախորդ · որոնում անունով կամ հեռախոսով"
             />
+            {(clientsData?.clients?.length ?? 0) === 0 && (
+              <p className="text-xs text-status-orange">Նախ ստեղծեք հաճախորդ «Հաճախորդներ և Պատվերներ» բաժնում։</p>
+            )}
           </div>
 
           <div className="space-y-3">
-            <Label className="text-xs uppercase tracking-wider text-muted-foreground">Ապրանքներ</Label>
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground">2. Ապրանքներ *</Label>
             {items.map((it, idx) => (
               <div key={idx} className="p-3 border border-hairline space-y-3">
                 <div className="flex items-center gap-2">
@@ -258,6 +287,7 @@ export function CreateOrderDialog({ onClose, onCreated }: { onClose: () => void;
           </div>
         </div>
         <DialogFooter>
+          <p className="mr-auto hidden sm:block text-xs text-muted-foreground">Պատվերից հետո PDF փաստաթղթերը կավելացվեն ավտոմատ։</p>
           <Button variant="outline" onClick={onClose}>Չեղարկել</Button>
           <Button onClick={submit} disabled={mutation.isPending} className="bg-primary gap-2">
             {mutation.isPending && <Loader2 className="size-4 animate-spin" />}

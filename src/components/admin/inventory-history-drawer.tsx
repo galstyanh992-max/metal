@@ -74,7 +74,7 @@ export function InventoryHistoryDrawer({ productId, open, onClose }: { productId
                 <div className="text-lg font-semibold tabular-nums">{state.onHand}</div>
               </div>
               <div className="bg-muted/30 border border-hairline p-2 text-center">
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Պահված</div>
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Ամրագրված</div>
                 <div className="text-lg font-semibold tabular-nums text-status-yellow">{state.reserved}</div>
               </div>
               <div className="bg-muted/30 border border-hairline p-2 text-center">

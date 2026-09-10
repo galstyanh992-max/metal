@@ -224,6 +224,9 @@ function TemplateEditorSheet({ templateId, onClose }: { templateId: string; onCl
     return (
       <Sheet open onOpenChange={(o) => !o && onClose()}>
         <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
+          <SheetHeader className="sr-only">
+            <SheetTitle>Ձևի խմբագրիչ</SheetTitle>
+          </SheetHeader>
           <div className="p-8 text-center text-muted-foreground text-sm">Բեռնվում է…</div>
         </SheetContent>
       </Sheet>
