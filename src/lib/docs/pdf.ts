@@ -170,11 +170,10 @@ export async function generateOrderPdf(orderId: string, type: DocumentType, role
   const titleHeight = textHeight(doc, documentTitle, 200, 16);
   doc.fontSize(16).font(FONT_BOLD).text(documentTitle, 350, DOCUMENT_VERTICAL_MARGIN, { align: "right", width: 200, lineGap: DOCUMENT_LINE_GAP });
   const numberY = DOCUMENT_VERTICAL_MARGIN + titleHeight + 3;
-  doc.fontSize(10).font(FONT_REG).text(order.number, 350, numberY, { align: "right", width: 200, lineGap: DOCUMENT_LINE_GAP });
-  const dateY = numberY + textHeight(doc, order.number, 200, 10) + 2;
-  doc.text(new Date(order.createdAt).toLocaleDateString("hy-AM"), 350, dateY, { align: "right", width: 200, lineGap: DOCUMENT_LINE_GAP });
+  const orderMeta = `${order.number} · ${new Date(order.createdAt).toLocaleDateString("hy-AM")}`;
+  doc.fontSize(10).font(FONT_REG).text(orderMeta, 350, numberY, { align: "right", width: 200, lineGap: DOCUMENT_LINE_GAP });
 
-  const dividerY = Math.max(DOCUMENT_VERTICAL_MARGIN + 55, dateY + textHeight(doc, new Date(order.createdAt).toLocaleDateString("hy-AM"), 200, 10) + 8);
+  const dividerY = Math.max(DOCUMENT_VERTICAL_MARGIN + 55, numberY + textHeight(doc, orderMeta, 200, 10) + 8);
   doc.moveTo(50, dividerY).lineTo(545, dividerY).strokeColor("#999").lineWidth(0.5).stroke();
 
   // Client info
@@ -182,11 +181,11 @@ export async function generateOrderPdf(orderId: string, type: DocumentType, role
   doc.fontSize(9).font(FONT_BOLD).fillColor("#666").text("ՀԱՃԱԽՈՐԴ", 50, clientY, { lineGap: DOCUMENT_LINE_GAP });
   clientY += textHeight(doc, "ՀԱՃԱԽՈՐԴ", 280) + 4;
   doc.fontSize(11).font(FONT_REG).fillColor("#000");
-  const clientName = order.client?.type === "COMPANY" ? order.client?.companyName : `${order.client?.firstName ?? ""} ${order.client?.lastName ?? ""}`;
-  doc.text(clientName ?? "", 50, clientY, { width: 280, lineGap: DOCUMENT_LINE_GAP });
-  clientY += textHeight(doc, clientName ?? "", 280, 11) + 3;
+  const clientName = [order.client?.firstName, order.client?.lastName].filter(Boolean).join(" ") || "—";
+  doc.text(clientName, 50, clientY, { width: 280, lineGap: DOCUMENT_LINE_GAP });
+  clientY += textHeight(doc, clientName, 280, 11) + 3;
   doc.fontSize(9).font(FONT_REG).fillColor("#666");
-  for (const value of [order.client?.phone, order.client?.email, order.client?.primaryAddress]) {
+  for (const value of [order.client?.phone, order.client?.primaryAddress]) {
     if (!value) continue;
     doc.text(value, 50, clientY, { width: 280, lineGap: DOCUMENT_LINE_GAP });
     clientY += textHeight(doc, value, 280) + 3;
@@ -339,14 +338,14 @@ export async function generateDebtStatementPdf(clientId: string): Promise<PdfGen
   doc.moveTo(50, DOCUMENT_VERTICAL_MARGIN + 45).lineTo(545, DOCUMENT_VERTICAL_MARGIN + 45).strokeColor("#999").lineWidth(0.5).stroke();
 
   // Client info
-  const clientName = client.type === "COMPANY" ? client.companyName : `${client.firstName} ${client.lastName}`;
+  const clientName = [client.firstName, client.lastName].filter(Boolean).join(" ") || "—";
   let clientY = DOCUMENT_VERTICAL_MARGIN + 60;
   doc.fontSize(9).font(FONT_BOLD).fillColor("#666").text("ՀԱՃԱԽՈՐԴ", 50, clientY, { lineGap: DOCUMENT_LINE_GAP });
   clientY += textHeight(doc, "ՀԱՃԱԽՈՐԴ", 280) + 4;
   doc.fontSize(12).font(FONT_REG).fillColor("#000").text(clientName ?? "—", 50, clientY, { width: 280, lineGap: DOCUMENT_LINE_GAP });
   clientY += textHeight(doc, clientName ?? "—", 280, 12) + 3;
   doc.fontSize(9).font(FONT_REG).fillColor("#666");
-  for (const value of [client.phone, client.email, client.type === "COMPANY" && client.taxId ? `ՀՎՀՀ: ${client.taxId}` : null]) {
+  for (const value of [client.phone, client.primaryAddress]) {
     if (!value) continue;
     doc.text(value, 50, clientY, { width: 280, lineGap: DOCUMENT_LINE_GAP });
     clientY += textHeight(doc, value, 280) + 3;
