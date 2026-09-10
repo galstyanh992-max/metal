@@ -139,7 +139,8 @@ export async function generateOrderPdf(orderId: string, type: DocumentType, role
 
   let y = tableTop + 25;
   order.items.forEach((item, idx) => {
-    const meterage = paramNum(item, "meterage");
+    const meterage = paramNum(item, "measurement") ?? paramNum(item, "meterage");
+    const measurementUnit = param(item, "measurementUnit") ?? item.product?.unit?.symbol ?? "";
     const color = param(item, "color") ?? item.product?.color ?? null;
 
     doc.fontSize(9).font(FONT_REG).fillColor("#000");
@@ -149,7 +150,7 @@ export async function generateOrderPdf(orderId: string, type: DocumentType, role
     // Մետր — length of one piece (or total meterage for meter-priced rows).
     // For piece/service items without a length, show "—".
     if (meterage != null) {
-      doc.text(meterage.toFixed(3), 310, y, { width: 50, align: "right" });
+      doc.text(`${meterage.toFixed(3)} ${measurementUnit}`, 310, y, { width: 50, align: "right" });
     } else {
       doc.text("—", 310, y, { width: 50, align: "right" });
     }

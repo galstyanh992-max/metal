@@ -130,6 +130,7 @@ export function ProductEditDialog({
 
   const units = unitsData?.units ?? [];
   const categories = categoriesData?.categories ?? [];
+  const selectedUnit = units.find((unit: any) => unit.id === unitId);
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
@@ -163,6 +164,11 @@ export function ProductEditDialog({
                   ))}
                 </SelectContent>
               </Select>
+              {selectedUnit && (
+                <p className="text-[11px] text-muted-foreground">
+                  Այս ապրանքը հաշվառվում է՝ <strong>{selectedUnit.name}</strong> ({selectedUnit.symbol})
+                </p>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs uppercase tracking-wider text-muted-foreground">Կատեգորիա</Label>
@@ -190,6 +196,7 @@ export function ProductEditDialog({
             <div className="space-y-1.5">
               <Label className="text-xs uppercase tracking-wider text-muted-foreground">Նվազագույն պաշար</Label>
               <Input type="number" min={0} value={minStock} onChange={(e) => setMinStock(e.target.value)} className="focus-steel tabular-nums" />
+              {selectedUnit && <p className="text-[11px] text-muted-foreground">Նվազագույն շեմը՝ {selectedUnit.symbol}</p>}
             </div>
           </div>
 

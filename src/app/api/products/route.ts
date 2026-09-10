@@ -1,32 +1,31 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { requireAction, stripForbiddenForWarehouse } from "@/lib/rbac";
+import { requireAction } from "@/lib/rbac";
 
 export async function GET() {
   try {
     const { role } = await requireAction("product.list");
-    const products = await db.product.findMany({
+    const [products, snapshots] = await Promise.all([
+      db.product.findMany({
       where: { active: true, archivedAt: null },
       include: { unit: true, category: true },
       orderBy: [
         { isFavorite: "desc" }, // նախ հիմնականները
         { name: "asc" },
       ],
-    });
+      }),
+      db.inventorySnapshot.findMany({
+        select: { productId: true, onHand: true, reserved: true },
+      }),
+    ]);
 
     // Bulk compute available stock (onHand - reserved) for all products
-    const movements = await db.inventoryMovement.findMany({
-      select: { productId: true, type: true, qty: true },
-    });
     const stockMap = new Map<string, { onHand: number; reserved: number }>();
-    for (const m of movements) {
-      if (!stockMap.has(m.productId)) stockMap.set(m.productId, { onHand: 0, reserved: 0 });
-      const st = stockMap.get(m.productId)!;
-      if (["RECEIVE", "RETURN"].includes(m.type)) st.onHand += m.qty;
-      else if (["ISSUE", "WRITE_OFF"].includes(m.type)) st.onHand -= m.qty;
-      else if (m.type === "ADJUSTMENT") st.onHand += m.qty;
-      else if (m.type === "RESERVE") st.reserved += m.qty;
-      else if (["RELEASE_RESERVATION", "ISSUE"].includes(m.type)) st.reserved -= m.qty;
+    for (const snapshot of snapshots) {
+      const st = stockMap.get(snapshot.productId) ?? { onHand: 0, reserved: 0 };
+      st.onHand += snapshot.onHand;
+      st.reserved += snapshot.reserved;
+      stockMap.set(snapshot.productId, st);
     }
 
     const withStock = products.map((p) => {

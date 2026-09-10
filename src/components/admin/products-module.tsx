@@ -6,8 +6,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Plus, Pencil, Trash2, Loader2, Package, Calculator, Star, FolderTree, FileSpreadsheet } from "lucide-react";
-import { useState } from "react";
+import { Search, X } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ProductDetailDrawer } from "./product-detail-drawer";
 import { ProductEditDialog } from "./product-edit-dialog";
 import { ProductCostCalculator } from "./product-cost-calculator";
@@ -35,12 +39,30 @@ export function ProductsModule({ role }: { role: string }) {
   const [editId, setEditId] = useState<string | null>(null);
   const [calcId, setCalcId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deleteIds, setDeleteIds] = useState<string[]>([]);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const setDeleteId = (_id: null) => setDeleteIds([]);
+  const [search, setSearch] = useState("");
+  const [categoryId, setCategoryId] = useState("all");
   const [categoryManagerOpen, setCategoryManagerOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
   const qc = useQueryClient();
 
   const products = data?.products ?? [];
+  const categories = useMemo(
+    () => Array.from(new Map(products.filter((p: any) => p.category?.id).map((p: any) => [p.category.id, p.category])).values()) as any[],
+    [products],
+  );
+  const filteredProducts = useMemo(() => {
+    const query = search.trim().toLocaleLowerCase();
+    return products.filter((product: any) => {
+      if (categoryId !== "all" && product.categoryId !== categoryId) return false;
+      if (!query) return true;
+      return [product.name, product.sku, product.barcode, product.color]
+        .filter(Boolean)
+        .some((value) => String(value).toLocaleLowerCase().includes(query));
+    });
+  }, [products, categoryId, search]);
 
   const exportExcel = () => {
     setExporting(true);
@@ -48,7 +70,7 @@ export function ProductsModule({ role }: { role: string }) {
       exportToExcel(
         `ապրանքներ-${new Date().toISOString().slice(0, 10)}.xlsx`,
         "Ապրանքներ",
-        products,
+        filteredProducts,
         [
           { header: "Անուն", width: 32, get: (p: any) => p.name },
           { header: "SKU", width: 16, get: (p: any) => p.sku },
@@ -67,18 +89,22 @@ export function ProductsModule({ role }: { role: string }) {
   };
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const res = await fetch(`/api/products/${id}`, { method: "DELETE" });
-      if (!res.ok) {
-        const e = await res.json();
-        throw new Error(e.error ?? "failed");
-      }
-      return res.json();
+    mutationFn: async (ids: string[]) => {
+      return Promise.all(ids.map(async (id) => {
+        const res = await fetch(`/api/products/${id}`, { method: "DELETE" });
+        if (!res.ok) {
+          const e = await res.json();
+          throw new Error(e.error ?? "failed");
+        }
+        return res.json();
+      }));
     },
-    onSuccess: (data) => {
+    onSuccess: (result) => {
+      const data = result[0];
       toast.success(data.hard ? "Ապրանքը ջնջված է" : "Ապրանքը արխիվացված է");
       qc.invalidateQueries({ queryKey: ["products"] });
-      setDeleteId(null);
+      setDeleteIds([]);
+      setSelectedIds([]);
     },
     onError: (e: any) => toast.error(e?.message ?? "Սխալ"),
   });
@@ -100,15 +126,42 @@ export function ProductsModule({ role }: { role: string }) {
     onError: (e: any) => toast.error(e?.message ?? "Սխալ"),
   });
 
-  const productToDelete = products.find((p: any) => p.id === deleteId);
+  const selectedProductIds = new Set(selectedIds);
+  const allSelected = filteredProducts.length > 0 && filteredProducts.every((p: any) => selectedProductIds.has(p.id));
+  const productsToDelete = products.filter((p: any) => deleteIds.includes(p.id));
+  const toggleAll = (checked: boolean) => setSelectedIds(checked ? filteredProducts.map((p: any) => p.id) : []);
+  const toggleProduct = (id: string, checked: boolean) => {
+    setSelectedIds((current) => checked ? [...new Set([...current, id])] : current.filter((item) => item !== id));
+  };
 
   return (
     <div className="space-y-6">
       <SectionHeader
         title="Ապրանքներ"
-        description="Կատալոգ և պաշարներ"
+        description="Ապրանքների կատալոգ, գներ և կարգավորումներ"
         action={
           <div className="flex items-center gap-2">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Որոնել անունով կամ SKU-ով…"
+                className="h-8 w-52 pl-8 text-xs"
+              />
+            </div>
+            <Select value={categoryId} onValueChange={setCategoryId}>
+              <SelectTrigger className="h-8 w-40 text-xs"><SelectValue placeholder="Կատեգորիա" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Բոլոր կատեգորիաները</SelectItem>
+                {categories.map((category: any) => <SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            {(search || categoryId !== "all") && (
+              <Button size="sm" variant="ghost" className="h-8 px-2" onClick={() => { setSearch(""); setCategoryId("all"); }} title="Մաքրել ֆիլտրերը">
+                <X className="size-4" />
+              </Button>
+            )}
             <Button
               size="sm"
               variant="outline"
@@ -121,6 +174,15 @@ export function ProductsModule({ role }: { role: string }) {
             </Button>
             {role === "ADMIN" && (
               <>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  className="gap-2"
+                  onClick={() => setDeleteIds(selectedIds)}
+                  disabled={selectedIds.length === 0}
+                >
+                  <Trash2 className="size-4" /> Ջնջել ընտրվածը ({selectedIds.length})
+                </Button>
                 <Button
                   size="sm"
                   variant="outline"
@@ -144,6 +206,15 @@ export function ProductsModule({ role }: { role: string }) {
           <Table>
             <TableHeader>
               <TableRow className="border-hairline">
+                {role === "ADMIN" && (
+                  <TableHead className="w-10 px-3">
+                    <Checkbox
+                      aria-label="Ընտրել բոլոր ապրանքները"
+                      checked={allSelected}
+                      onCheckedChange={(checked) => toggleAll(checked === true)}
+                    />
+                  </TableHead>
+                )}
                 <TableHead className="text-xs uppercase tracking-wider w-8">★</TableHead>
                 <TableHead className="text-xs uppercase tracking-wider">Ապրանք</TableHead>
                 <TableHead className="text-xs uppercase tracking-wider">SKU</TableHead>
@@ -156,8 +227,17 @@ export function ProductsModule({ role }: { role: string }) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {products.map((p: any) => (
+              {filteredProducts.map((p: any) => (
                 <TableRow key={p.id} className="border-hairline hover:bg-muted/40 cursor-pointer" onClick={() => setDetailId(p.id)}>
+                  {role === "ADMIN" && (
+                    <TableCell className="px-3" onClick={(e) => e.stopPropagation()}>
+                      <Checkbox
+                        aria-label={`Ընտրել ${p.name}`}
+                        checked={selectedProductIds.has(p.id)}
+                        onCheckedChange={(checked) => toggleProduct(p.id, checked === true)}
+                      />
+                    </TableCell>
+                  )}
                   <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
                     {role === "ADMIN" ? (
                       <button
@@ -208,7 +288,7 @@ export function ProductsModule({ role }: { role: string }) {
                           variant="ghost"
                           size="sm"
                           className="h-7 w-7 p-0 text-destructive hover:text-destructive"
-                          onClick={() => setDeleteId(p.id)}
+                          onClick={() => setDeleteIds([p.id])}
                           title="Ջնջել"
                         >
                           <Trash2 className="size-3.5" />
@@ -218,7 +298,7 @@ export function ProductsModule({ role }: { role: string }) {
                   )}
                 </TableRow>
               ))}
-              {(!data?.products || data.products.length === 0) && !isLoading && (
+              {filteredProducts.length === 0 && !isLoading && (
                 <TableRow><TableCell colSpan={role === "ADMIN" ? 9 : 6}><EmptyState title="Ապրանքներ չկան" /></TableCell></TableRow>
               )}
             </TableBody>
@@ -259,7 +339,7 @@ export function ProductsModule({ role }: { role: string }) {
       )}
 
       {/* Delete confirmation */}
-      <Dialog open={!!deleteId} onOpenChange={(o) => !o && setDeleteId(null)}>
+      <Dialog open={deleteIds.length > 0} onOpenChange={(o) => !o && setDeleteIds([])}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-status-red">
@@ -269,8 +349,14 @@ export function ProductsModule({ role }: { role: string }) {
           <div className="py-3 text-sm space-y-2">
             <p>Դուք պատրաստվում եք ջնջել՝</p>
             <div className="p-3 border border-hairline bg-muted/30">
-              <div className="font-medium">{productToDelete?.name}</div>
-              <div className="text-xs text-muted-foreground font-mono">{productToDelete?.sku}</div>
+              <div className="font-medium">
+                {productsToDelete.length === 1
+                  ? productsToDelete[0]?.name
+                  : `Ընտրված ապրանքներ՝ ${productsToDelete.length}`}
+              </div>
+              {productsToDelete.length === 1 && (
+                <div className="text-xs text-muted-foreground font-mono">{productsToDelete[0]?.sku}</div>
+              )}
             </div>
             <p className="text-xs text-muted-foreground">
               Եթե ապրանքը երբևէ օգտագործվել է պատվերներում կամ պահեստում, այն կարխիվացվի (կդառնա պասիվ)։ Հակառակ դեպքում այն կջնջվի վերջնականապես։
@@ -280,7 +366,7 @@ export function ProductsModule({ role }: { role: string }) {
             <Button variant="outline" onClick={() => setDeleteId(null)}>Չեղարկել</Button>
             <Button
               variant="destructive"
-              onClick={() => deleteId && deleteMutation.mutate(deleteId)}
+              onClick={() => deleteIds.length > 0 && deleteMutation.mutate(deleteIds)}
               disabled={deleteMutation.isPending}
               className="gap-2"
             >

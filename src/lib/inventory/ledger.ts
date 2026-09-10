@@ -8,7 +8,7 @@
  * Movements are IMMUTABLE. Corrections via new ADJUSTMENT movement.
  */
 import { db } from "@/lib/db";
-import type { MovementType } from "@prisma/client";
+import { Prisma, type MovementType } from "@prisma/client";
 
 const ADDS_TO_ON_HAND: MovementType[] = ["RECEIVE", "RETURN"];
 const SUBS_FROM_ON_HAND: MovementType[] = ["ISSUE", "WRITE_OFF"];
@@ -23,9 +23,11 @@ export interface InventoryState {
   available: number;
 }
 
-export async function computeInventoryState(productId: string): Promise<InventoryState> {
-  const movements = await db.inventoryMovement.findMany({
-    where: { productId },
+type LedgerClient = Prisma.TransactionClient | typeof db;
+
+async function getInventoryState(client: LedgerClient, productId: string, branchId?: string): Promise<InventoryState> {
+  const movements = await client.inventoryMovement.findMany({
+    where: { productId, branchId: branchId ?? null },
     select: { type: true, qty: true },
   });
 
@@ -47,8 +49,12 @@ export async function computeInventoryState(productId: string): Promise<Inventor
   };
 }
 
+export async function computeInventoryState(productId: string, branchId?: string): Promise<InventoryState> {
+  return getInventoryState(db, productId, branchId);
+}
+
 export async function refreshSnapshot(productId: string, branchId?: string): Promise<void> {
-  const state = await computeInventoryState(productId);
+  const state = await computeInventoryState(productId, branchId);
   // Find existing snapshot for this (productId, branchId) combo
   const existing = await db.inventorySnapshot.findFirst({
     where: { productId, branchId: branchId ?? null },
@@ -82,7 +88,7 @@ export async function recordMovement(params: {
   if (qty <= 0) return { ok: false, error: "qty must be positive" };
 
   return await db.$transaction(async (tx) => {
-    const state = await computeInventoryState(productId);
+    const state = await getInventoryState(tx, productId, branchId);
 
     if (type === "RESERVE") {
       if (qty > state.available) {
@@ -120,7 +126,7 @@ export async function recordMovement(params: {
     });
 
     // refresh snapshot (find or create by productId + branchId)
-    const newState = await computeInventoryState(productId);
+    const newState = await getInventoryState(tx, productId, branchId);
     const existingSnap = await tx.inventorySnapshot.findFirst({
       where: { productId, branchId: branchId ?? null },
     });

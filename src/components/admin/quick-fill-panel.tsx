@@ -84,7 +84,7 @@ export function QuickFillPanel({
         qty: 0,
         meterage: 0,
         unitPrice: p.salePrice ?? 0,
-        useMeterage: p.unit?.code === "m" || p.unit?.code === "m2",
+        useMeterage: ["m", "m2", "kg"].includes(p.unit?.code),
         selected: false,
         salePriceOriginal: p.salePrice ?? 0,
         isFavorite: !!p.isFavorite,
@@ -329,32 +329,42 @@ export function QuickFillPanel({
                   </div>
                   {/* Qty — capped at available stock */}
                   <div className="px-1.5 py-1.5 border-r border-hairline">
-                    <Input
-                      type="number"
-                      min={0}
-                      max={outOfStock ? 0 : r.stock}
-                      value={r.qty || ""}
-                      disabled={outOfStock}
-                      onChange={(e) => {
-                        const v = Number(e.target.value) || 0;
-                        const capped = outOfStock ? 0 : Math.min(v, r.stock);
-                        updateRow(absIdx, { qty: capped, selected: r.selected || !!e.target.value });
-                      }}
-                      placeholder="0"
-                      className={`h-7 text-xs text-right tabular-nums px-1.5 focus-steel ${overStock ? "border-status-red" : ""}`}
-                    />
+                    {r.useMeterage ? (
+                      <div className="h-7 flex items-center justify-end px-1 text-xs text-muted-foreground">—</div>
+                    ) : (
+                      <Input
+                        type="number"
+                        min={0}
+                        step="1"
+                        max={outOfStock ? 0 : r.stock}
+                        value={r.qty || ""}
+                        disabled={outOfStock}
+                        onChange={(e) => {
+                          const v = Number(e.target.value) || 0;
+                          const capped = outOfStock ? 0 : Math.min(v, r.stock);
+                          updateRow(absIdx, { qty: capped, selected: r.selected || !!e.target.value });
+                        }}
+                        placeholder="0"
+                        className={`h-7 text-xs text-right tabular-nums px-1.5 focus-steel ${overStock ? "border-status-red" : ""}`}
+                      />
+                    )}
                   </div>
                   {/* Meterage — always enabled, even for piece items */}
                   <div className="px-1.5 py-1.5 border-r border-hairline">
-                    <Input
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      value={r.meterage || ""}
-                      onChange={(e) => updateRow(absIdx, { meterage: Number(e.target.value) || 0, selected: r.selected || !!e.target.value })}
-                      placeholder="0.00"
-                      className={`h-7 text-xs text-right tabular-nums px-1.5 focus-steel ${!r.useMeterage ? "bg-muted/20" : ""}`}
-                    />
+                    {r.useMeterage ? (
+                      <Input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        value={r.meterage || ""}
+                        disabled={outOfStock}
+                        onChange={(e) => updateRow(absIdx, { meterage: Number(e.target.value) || 0, selected: r.selected || !!e.target.value })}
+                        placeholder={r.unitSymbol}
+                        className="h-7 text-xs text-right tabular-nums px-1.5 focus-steel"
+                      />
+                    ) : (
+                      <div className="h-7 flex items-center justify-end px-1 text-xs text-muted-foreground">—</div>
+                    )}
                   </div>
                   {/* Price */}
                   <div className="px-1.5 py-1.5 relative">
@@ -428,13 +438,13 @@ export function quickFillRowsToOrderItems(rows: QuickFillRow[]) {
     .map((r) => {
       // If meterage filled, use it as primary qty (allows decimal); else integer qty
       const useMeterage = r.meterage > 0;
-      const qty = useMeterage ? Math.max(1, Math.round(r.meterage)) : r.qty;
+      const qty = useMeterage ? Math.max(1, Math.ceil(r.meterage)) : r.qty;
       return {
         productId: r.productId,
         qty,
         parameters: {
           quantity: String(useMeterage ? r.meterage : r.qty),
-          ...(useMeterage ? { meterage: String(r.meterage) } : {}),
+          ...(useMeterage ? { meterage: String(r.meterage), measurement: String(r.meterage), measurementUnit: r.unitSymbol } : {}),
           unitPrice: String(r.unitPrice),
         },
         unitPrice: r.unitPrice,

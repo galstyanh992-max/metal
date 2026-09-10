@@ -10,8 +10,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Truck, Plus, Loader2, Package, CheckCircle2, Download } from "lucide-react";
-import { useState } from "react";
+import { Truck, Plus, Loader2, Package, CheckCircle2, Download, Search, X } from "lucide-react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
 async function fetchPOs() {
@@ -49,6 +49,8 @@ export function ProcurementModule() {
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({ queryKey: ["procurement"], queryFn: fetchPOs });
   const [createOpen, setCreateOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("all");
 
   const receiveMutation = useMutation({
     mutationFn: async (poId: string) => {
@@ -66,6 +68,14 @@ export function ProcurementModule() {
   });
 
   const pos = data?.purchaseOrders ?? [];
+  const filteredPOs = useMemo(() => {
+    const query = search.trim().toLocaleLowerCase();
+    return pos.filter((po: any) => {
+      if (status !== "all" && po.status !== status) return false;
+      if (!query) return true;
+      return [po.number, po.supplier?.name].filter(Boolean).some((value) => String(value).toLocaleLowerCase().includes(query));
+    });
+  }, [pos, search, status]);
 
   return (
     <div className="space-y-6">
@@ -74,6 +84,21 @@ export function ProcurementModule() {
         description="Գնման պատվերներ և մատակարարներ"
         action={<Button size="sm" className="gap-2 bg-primary" onClick={() => setCreateOpen(true)}><Plus className="size-4" /> Նոր PO</Button>}
       />
+
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Որոնել համարով կամ մատակարարով…" className="h-8 w-60 pl-8 text-xs" />
+        </div>
+        <Select value={status} onValueChange={setStatus}>
+          <SelectTrigger className="h-8 w-44 text-xs"><SelectValue placeholder="Կարգավիճակ" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Բոլոր կարգավիճակները</SelectItem>
+            {Object.entries(STATUS_LABELS).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        {(search || status !== "all") && <Button size="sm" variant="ghost" className="h-8 px-2" onClick={() => { setSearch(""); setStatus("all"); }} title="Մաքրել ֆիլտրերը"><X className="size-4" /></Button>}
+      </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <KpiCard label="Ընդհանուր PO" value={String(pos.length)} icon={Truck} />
@@ -96,7 +121,7 @@ export function ProcurementModule() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {pos.map((p: any) => (
+              {filteredPOs.map((p: any) => (
                 <TableRow key={p.id} className="border-hairline hover:bg-muted/40">
                   <TableCell className="text-xs font-mono">{p.number}</TableCell>
                   <TableCell className="text-sm font-medium">{p.supplier?.name ?? "—"}</TableCell>
@@ -127,7 +152,7 @@ export function ProcurementModule() {
                   </TableCell>
                 </TableRow>
               ))}
-              {pos.length === 0 && !isLoading && (
+              {filteredPOs.length === 0 && !isLoading && (
                 <TableRow><TableCell colSpan={6}><EmptyState title="Գնման պատվերներ չկան" /></TableCell></TableRow>
               )}
             </TableBody>

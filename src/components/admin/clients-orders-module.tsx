@@ -3,6 +3,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { KpiCard, SectionHeader } from "@/components/shared/primitives";
 import {
@@ -72,6 +73,7 @@ export function ClientsOrdersModule({ role }: { role: string }) {
 
   const [tab, setTab] = useState<"clients" | "accept-order">("clients");
   const [search, setSearch] = useState("");
+  const [orderStatus, setOrderStatus] = useState("all");
   const [debtorsOnly, setDebtorsOnly] = useState(false);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
@@ -94,9 +96,11 @@ export function ClientsOrdersModule({ role }: { role: string }) {
 
   // Orders for selected client (or all)
   const visibleOrders = useMemo(() => {
-    if (selectedClientId) return orders.filter((o) => o.client?.id === selectedClientId);
-    return orders;
-  }, [orders, selectedClientId]);
+    return orders.filter((order) => {
+      if (selectedClientId && order.client?.id !== selectedClientId) return false;
+      return orderStatus === "all" || order.status === orderStatus;
+    });
+  }, [orders, selectedClientId, orderStatus]);
 
   const selectedClient = clients.find((c) => c.id === selectedClientId) ?? null;
 
@@ -287,6 +291,13 @@ export function ClientsOrdersModule({ role }: { role: string }) {
               <Badge variant="outline" className="text-[10px] border-hairline px-1.5 py-0.5">{visibleOrders.length}</Badge>
             </div>
             <div className="flex items-center gap-2 shrink-0">
+              <Select value={orderStatus} onValueChange={setOrderStatus}>
+                <SelectTrigger className="h-7 w-36 text-xs"><SelectValue placeholder="Կարգավիճակ" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Բոլոր կարգավիճակները</SelectItem>
+                  {Object.entries(ORDER_STATUS_LABELS).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}
+                </SelectContent>
+              </Select>
               <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" onClick={exportOrders} disabled={exporting === "orders" || visibleOrders.length === 0}>
                 {exporting === "orders" ? <Loader2 className="size-3.5 animate-spin" /> : <FileSpreadsheet className="size-3.5 text-status-green" />}
                 Excel

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/rbac";
+import { computeInventoryState, refreshSnapshot } from "@/lib/inventory/ledger";
 
 /**
  * GET /api/inventory/transfer — list all transfers
@@ -86,18 +87,7 @@ export async function POST(req: Request) {
         stockErrors.push(`Ապրանքը չի գտնվել`);
         continue;
       }
-      // Compute available stock in fromBranch
-      const movements = await db.inventoryMovement.findMany({
-        where: { productId: it.productId, branchId: fromBranchId },
-        select: { type: true, qty: true },
-      });
-      let onHand = 0;
-      for (const m of movements) {
-        if (["RECEIVE", "RETURN"].includes(m.type)) onHand += m.qty;
-        else if (["ISSUE", "WRITE_OFF"].includes(m.type)) onHand -= m.qty;
-        else if (m.type === "ADJUSTMENT") onHand += m.qty;
-      }
-      onHand = Math.max(0, onHand);
+      const { onHand } = await computeInventoryState(it.productId, fromBranchId);
       if (onHand < it.qty) {
         stockErrors.push(`«${product.name}» (${product.sku}) — մատչելի է ${onHand} հատ, պահանջվում է ${it.qty}`);
       }
@@ -176,6 +166,10 @@ export async function POST(req: Request) {
             note: `Տեղափոխություն ${number} ← ${fromBranch.name}`,
           },
         });
+        await Promise.all([
+          refreshSnapshot(it.productId, fromBranchId),
+          refreshSnapshot(it.productId, toBranchId),
+        ]);
       }
     }
 

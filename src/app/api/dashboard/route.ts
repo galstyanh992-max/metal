@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/rbac";
-import { computeInventoryState } from "@/lib/inventory/ledger";
 
 export async function GET() {
   try {
@@ -13,7 +12,7 @@ export async function GET() {
     startWeek.setDate(startWeek.getDate() - 7);
     const startMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    const [ordersToday, ordersWeek, ordersMonth, totalOrders, totalClients, lowStockProducts, overdueOrders, movements] = await Promise.all([
+    const [ordersToday, ordersWeek, ordersMonth, totalOrders, totalClients, lowStockProducts, overdueOrders, movements, snapshots] = await Promise.all([
       db.order.count({ where: { createdAt: { gte: startToday } } }),
       db.order.count({ where: { createdAt: { gte: startWeek } } }),
       db.order.count({ where: { createdAt: { gte: startMonth } } }),
@@ -22,6 +21,7 @@ export async function GET() {
       db.product.findMany({ where: { active: true }, select: { id: true, name: true, sku: true, minStock: true } }),
       db.order.count({ where: { dueDate: { lt: now }, outstandingAmount: { gt: 0 }, status: { not: "CANCELLED" } } }),
       db.inventoryMovement.count(),
+      db.inventorySnapshot.findMany({ select: { productId: true, onHand: true, reserved: true } }),
     ]);
 
     // Sales sums (admin only sees money)
@@ -45,28 +45,23 @@ export async function GET() {
     }
 
     // Low stock detection — OPTIMIZED: bulk fetch movements instead of N+1
-    const lowStockMovements = await db.inventoryMovement.findMany({
-      select: { productId: true, type: true, qty: true },
-    });
-    // Compute onHand per product in memory
-    const stockMap = new Map<string, number>();
-    for (const m of lowStockMovements) {
-      if (!stockMap.has(m.productId)) stockMap.set(m.productId, 0);
-      const cur = stockMap.get(m.productId)!;
-      if (["RECEIVE", "RETURN"].includes(m.type)) stockMap.set(m.productId, cur + m.qty);
-      else if (["ISSUE", "WRITE_OFF"].includes(m.type)) stockMap.set(m.productId, cur - m.qty);
-      else if (m.type === "ADJUSTMENT") stockMap.set(m.productId, cur + m.qty);
+    const stockMap = new Map<string, { onHand: number; reserved: number }>();
+    for (const snapshot of snapshots) {
+      const state = stockMap.get(snapshot.productId) ?? { onHand: 0, reserved: 0 };
+      state.onHand += snapshot.onHand;
+      state.reserved += snapshot.reserved;
+      stockMap.set(snapshot.productId, state);
     }
     const lowStock = lowStockProducts
       .filter((p) => {
-        const onHand = Math.max(0, stockMap.get(p.id) ?? 0);
-        return onHand < p.minStock;
+        const state = stockMap.get(p.id) ?? { onHand: 0, reserved: 0 };
+        return Math.max(0, state.onHand - state.reserved) < p.minStock;
       })
       .map((p) => ({
         ...p,
-        onHand: Math.max(0, stockMap.get(p.id) ?? 0),
-        reserved: 0,
-        available: Math.max(0, stockMap.get(p.id) ?? 0),
+        onHand: Math.max(0, stockMap.get(p.id)?.onHand ?? 0),
+        reserved: Math.max(0, stockMap.get(p.id)?.reserved ?? 0),
+        available: Math.max(0, (stockMap.get(p.id)?.onHand ?? 0) - (stockMap.get(p.id)?.reserved ?? 0)),
       }));
 
     // Role-specific dashboard payload

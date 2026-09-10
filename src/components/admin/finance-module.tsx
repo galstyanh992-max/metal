@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Wallet, TrendingUp, AlertTriangle, Plus, Loader2, Receipt, Users } from "lucide-react";
+import { Wallet, TrendingUp, AlertTriangle, Plus, Loader2, Receipt, Users, Search, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { DebtsModule } from "@/components/admin/debts-module";
@@ -38,10 +38,26 @@ export function FinanceModule({ role }: { role: string }) {
   const { data, isLoading } = useQuery({ queryKey: ["payments"], queryFn: fetchPayments });
   const { data: ordersData } = useQuery({ queryKey: ["orders"], queryFn: fetchOrders });
   const [payForOrder, setPayForOrder] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [method, setMethod] = useState("all");
 
   const payments = data?.payments ?? [];
   const totalCollected = payments.reduce((s: number, p: any) => s + p.amount, 0);
   const unpaidOrders = (ordersData?.orders ?? []).filter((o: any) => o.outstandingAmount > 0);
+  const paymentSearch = search.trim().toLocaleLowerCase();
+  const filteredPayments = payments.filter((payment: any) => {
+    if (method !== "all" && payment.method !== method) return false;
+    if (!paymentSearch) return true;
+    return [payment.order?.number, payment.order?.client?.firstName, payment.order?.client?.lastName, payment.order?.client?.companyName]
+      .filter(Boolean)
+      .some((value) => String(value).toLocaleLowerCase().includes(paymentSearch));
+  });
+  const filteredUnpaidOrders = unpaidOrders.filter((order: any) => {
+    if (!paymentSearch) return true;
+    return [order.number, order.client?.firstName, order.client?.lastName, order.client?.companyName]
+      .filter(Boolean)
+      .some((value) => String(value).toLocaleLowerCase().includes(paymentSearch));
+  });
 
   return (
     <div className="space-y-6">
@@ -54,6 +70,20 @@ export function FinanceModule({ role }: { role: string }) {
         </TabsList>
 
         <TabsContent value="payments" className="space-y-6 mt-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Որոնել պատվերի կամ հաճախորդի տվյալներով…" className="h-8 w-72 pl-8 text-xs" />
+        </div>
+        <Select value={method} onValueChange={setMethod}>
+          <SelectTrigger className="h-8 w-44 text-xs"><SelectValue placeholder="Վճարման եղանակ" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Բոլոր եղանակները</SelectItem>
+            {Object.entries(METHOD_LABELS).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        {(search || method !== "all") && <Button size="sm" variant="ghost" className="h-8 px-2" onClick={() => { setSearch(""); setMethod("all"); }} title="Մաքրել ֆիլտրերը"><X className="size-4" /></Button>}
+      </div>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <KpiCard label="Ընդհանուր վճարումներ" value={String(payments.length)} icon={Receipt} />
         <KpiCard label="Ընդհանուր գանձում" value={fmt(totalCollected)} icon={Wallet} />
@@ -66,7 +96,7 @@ export function FinanceModule({ role }: { role: string }) {
           <CardContent className="p-0">
             <div className="p-4 border-b border-hairline text-sm font-semibold flex items-center justify-between">
               <span>Չվճարված պատվերներ</span>
-              <Badge variant="outline" className="text-[10px]">{unpaidOrders.length}</Badge>
+              <Badge variant="outline" className="text-[10px]">{filteredUnpaidOrders.length}</Badge>
             </div>
             <Table>
               <TableHeader>
@@ -77,7 +107,7 @@ export function FinanceModule({ role }: { role: string }) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {unpaidOrders.slice(0, 8).map((o: any) => (
+                {filteredUnpaidOrders.slice(0, 8).map((o: any) => (
                   <TableRow key={o.id} className="border-hairline">
                     <TableCell className="text-xs font-mono">{o.number}</TableCell>
                     <TableCell className="text-right tabular-nums text-status-red font-medium">{fmt(o.outstandingAmount)}</TableCell>
@@ -88,7 +118,7 @@ export function FinanceModule({ role }: { role: string }) {
                     </TableCell>
                   </TableRow>
                 ))}
-                {unpaidOrders.length === 0 && !isLoading && (
+                {filteredUnpaidOrders.length === 0 && !isLoading && (
                   <TableRow><TableCell colSpan={3}><EmptyState title="Չվճարված պատվերներ չկան" /></TableCell></TableRow>
                 )}
               </TableBody>
@@ -109,7 +139,7 @@ export function FinanceModule({ role }: { role: string }) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {payments.slice(0, 8).map((p: any) => (
+                {filteredPayments.slice(0, 8).map((p: any) => (
                   <TableRow key={p.id} className="border-hairline">
                     <TableCell className="text-xs font-mono">{p.order?.number ?? "—"}</TableCell>
                     <TableCell><Badge variant="outline" className="text-[10px]">{METHOD_LABELS[p.method] ?? p.method}</Badge></TableCell>
@@ -117,7 +147,7 @@ export function FinanceModule({ role }: { role: string }) {
                     <TableCell className="text-xs text-muted-foreground">{new Date(p.paidAt).toLocaleDateString("hy-AM")}</TableCell>
                   </TableRow>
                 ))}
-                {payments.length === 0 && !isLoading && (
+                {filteredPayments.length === 0 && !isLoading && (
                   <TableRow><TableCell colSpan={4}><EmptyState title="Վճարումներ չկան" /></TableCell></TableRow>
                 )}
               </TableBody>

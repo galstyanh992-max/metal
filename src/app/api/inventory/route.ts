@@ -15,7 +15,7 @@ export async function GET(req: Request) {
     const filterBranchId = searchParams.get("branchId");
 
     // Single parallel fetch — only 3 queries total
-    const [products, branches, allMovements] = await Promise.all([
+    const [products, branches, snapshots] = await Promise.all([
       db.product.findMany({
         where: { active: true },
         select: {
@@ -37,9 +37,9 @@ export async function GET(req: Request) {
         select: { id: true, name: true, code: true },
       }),
       // Bulk fetch ALL movements in one query (instead of 104 separate queries)
-      db.inventoryMovement.findMany({
+      db.inventorySnapshot.findMany({
         where: filterBranchId ? { branchId: filterBranchId } : undefined,
-        select: { productId: true, type: true, qty: true, branchId: true },
+        select: { productId: true, onHand: true, reserved: true, branchId: true },
       }),
     ]);
 
@@ -50,9 +50,9 @@ export async function GET(req: Request) {
     // Structure: Map<productId, Map<branchId, { onHand, reserved }>>
     const inventoryMap = new Map<string, Map<string, { onHand: number; reserved: number }>>();
 
-    for (const m of allMovements) {
-      const pid = m.productId;
-      const bid = m.branchId ?? "default";
+    for (const snapshot of snapshots) {
+      const pid = snapshot.productId;
+      const bid = snapshot.branchId ?? "default";
 
       if (!inventoryMap.has(pid)) inventoryMap.set(pid, new Map());
       const branchMap = inventoryMap.get(pid)!;
@@ -60,26 +60,8 @@ export async function GET(req: Request) {
       if (!branchMap.has(bid)) branchMap.set(bid, { onHand: 0, reserved: 0 });
       const st = branchMap.get(bid)!;
 
-      switch (m.type) {
-        case "RECEIVE":
-        case "RETURN":
-          st.onHand += m.qty;
-          break;
-        case "ISSUE":
-        case "WRITE_OFF":
-          st.onHand -= m.qty;
-          st.reserved -= m.qty; // ISSUE also reduces reserved
-          break;
-        case "ADJUSTMENT":
-          st.onHand += m.qty; // signed
-          break;
-        case "RESERVE":
-          st.reserved += m.qty;
-          break;
-        case "RELEASE_RESERVATION":
-          st.reserved -= m.qty;
-          break;
-      }
+      st.onHand += snapshot.onHand;
+      st.reserved += snapshot.reserved;
     }
 
     // Build response — compute per-product state from in-memory map

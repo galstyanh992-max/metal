@@ -42,7 +42,7 @@ export function computeLineTotal(input: LineTotalInput): number {
   if (isService || unitCode === "service") {
     return Math.round(price);
   }
-  if (unitCode === "m" && meters != null && meters > 0) {
+  if (["m", "m2", "kg"].includes(unitCode ?? "") && meters != null && meters > 0) {
     return Math.round(price * meters);
   }
   return Math.round(price * qty);
