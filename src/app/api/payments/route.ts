@@ -35,6 +35,9 @@ export async function POST(req: Request) {
     const result = await db.$transaction(async (tx) => {
       const order = await tx.order.findUnique({ where: { id: orderId } });
       if (!order) throw new Error("order not found");
+      if (order.status === "DRAFT") {
+        throw NextResponse.json({ error: "Նախ հաստատեք սևագիրը" }, { status: 409 });
+      }
 
       const payment = await tx.orderPayment.create({
         data: { orderId, amount, method, note: note ?? null, byUserId: userId },
@@ -82,6 +85,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ payment: result });
   } catch (e: any) {
+    if (e instanceof NextResponse) return e;
     return NextResponse.json({ error: e?.message ?? "failed" }, { status: 500 });
   }
 }

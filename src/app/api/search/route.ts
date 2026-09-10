@@ -4,7 +4,7 @@ import { requireRole } from "@/lib/rbac";
 
 export async function GET(req: Request) {
   try {
-    await requireRole("ADMIN", "OPERATOR", "WAREHOUSE");
+    const { role } = await requireRole("ADMIN", "OPERATOR", "WAREHOUSE");
     const { searchParams } = new URL(req.url);
     const q = searchParams.get("q") ?? "";
     if (!q || q.length < 2) return NextResponse.json({ results: [] });
@@ -22,7 +22,7 @@ export async function GET(req: Request) {
         select: { id: true, type: true, firstName: true, lastName: true, companyName: true, phone: true, email: true },
       }),
       db.order.findMany({
-        where: { OR: [{ number: { contains: q } }, { client: { OR: [{ firstName: { contains: q } }, { lastName: { contains: q } }, { companyName: { contains: q } }] } }] },
+        where: { ...(role === "WAREHOUSE" ? { status: { not: "DRAFT" as const } } : {}), OR: [{ number: { contains: q } }, { client: { OR: [{ firstName: { contains: q } }, { lastName: { contains: q } }, { companyName: { contains: q } }] } }] },
         take: 10,
         include: { client: true },
       }),

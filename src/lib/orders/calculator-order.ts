@@ -121,6 +121,7 @@ export async function buildItemsFromCalculatorRows(
 }
 
 export async function createOrderFromCalculatorRows(opts: {
+  status?: "DRAFT" | "CONFIRMED";
   clientId: string;
   rows: CalculatorRow[];
   total: number;
@@ -128,7 +129,7 @@ export async function createOrderFromCalculatorRows(opts: {
   discountPercent: number;
   products: any[];
 }): Promise<any> {
-  const { clientId, rows, total, paymentMethod, discountPercent, products } = opts;
+  const { clientId, rows, total, paymentMethod, discountPercent, products, status = "CONFIRMED" } = opts;
 
   if (!clientId) throw new Error("Ընտրեք հաճախորդ");
   if (rows.length === 0) throw new Error("Լցրեք ապրանքները");
@@ -145,6 +146,7 @@ export async function createOrderFromCalculatorRows(opts: {
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
       clientId,
+      status,
       items,
       savePrices: false,
       paymentMethod,

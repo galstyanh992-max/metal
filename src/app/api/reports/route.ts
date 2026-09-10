@@ -14,7 +14,7 @@ export async function GET(req: Request) {
 
     // Sales over time
     const orders = await db.order.findMany({
-      where: { createdAt: { gte: startDate }, status: { not: "CANCELLED" } },
+      where: { createdAt: { gte: startDate }, status: { notIn: ["DRAFT", "CANCELLED"] } },
       select: { totalAmount: true, costAmount: true, createdAt: true, clientId: true },
       orderBy: { createdAt: "asc" },
     });
@@ -39,7 +39,7 @@ export async function GET(req: Request) {
 
     // Top products by revenue
     const orderItems = await db.orderItem.findMany({
-      where: { order: { createdAt: { gte: startDate }, status: { not: "CANCELLED" } } },
+      where: { order: { createdAt: { gte: startDate }, status: { notIn: ["DRAFT", "CANCELLED"] } } },
       select: { productName: true, qty: true, lineTotal: true, productId: true },
     });
 

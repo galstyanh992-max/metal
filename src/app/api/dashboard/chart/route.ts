@@ -12,7 +12,7 @@ export async function GET() {
 
     // Daily sales for last 14 days
     const orders = await db.order.findMany({
-      where: { createdAt: { gte: last30 }, status: { not: "CANCELLED" } },
+      where: { createdAt: { gte: last30 }, status: { notIn: ["DRAFT", "CANCELLED"] } },
       select: { totalAmount: true, createdAt: true, costAmount: true, clientId: true },
     });
 
@@ -42,7 +42,7 @@ export async function GET() {
 
     // Top clients by turnover
     const clients = await db.client.findMany({
-      include: { orders: { where: { status: { not: "CANCELLED" } }, select: { totalAmount: true } } },
+      include: { orders: { where: { status: { notIn: ["DRAFT", "CANCELLED"] } }, select: { totalAmount: true } } },
     });
     const topClients = clients
       .map((c) => ({

@@ -24,7 +24,7 @@ export async function GET(req: Request) {
       where: { active: true, archivedAt: null },
       include: {
         orders: {
-          where: includeZero ? undefined : { outstandingAmount: { gt: 0 } },
+          where: { status: { notIn: ["DRAFT", "CANCELLED"] }, ...(includeZero ? {} : { outstandingAmount: { gt: 0 } }) },
           orderBy: { createdAt: "asc" },
           select: {
             id: true,

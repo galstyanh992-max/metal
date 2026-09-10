@@ -236,7 +236,7 @@ export async function generateDebtStatementPdf(clientId: string): Promise<PdfGen
     where: { id: clientId },
     include: {
       orders: {
-        where: { outstandingAmount: { gt: 0 }, status: { not: "CANCELLED" } },
+        where: { outstandingAmount: { gt: 0 }, status: { notIn: ["DRAFT", "CANCELLED"] } },
         orderBy: { createdAt: "asc" },
       },
     },

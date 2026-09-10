@@ -6,7 +6,7 @@ import { RolshutterCalculator } from "./rolshutter-calculator";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Zap, Percent } from "lucide-react";
+import { Loader2, Zap, Percent, Save } from "lucide-react";
 import { toast } from "sonner";
 import { SearchableClientSelect } from "@/components/shared/searchable-client-select";
 import { createOrderFromCalculatorRows, type CalculatorRow } from "@/lib/orders/calculator-order";
@@ -99,9 +99,10 @@ export function RolshutterCalculatorWithOrder({
   }, [total, discountAmount]);
 
   const orderMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (status: "DRAFT" | "CONFIRMED") => {
       return createOrderFromCalculatorRows({
         clientId,
+        status,
         rows,
         total,
         paymentMethod,
@@ -110,7 +111,7 @@ export function RolshutterCalculatorWithOrder({
       });
     },
     onSuccess: (data) => {
-      toast.success(`Պատվերը ստեղծված է · ${data?.priceUpdates > 0 ? data.priceUpdates + " գին պահպանված է" : "OK"}`);
+      toast.success(data?.order?.status === "DRAFT" ? "Սևագիրը պահպանված է" : `Պատվերը ստեղծված է · ${data?.priceUpdates > 0 ? data.priceUpdates + " գին պահպանված է" : "OK"}`);
       qc.invalidateQueries({ queryKey: ["orders"] });
       qc.invalidateQueries({ queryKey: ["products"] });
       setInternalClientId("");
@@ -266,8 +267,18 @@ export function RolshutterCalculatorWithOrder({
           </p>
         </div>
         {!embedded && (
+          <div className="flex flex-wrap gap-2">
           <Button
-            onClick={() => orderMutation.mutate()}
+            variant="outline"
+            onClick={() => orderMutation.mutate("DRAFT")}
+            disabled={orderMutation.isPending || !clientId || rows.length === 0 || total === 0}
+            className="gap-2"
+            size="lg"
+          >
+            <Save className="size-5" /> Պահպանել սևագիր
+          </Button>
+          <Button
+            onClick={() => orderMutation.mutate("CONFIRMED")}
             disabled={orderMutation.isPending || !clientId || rows.length === 0 || finalTotal === 0}
             className="bg-primary gap-2"
             size="lg"
@@ -276,6 +287,7 @@ export function RolshutterCalculatorWithOrder({
             <Zap className="size-5" />
             Ստեղծել պատվեր
           </Button>
+          </div>
         )}
       </div>
     </div>

@@ -16,8 +16,8 @@ export async function GET() {
 
     // Compute financial profile
     const enriched = clients.map((c) => {
-      const lifetimeTurnover = c.orders.reduce((s, o) => s + (o.status !== "CANCELLED" ? o.totalAmount : 0), 0);
-      const currentDebt = c.orders.reduce((s, o) => s + (o.status !== "CANCELLED" ? o.outstandingAmount : 0), 0);
+      const lifetimeTurnover = c.orders.reduce((s, o) => s + (o.status !== "CANCELLED" && o.status !== "DRAFT" ? o.totalAmount : 0), 0);
+      const currentDebt = c.orders.reduce((s, o) => s + (o.status !== "CANCELLED" && o.status !== "DRAFT" ? o.outstandingAmount : 0), 0);
       const totalOrders = c.orders.length;
       const lastOrderDate = c.orders[0]?.createdAt ?? null;
       return {

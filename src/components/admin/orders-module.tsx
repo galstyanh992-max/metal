@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Plus, ShoppingCart, Loader2, Search, Trash2, Zap, AlertTriangle, Percent, X } from "lucide-react";
+import { Plus, ShoppingCart, Loader2, Search, Trash2, Zap, AlertTriangle, Percent, X, Save } from "lucide-react";
 import { useState, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -213,15 +213,16 @@ export function CreateOrderDialog({ onClose, onCreated }: { onClose: () => void;
       }
       return res.json();
     },
-    onSuccess: () => { toast.success("Պատվերը ստեղծված է"); onCreated(); },
+    onSuccess: (data) => { toast.success(data?.order?.status === "DRAFT" ? "Սևագիրը պահպանված է" : "Պատվերը ստեղծված է"); onCreated(); },
     onError: (e: any) => toast.error(e?.message ?? "Սխալ"),
   });
 
-  const submit = () => {
+  const submit = (status: "DRAFT" | "CONFIRMED") => {
     if (!clientId) { toast.error("Ընտրեք հաճախորդ"); return; }
     if (items.some((i) => !i.productId)) { toast.error("Ընտրեք բոլոր ապրանքները"); return; }
     mutation.mutate({
       clientId,
+      status,
       items: items.map((i) => ({
         productId: i.productId,
         qty: Number(i.parameters.quantity) || 1,
@@ -287,9 +288,12 @@ export function CreateOrderDialog({ onClose, onCreated }: { onClose: () => void;
           </div>
         </div>
         <DialogFooter>
-          <p className="mr-auto hidden sm:block text-xs text-muted-foreground">Պատվերից հետո PDF փաստաթղթերը կավելացվեն ավտոմատ։</p>
-          <Button variant="outline" onClick={onClose}>Չեղարկել</Button>
-          <Button onClick={submit} disabled={mutation.isPending} className="bg-primary gap-2">
+          <p className="mr-auto hidden sm:block text-xs text-muted-foreground">Սևագիրը կարող եք հաստատել ավելի ուշ՝ պատվերների ցանկից։</p>
+          <Button variant="outline" onClick={onClose} disabled={mutation.isPending}>Չեղարկել</Button>
+          <Button variant="outline" onClick={() => submit("DRAFT")} disabled={mutation.isPending} className="gap-2">
+            <Save className="size-4" /> Պահպանել սևագիր
+          </Button>
+          <Button onClick={() => submit("CONFIRMED")} disabled={mutation.isPending} className="bg-primary gap-2">
             {mutation.isPending && <Loader2 className="size-4 animate-spin" />}
             Ստեղծել պատվեր
           </Button>
@@ -360,7 +364,9 @@ export function QuickFillOrderDialog({
       return res.json();
     },
     onSuccess: (data) => {
-      const msg = data?.priceUpdates > 0
+      const msg = data?.order?.status === "DRAFT"
+        ? "Սևագիրը պահպանված է"
+        : data?.priceUpdates > 0
         ? `Պատվերը ստեղծված է · ${data.priceUpdates} գին պահպանված է`
         : "Պատվերը ստեղծված է";
       toast.success(msg);
@@ -376,7 +382,7 @@ export function QuickFillOrderDialog({
     },
   });
 
-  const submit = () => {
+  const submit = (status: "DRAFT" | "CONFIRMED") => {
     setStockError(null);
     if (!clientId) { toast.error("Ընտրեք հաճախորդ"); return; }
     const orderItems = quickFillRowsToOrderItems(rows);
@@ -384,7 +390,7 @@ export function QuickFillOrderDialog({
       toast.error("Լցրեք քանակ կամ մետրաժ առնվազն մեկ ապրանքի համար");
       return;
     }
-    mutation.mutate({ clientId, items: orderItems, savePrices, paymentMethod, discountPercent: Number(discountPercent) || 0 });
+    mutation.mutate({ clientId, status, items: orderItems, savePrices, paymentMethod, discountPercent: Number(discountPercent) || 0 });
   };
 
   return (
@@ -544,8 +550,11 @@ export function QuickFillOrderDialog({
             )}
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={onClose}>Չեղարկել</Button>
-            <Button onClick={submit} disabled={mutation.isPending || totals.selectedCount === 0} className="bg-primary gap-2">
+            <Button variant="outline" onClick={onClose} disabled={mutation.isPending}>Չեղարկել</Button>
+            <Button variant="outline" onClick={() => submit("DRAFT")} disabled={mutation.isPending || totals.selectedCount === 0} className="gap-2">
+              <Save className="size-4" /> Պահպանել սևագիր
+            </Button>
+            <Button onClick={() => submit("CONFIRMED")} disabled={mutation.isPending || totals.selectedCount === 0} className="bg-primary gap-2">
               {mutation.isPending && <Loader2 className="size-4 animate-spin" />}
               <Zap className="size-4" />
               Ստեղծել պատվեր ({totals.selectedCount})

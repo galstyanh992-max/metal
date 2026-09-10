@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +30,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 const METHOD_LABELS: Record<string, string> = {
+  cash: "Առձեռն",
   bank: "Բանկային",
   card: "Քարտ",
   contract: "Պայմանագրային",
@@ -51,6 +53,8 @@ async function fetchOrder(id: string) {
 
 export function OrderDetailDrawer({ orderId, open, onClose, role }: { orderId: string | null; open: boolean; onClose: () => void; role: string }) {
   const qc = useQueryClient();
+  const [draftPayment, setDraftPayment] = useState({ orderId, method: "debt" });
+  const paymentMethod = draftPayment.orderId === orderId ? draftPayment.method : "debt";
   const { data, isLoading } = useQuery({
     queryKey: ["order", orderId],
     queryFn: () => fetchOrder(orderId!),
@@ -59,7 +63,7 @@ export function OrderDetailDrawer({ orderId, open, onClose, role }: { orderId: s
 
   const actionMutation = useMutation({
     mutationFn: async (action: string) => {
-      const res = await fetch(`/api/orders/${orderId}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ action }) });
+      const res = await fetch(`/api/orders/${orderId}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ action, ...(action === "confirm" ? { paymentMethod } : {}) }) });
       if (!res.ok) { const e = await res.json(); throw new Error(e.error ?? "failed"); }
       return res.json();
     },
@@ -67,7 +71,9 @@ export function OrderDetailDrawer({ orderId, open, onClose, role }: { orderId: s
       toast.success(`Պատվերը ${action === "confirm" ? "հաստատված է" : action === "cancel" ? "չեղարկված է" : "պատրաստ է"}`);
       qc.invalidateQueries({ queryKey: ["order", orderId] });
       qc.invalidateQueries({ queryKey: ["orders"] });
-      qc.invalidateQueries({ queryKey: ["dashboard", "admin"] });
+      for (const key of ["dashboard", "clients", "client", "debts", "payments", "documents", "reports", "products"]) {
+        qc.invalidateQueries({ queryKey: [key] });
+      }
       qc.invalidateQueries({ queryKey: ["inventory"] });
     },
     onError: (e: any) => toast.error(e?.message ?? "Սխալ"),
@@ -76,10 +82,11 @@ export function OrderDetailDrawer({ orderId, open, onClose, role }: { orderId: s
   const order = data?.order;
   if (!order) return null;
 
-  const canConfirm = order.status === "DRAFT";
-  const canCancel = order.status === "DRAFT" || order.status === "CONFIRMED";
-  const canMarkReady = order.status === "CONFIRMED";
-  const documentUrls = new Map((order.documents ?? []).map((document: any) => [document.type, document.url]));
+  const isDraft = order.status === "DRAFT";
+  const canConfirm = role !== "WAREHOUSE" && isDraft;
+  const canCancel = role !== "WAREHOUSE" && (isDraft || order.status === "CONFIRMED");
+  const canMarkReady = role !== "WAREHOUSE" && order.status === "CONFIRMED";
+  const documentUrls = new Map<string, string>((order.documents ?? []).map((document: any): [string, string] => [document.type, document.url]));
 
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
@@ -101,6 +108,27 @@ export function OrderDetailDrawer({ orderId, open, onClose, role }: { orderId: s
         </SheetHeader>
 
         <div className="p-4 space-y-5">
+          {canConfirm && (
+            <div className="rounded-md border border-hairline bg-muted/30 p-3 space-y-2">
+              <p className="text-sm text-muted-foreground">
+                Սևագիրը պահպանված է։ Հաստատելիս կստուգվեն և կամրագրվեն պաշարները, կստեղծվեն փաստաթղթերը։
+              </p>
+              <label className="flex flex-wrap items-center gap-2 text-sm">
+                Վճարման եղանակ՝ հաստատելիս
+                <select
+                  aria-label="Վճարման եղանակ՝ հաստատելիս"
+                  className="h-9 rounded-md border border-hairline bg-card px-3"
+                  value={paymentMethod}
+                  disabled={actionMutation.isPending}
+                  onChange={(event) => setDraftPayment({ orderId, method: event.target.value })}
+                >
+                  <option value="debt">Պարտք</option>
+                  <option value="cash">Առձեռն</option>
+                  <option value="transfer">Փոխանցում</option>
+                </select>
+              </label>
+            </div>
+          )}
           {/* Actions */}
           <div className="flex flex-wrap gap-2">
             {canConfirm && (
@@ -121,7 +149,7 @@ export function OrderDetailDrawer({ orderId, open, onClose, role }: { orderId: s
             )}
           </div>
 
-          <div className="space-y-2">
+          {!isDraft && <div className="space-y-2">
             <h4 className="text-xs uppercase tracking-wider text-muted-foreground font-medium flex items-center gap-2">
               <FileText className="size-3.5" /> Փաստաթղթեր
             </h4>
@@ -141,7 +169,7 @@ export function OrderDetailDrawer({ orderId, open, onClose, role }: { orderId: s
                   </Button>
                 ))}
             </div>
-          </div>
+          </div>}
 
           {/* Financial summary */}
           {role !== "WAREHOUSE" && (

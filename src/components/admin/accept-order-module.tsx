@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { SectionHeader } from "@/components/shared/primitives";
 import {
-  Zap, DoorOpen, User, Percent, Loader2, Receipt, Package2, Trash2, AlertTriangle, CheckCircle2,
+  Zap, DoorOpen, User, Percent, Loader2, Receipt, Package2, Trash2, AlertTriangle, CheckCircle2, Save,
 } from "lucide-react";
 import { toast } from "sonner";
 import { SearchableClientSelect } from "@/components/shared/searchable-client-select";
@@ -47,6 +47,7 @@ export function AcceptOrderModule({ role }: { role: string }) {
   const { data: productsData } = useQuery({ queryKey: ["products"], queryFn: fetchProducts });
 
   const [tab, setTab] = useState<"quickfill" | "calculator">("quickfill");
+  const [calculatorOpened, setCalculatorOpened] = useState(false);
   const [clientId, setClientId] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("debt");
   const [discountPercent, setDiscountPercent] = useState("0");
@@ -63,6 +64,7 @@ export function AcceptOrderModule({ role }: { role: string }) {
   const [calcTotal, setCalcTotal] = useState(0);
 
   const [stockError, setStockError] = useState<string[] | null>(null);
+  const [formVersion, setFormVersion] = useState(0);
 
   const clients = clientsData?.clients ?? [];
   const products = productsData?.products ?? [];
@@ -74,6 +76,19 @@ export function AcceptOrderModule({ role }: { role: string }) {
 
   const onCalcRowsChange = useCallback((r: CalculatorRow[]) => setCalcRows(r), []);
   const onCalcTotalChange = useCallback((t: number) => setCalcTotal(t), []);
+
+  const resetForm = () => {
+    setClientId("");
+    setDiscountPercent("0");
+    setStockError(null);
+    setQfRows([]);
+    setQfTotals({ totalQty: 0, totalMeterage: 0, totalAmount: 0, selectedCount: 0, priceChanges: 0 });
+    setCalcRows([]);
+    setCalcTotal(0);
+    setCalculatorOpened(false);
+    setTab("quickfill");
+    setFormVersion((version) => version + 1);
+  };
 
   // Combined totals
   const combined = useMemo(() => {
@@ -94,10 +109,11 @@ export function AcceptOrderModule({ role }: { role: string }) {
   }, [qfTotals.totalAmount, calcTotal, discountPercent, qfRows, calcRows]);
 
   const mutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (status: "DRAFT" | "CONFIRMED") => {
       if (!clientId) throw new Error("Ընտրեք հաճախորդ");
       if (combined.totalItemCount === 0) throw new Error("Լցրեք ապրանքները");
-      if (combined.baseTotal === 0) throw new Error("Ընդհանուրը 0 է");
+      if (status !== "DRAFT" && combined.baseTotal === 0) throw new Error("Ընդհանուրը 0 է");
+      setStockError(null);
 
       // Build items from both blocks
       const qfItems = quickFillRowsToOrderItems(qfRows);
@@ -111,11 +127,12 @@ export function AcceptOrderModule({ role }: { role: string }) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           clientId,
+          status,
           items,
           savePrices,
           paymentMethod,
           discountPercent: Number(discountPercent) || 0,
-          note: `Ընդունված է «Ընդունել պատվեր»-ից · Ընդհանուր՝ ${combined.finalTotal.toLocaleString("hy-AM")} դր`,
+          note: `«Ընդունել պատվեր» · Ընդհանուր՝ ${combined.finalTotal.toLocaleString("hy-AM")} դր`,
         }),
       });
       if (!res.ok) {
@@ -128,15 +145,15 @@ export function AcceptOrderModule({ role }: { role: string }) {
       return res.json();
     },
     onSuccess: (data) => {
-      const msg = data?.priceUpdates > 0
+      const msg = data?.order?.status === "DRAFT"
+        ? "Սևագիրը պահպանված է · հասանելի է պատվերների ցանկում"
+        : data?.priceUpdates > 0
         ? `Պատվերը ստեղծված է · ${data.priceUpdates} գին պահպանված է`
         : "Պատվերը ստեղծված է";
       toast.success(msg);
       qc.invalidateQueries({ queryKey: ["orders"] });
       qc.invalidateQueries({ queryKey: ["products"] });
-      setClientId("");
-      setDiscountPercent("0");
-      setStockError(null);
+      resetForm();
     },
     onError: (e: any) => {
       if (e?.stockError && e?.details) {
@@ -242,7 +259,7 @@ export function AcceptOrderModule({ role }: { role: string }) {
             )}
           </button>
           <button
-            onClick={() => setTab("calculator")}
+            onClick={() => { setCalculatorOpened(true); setTab("calculator"); }}
             className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-all rounded-md ${
               tab === "calculator" ? "bg-primary text-primary-foreground" : "hover:bg-muted/40"
             }`}
@@ -257,12 +274,13 @@ export function AcceptOrderModule({ role }: { role: string }) {
           </button>
         </div>
 
-        <div className="p-3">
-          {tab === "quickfill" ? (
+        <div className="p-3" key={formVersion}>
+          <div hidden={tab !== "quickfill"}>
             <ErrorBoundary>
               <QuickFillPanel embedded onChange={onQfChange} />
             </ErrorBoundary>
-          ) : (
+          </div>
+          {calculatorOpened && <div hidden={tab !== "calculator"}>
             <ErrorBoundary>
               <RolshutterCalculator
                 products={products}
@@ -270,7 +288,7 @@ export function AcceptOrderModule({ role }: { role: string }) {
                 onTotalChange={onCalcTotalChange}
               />
             </ErrorBoundary>
-          )}
+          </div>}
         </div>
       </div>
 
@@ -376,24 +394,34 @@ export function AcceptOrderModule({ role }: { role: string }) {
           )}
 
           {/* Create button */}
-          <div className="mt-4 flex items-center justify-end gap-3">
+          <p className="mt-4 text-xs text-muted-foreground">
+            Սևագիրը կպահպանվի առանց վճարման, պարտքի և պաշարի ամրագրման։ Հաստատեք այն պատվերների ցանկից։
+          </p>
+          <div className="mt-3 flex flex-wrap items-center justify-end gap-3">
             <Button
               variant="outline"
-              onClick={() => {
-                setClientId("");
-                setDiscountPercent("0");
-                setStockError(null);
-              }}
+              disabled={mutation.isPending}
+              onClick={resetForm}
             >
               Մաքրել
             </Button>
             <Button
-              onClick={() => mutation.mutate()}
+              variant="outline"
+              onClick={() => mutation.mutate("DRAFT")}
+              disabled={mutation.isPending || !clientId || combined.totalItemCount === 0}
+              className="gap-2"
+              size="lg"
+            >
+              {mutation.isPending && mutation.variables === "DRAFT" ? <Loader2 className="size-5 animate-spin" /> : <Save className="size-5" />}
+              Պահպանել սևագիր
+            </Button>
+            <Button
+              onClick={() => mutation.mutate("CONFIRMED")}
               disabled={mutation.isPending || !clientId || combined.totalItemCount === 0 || combined.finalTotal === 0}
               className="bg-primary gap-2"
               size="lg"
             >
-              {mutation.isPending ? <Loader2 className="size-5 animate-spin" /> : <CheckCircle2 className="size-5" />}
+              {mutation.isPending && mutation.variables === "CONFIRMED" ? <Loader2 className="size-5 animate-spin" /> : <CheckCircle2 className="size-5" />}
               Ստեղծել պատվեր
             </Button>
           </div>

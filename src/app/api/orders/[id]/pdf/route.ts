@@ -22,6 +22,11 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       return NextResponse.json({ error: "Փաստաթղթի տեսակը սխալ է" }, { status: 400 });
     }
 
+    const order = await db.order.findUnique({ where: { id }, select: { status: true } });
+    if (!order) return NextResponse.json({ error: "not found" }, { status: 404 });
+    if (order.status === "DRAFT") {
+      return NextResponse.json({ error: "Փաստաթղթերը հասանելի կլինեն սևագիրը հաստատելուց հետո" }, { status: 409 });
+    }
     const result = await generateOrderPdf(id, type, role);
 
     // Save generated document record

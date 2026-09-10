@@ -194,8 +194,8 @@ export async function answerQuestion(question: string): Promise<AssistantReply> 
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const [todayOrders, monthOrders] = await Promise.all([
-      db.order.findMany({ where: { createdAt: { gte: startOfDay }, status: { not: "CANCELLED" } }, select: { totalAmount: true } }),
-      db.order.findMany({ where: { createdAt: { gte: startOfMonth }, status: { not: "CANCELLED" } }, select: { totalAmount: true } }),
+      db.order.findMany({ where: { createdAt: { gte: startOfDay }, status: { notIn: ["DRAFT", "CANCELLED"] } }, select: { totalAmount: true } }),
+      db.order.findMany({ where: { createdAt: { gte: startOfMonth }, status: { notIn: ["DRAFT", "CANCELLED"] } }, select: { totalAmount: true } }),
     ]);
     const today = todayOrders.reduce((s, o) => s + o.totalAmount, 0);
     const month = monthOrders.reduce((s, o) => s + o.totalAmount, 0);

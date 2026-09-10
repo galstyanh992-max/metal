@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAction } from "@/lib/rbac";
-import { computeInventoryState } from "@/lib/inventory/ledger";
-import { addAMD, subAMD } from "@/lib/finance/money";
 import { computeLineTotal, parseDecimal } from "@/lib/orders/calc-math";
+import { createOrderDocuments } from "@/lib/orders/documents";
 
 export async function GET() {
   try {
@@ -11,6 +10,7 @@ export async function GET() {
 
     // OPTIMIZED: Use select instead of include to fetch only needed fields
     const orders = await db.order.findMany({
+      where: role === "WAREHOUSE" ? { status: { not: "DRAFT" } } : undefined,
       select: {
         id: true,
         number: true,
@@ -69,7 +69,8 @@ export async function POST(req: Request) {
   try {
     const { role, userId } = await requireAction("order.create");
     const body = await req.json();
-    const { clientId, items, note, dueDate, savePrices, paymentMethod, discountPercent } = body as {
+    const { clientId, items, note, dueDate, savePrices, paymentMethod, discountPercent, status = "CONFIRMED" } = body as {
+      status?: "DRAFT" | "CONFIRMED";
       clientId: string;
       items: Array<{
         productId: string;
@@ -86,8 +87,16 @@ export async function POST(req: Request) {
       discountPercent?: number;
     };
 
-    if (!clientId || !items?.length) {
+    if (status !== "DRAFT" && status !== "CONFIRMED") {
+      return NextResponse.json({ error: "Invalid order status" }, { status: 400 });
+    }
+    const isDraft = status === "DRAFT";
+
+    if (!clientId || !Array.isArray(items) || !items.length) {
       return NextResponse.json({ error: "clientId and items required" }, { status: 400 });
+    }
+    if (items.some((item) => !item?.productId || !Number.isSafeInteger(item.qty) || item.qty <= 0)) {
+      return NextResponse.json({ error: "Ապրանքի քանակը պետք է լինի դրական ամբողջ թիվ" }, { status: 400 });
     }
 
     const client = await db.client.findUnique({ where: { id: clientId } });
@@ -104,7 +113,7 @@ export async function POST(req: Request) {
     // ====== INVENTORY CHECK (OPTIMIZED — bulk query) ======
     // Verify each item has enough available stock. If not, return error with product name.
     // Before: N queries (one per item) — After: 1 bulk query for all movements
-    const allMovements = await db.inventoryMovement.findMany({
+    const allMovements = isDraft ? [] : await db.inventoryMovement.findMany({
       where: { productId: { in: productIds } },
       select: { productId: true, type: true, qty: true },
     });
@@ -128,6 +137,7 @@ export async function POST(req: Request) {
       // Services (Հավաքում / Առաքում) are not stock items — skip stock check.
       const isService = it.parameters?.isService === "true" || p.unit?.code === "service";
       if (isService) continue;
+      if (isDraft) continue;
       const requestedPrice = typeof it.unitPrice === "number" && it.unitPrice > 0
         ? it.unitPrice
         : p.salePrice;
@@ -198,7 +208,7 @@ export async function POST(req: Request) {
         },
       });
       // Collect price updates if requested (never for services)
-      if (!isService && (savePrices || it.savePriceToProduct) && unitPrice !== p.salePrice) {
+      if (!isDraft && !isService && (savePrices || it.savePriceToProduct) && unitPrice !== p.salePrice) {
         priceUpdates.push({ productId: p.id, salePrice: unitPrice });
       }
     }
@@ -210,17 +220,13 @@ export async function POST(req: Request) {
     const manualDiscountAmount = Math.round((baseAmount * manualDiscount) / 100);
     const afterManualDiscount = baseAmount - manualDiscountAmount;
     const loyaltyDiscountAmount = Math.round((afterManualDiscount * loyaltyDiscount) / 100);
-    const totalDiscountPercent = manualDiscount + loyaltyDiscount;
     const totalDiscountAmount = manualDiscountAmount + loyaltyDiscountAmount;
     const totalAmount = Math.max(0, baseAmount - totalDiscountAmount);
 
-    // Order status:
-    // - cash/transfer → CONFIRMED (paid)
-    // - debt → CONFIRMED (sent to warehouse for picking, no prices visible to warehouse)
-    // (Previously debt was DRAFT — now all orders go to CONFIRMED so warehouse sees them)
-    const isPaidNow = paymentMethod === "cash" || paymentMethod === "transfer";
+    // Drafts are estimates: no payment, debt, catalog updates or documents yet.
+    const isPaidNow = !isDraft && (paymentMethod === "cash" || paymentMethod === "transfer");
     const paidAmount = isPaidNow ? totalAmount : 0;
-    const outstandingAmount = totalAmount - paidAmount;
+    const outstandingAmount = isDraft ? 0 : totalAmount - paidAmount;
     const grossProfit = totalAmount - costAmount;
     const marginPercent = totalAmount > 0 ? Math.round((grossProfit / totalAmount) * 10000) : 0;
 
@@ -228,111 +234,102 @@ export async function POST(req: Request) {
     const count = await db.order.count({ where: { number: { startsWith: `ORD-${year}-` } } });
     const number = `ORD-${year}-${String(count + 1).padStart(4, "0")}`;
 
-    const order = await db.order.create({
-      data: {
-        number,
-        clientId,
-        status: "CONFIRMED",
-        baseAmount,
-        discountAmount: totalDiscountAmount,
-        taxAmount: 0,
-        totalAmount,
-        paidAmount,
-        outstandingAmount,
-        costAmount: role === "OPERATOR" ? 0 : costAmount,
-        grossProfit: role === "OPERATOR" ? 0 : grossProfit,
-        marginPercent: role === "OPERATOR" ? 0 : marginPercent,
-        dueDate: dueDate ? new Date(dueDate) : null,
-        note: note ?? (paymentMethod ? `Վճարման եղանակ՝ ${paymentMethod === "cash" ? "Առձեռն" : paymentMethod === "transfer" ? "Փոխանցում" : "Պարտք"}` : null),
-        createdById: userId,
-        items: { create: orderItemsData },
-      },
-      include: { items: true },
-    });
-
-    // If paid now, record a payment entry
-    if (isPaidNow) {
-      await db.orderPayment.create({
+    const order = await db.$transaction(async (tx) => {
+      const order = await tx.order.create({
         data: {
-          orderId: order.id,
-          amount: paidAmount,
-          method: paymentMethod === "cash" ? "cash" : "bank",
-          paidAt: new Date(),
-          note: `Արագ վճարում (${paymentMethod === "cash" ? "Առձեռն" : "Փոխանցում"})`,
-          byUserId: userId,
+          number,
+          clientId,
+          status,
+          baseAmount,
+          discountAmount: totalDiscountAmount,
+          taxAmount: 0,
+          totalAmount,
+          paidAmount,
+          outstandingAmount,
+          costAmount: role === "OPERATOR" ? 0 : costAmount,
+          grossProfit: role === "OPERATOR" ? 0 : grossProfit,
+          marginPercent: role === "OPERATOR" ? 0 : marginPercent,
+          dueDate: dueDate ? new Date(dueDate) : null,
+          note: note ?? (paymentMethod ? `Վճարման եղանակ՝ ${paymentMethod === "cash" ? "Առձեռն" : paymentMethod === "transfer" ? "Փոխանցում" : "Պարտք"}` : null),
+          createdById: userId,
+          items: { create: orderItemsData },
+          statusHistory: { create: { status, byUserId: userId } },
         },
+        include: { items: true },
       });
-    }
 
-    // Create the complete document package immediately. Each record points to a
-    // stable PDF endpoint, so the document is ready to download for both admins
-    // and operators as soon as the order is created.
-    const documentTypes: Array<"CUSTOMER_ORDER" | "WAREHOUSE_ORDER" | "INVOICE" | "PROCUREMENT_DOCUMENT" | "DELIVERY_NOTE" | "PAYMENT_RECEIPT"> = ["CUSTOMER_ORDER", "WAREHOUSE_ORDER", "INVOICE", "PROCUREMENT_DOCUMENT", "DELIVERY_NOTE"];
-    if (isPaidNow) documentTypes.push("PAYMENT_RECEIPT");
-    await db.generatedDocument.createMany({
-      data: documentTypes.map((type) => ({
-        templateId: `template-${type.toLowerCase()}`,
-        templateVersion: 1,
-        type,
-        entityType: "ORDER",
-        entityId: order.id,
-        url: `/api/orders/${order.id}/pdf?type=${type}`,
-        generatedById: userId,
-      })),
-    });
-
-    // Audit log
-    await db.auditLog.create({
-      data: {
-        actorId: userId,
-        action: "order.create",
-        entityType: "Order",
-        entityId: order.id,
-        afterJson: JSON.stringify({ number, clientId, totalAmount }),
-      },
-    });
-
-    // Apply price updates back to catalog (Quick-Fill feature)
-    if (priceUpdates.length > 0) {
-      for (const pu of priceUpdates) {
-        const prev = await db.productPriceHistory.findFirst({
-          where: { productId: pu.productId, effectiveTo: null },
-          orderBy: { effectiveFrom: "desc" },
-        });
-        if (prev) {
-          await db.productPriceHistory.update({
-            where: { id: prev.id },
-            data: { effectiveTo: new Date() },
-          });
-        }
-        await db.product.update({
-          where: { id: pu.productId },
-          data: { salePrice: pu.salePrice },
-        });
-        await db.productPriceHistory.create({
+      // If paid now, record a payment entry
+      if (isPaidNow) {
+        await tx.orderPayment.create({
           data: {
-            productId: pu.productId,
-            salePrice: pu.salePrice,
-            purchasePrice: productMap.get(pu.productId)?.purchasePrice ?? 0,
-            changedById: userId,
-            reason: `Quick-Fill update (order ${number})`,
-          },
-        });
-        await db.auditLog.create({
-          data: {
-            actorId: userId,
-            action: "price.update",
-            entityType: "Product",
-            entityId: pu.productId,
-            beforeJson: JSON.stringify({ salePrice: productMap.get(pu.productId)?.salePrice ?? 0 }),
-            afterJson: JSON.stringify({ salePrice: pu.salePrice }),
+            orderId: order.id,
+            amount: paidAmount,
+            method: paymentMethod === "cash" ? "cash" : "bank",
+            paidAt: new Date(),
+            note: `Արագ վճարում (${paymentMethod === "cash" ? "Առձեռն" : "Փոխանցում"})`,
+            byUserId: userId,
           },
         });
       }
-    }
+
+      if (!isDraft) await createOrderDocuments(tx, order.id, userId, isPaidNow);
+
+      // Audit log
+      await tx.auditLog.create({
+        data: {
+          actorId: userId,
+          action: "order.create",
+          entityType: "Order",
+          entityId: order.id,
+          afterJson: JSON.stringify({ number, clientId, totalAmount, status }),
+        },
+      });
+
+      // Apply price updates back to catalog (Quick-Fill feature)
+      if (priceUpdates.length > 0) {
+        for (const pu of priceUpdates) {
+          const prev = await tx.productPriceHistory.findFirst({
+            where: { productId: pu.productId, effectiveTo: null },
+            orderBy: { effectiveFrom: "desc" },
+          });
+          if (prev) {
+            await tx.productPriceHistory.update({
+              where: { id: prev.id },
+              data: { effectiveTo: new Date() },
+            });
+          }
+          await tx.product.update({
+            where: { id: pu.productId },
+            data: { salePrice: pu.salePrice },
+          });
+          await tx.productPriceHistory.create({
+            data: {
+              productId: pu.productId,
+              salePrice: pu.salePrice,
+              purchasePrice: productMap.get(pu.productId)?.purchasePrice ?? 0,
+              changedById: userId,
+              reason: `Quick-Fill update (order ${number})`,
+            },
+          });
+          await tx.auditLog.create({
+            data: {
+              actorId: userId,
+              action: "price.update",
+              entityType: "Product",
+              entityId: pu.productId,
+              beforeJson: JSON.stringify({ salePrice: productMap.get(pu.productId)?.salePrice ?? 0 }),
+              afterJson: JSON.stringify({ salePrice: pu.salePrice }),
+            },
+          });
+        }
+      }
+
+      return order;
+    }, { timeout: 30000 });
 
     return NextResponse.json({ order, priceUpdates: priceUpdates.length });
   } catch (e: any) {
+    if (e instanceof NextResponse) return e;
     return NextResponse.json({ error: e?.message ?? "failed" }, { status: 500 });
   }
 }

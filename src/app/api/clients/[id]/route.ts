@@ -27,10 +27,10 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     if (!client) return NextResponse.json({ error: "not found" }, { status: 404 });
 
     // Compute financial profile
-    const lifetimeTurnover = client.orders.reduce((s, o) => s + (o.status !== "CANCELLED" ? o.totalAmount : 0), 0);
+    const lifetimeTurnover = client.orders.reduce((s, o) => s + (o.status !== "CANCELLED" && o.status !== "DRAFT" ? o.totalAmount : 0), 0);
     const totalPaid = client.orders.reduce((s, o) => s + o.paidAmount, 0);
-    const currentDebt = client.orders.reduce((s, o) => s + (o.status !== "CANCELLED" ? o.outstandingAmount : 0), 0);
-    const totalCost = client.orders.reduce((s, o) => s + (o.status !== "CANCELLED" ? o.costAmount : 0), 0);
+    const currentDebt = client.orders.reduce((s, o) => s + (o.status !== "CANCELLED" && o.status !== "DRAFT" ? o.outstandingAmount : 0), 0);
+    const totalCost = client.orders.reduce((s, o) => s + (o.status !== "CANCELLED" && o.status !== "DRAFT" ? o.costAmount : 0), 0);
     const grossProfit = lifetimeTurnover - totalCost;
     const avgOrderValue = client.orders.length > 0 ? Math.round(lifetimeTurnover / client.orders.length) : 0;
 

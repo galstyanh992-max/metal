@@ -83,11 +83,11 @@ export async function recordMovement(params: {
   refId?: string;
   note?: string;
   branchId?: string;
-}): Promise<{ ok: boolean; error?: string }> {
+}, transaction?: Prisma.TransactionClient): Promise<{ ok: boolean; error?: string }> {
   const { productId, type, qty, byUserId, refType, refId, note, branchId } = params;
   if (qty <= 0) return { ok: false, error: "qty must be positive" };
 
-  return await db.$transaction(async (tx) => {
+  const record = async (tx: Prisma.TransactionClient) => {
     const state = await getInventoryState(tx, productId, branchId);
 
     if (type === "RESERVE") {
@@ -156,5 +156,6 @@ export async function recordMovement(params: {
     }
 
     return { ok: true };
-  });
+  };
+  return transaction ? record(transaction) : db.$transaction(record);
 }

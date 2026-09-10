@@ -19,7 +19,7 @@ export async function GET() {
       db.order.count(),
       db.client.count(),
       db.product.findMany({ where: { active: true }, select: { id: true, name: true, sku: true, minStock: true } }),
-      db.order.count({ where: { dueDate: { lt: now }, outstandingAmount: { gt: 0 }, status: { not: "CANCELLED" } } }),
+      db.order.count({ where: { dueDate: { lt: now }, outstandingAmount: { gt: 0 }, status: { notIn: ["DRAFT", "CANCELLED"] } } }),
       db.inventoryMovement.count(),
       db.inventorySnapshot.findMany({ select: { productId: true, onHand: true, reserved: true } }),
     ]);
@@ -29,12 +29,12 @@ export async function GET() {
 
     if (role !== "WAREHOUSE") {
       const [todayAgg, weekAgg, monthAgg, collectedAgg, debtAgg, overdueAgg] = await Promise.all([
-        db.order.aggregate({ _sum: { totalAmount: true }, where: { createdAt: { gte: startToday }, status: { not: "CANCELLED" } } }),
-        db.order.aggregate({ _sum: { totalAmount: true }, where: { createdAt: { gte: startWeek }, status: { not: "CANCELLED" } } }),
-        db.order.aggregate({ _sum: { totalAmount: true }, where: { createdAt: { gte: startMonth }, status: { not: "CANCELLED" } } }),
+        db.order.aggregate({ _sum: { totalAmount: true }, where: { createdAt: { gte: startToday }, status: { notIn: ["DRAFT", "CANCELLED"] } } }),
+        db.order.aggregate({ _sum: { totalAmount: true }, where: { createdAt: { gte: startWeek }, status: { notIn: ["DRAFT", "CANCELLED"] } } }),
+        db.order.aggregate({ _sum: { totalAmount: true }, where: { createdAt: { gte: startMonth }, status: { notIn: ["DRAFT", "CANCELLED"] } } }),
         db.orderPayment.aggregate({ _sum: { amount: true }, where: { paidAt: { gte: startToday } } }),
-        db.order.aggregate({ _sum: { outstandingAmount: true }, where: { status: { not: "CANCELLED" } } }),
-        db.order.aggregate({ _sum: { outstandingAmount: true }, where: { dueDate: { lt: now }, outstandingAmount: { gt: 0 }, status: { not: "CANCELLED" } } }),
+        db.order.aggregate({ _sum: { outstandingAmount: true }, where: { status: { notIn: ["DRAFT", "CANCELLED"] } } }),
+        db.order.aggregate({ _sum: { outstandingAmount: true }, where: { dueDate: { lt: now }, outstandingAmount: { gt: 0 }, status: { notIn: ["DRAFT", "CANCELLED"] } } }),
       ]);
       salesToday = todayAgg._sum.totalAmount ?? 0;
       salesWeek = weekAgg._sum.totalAmount ?? 0;
