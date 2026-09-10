@@ -6,9 +6,8 @@
  *  - ClientCreateDialog (embedded calculator mode — order created after client)
  *
  * Strategy for product matching:
- *  - Search products by name (case-insensitive contains)
- *  - If found — use that product's ID and current salePrice
- *  - If not found — auto-create a new product with the calculator's name/price
+ *  - Use the selected catalog ID, or a unique name match for legacy rows.
+ *  - Report missing or ambiguous catalog mappings before submitting the order.
  */
 
 export type CalculatorRow = {
@@ -23,8 +22,12 @@ export type CalculatorRow = {
   isService?: boolean;
 };
 
+function productMappingError(name: string) {
+  return `«${name}» ապրանքը միանշանակ չի գտնվել կատալոգում։ Ընտրեք համապատասխան ապրանքը կամ ավելացրեք այն կատալոգում և կրկին պահպանեք պատվերը։`;
+}
+
 /**
- * Build order items from calculator rows (find or auto-create products).
+ * Build order items from calculator rows using existing catalog products.
  * Does NOT post the order — used by both the standalone calculator and the
  * unified "Ընդունել պատվեր" module.
  *
@@ -46,45 +49,20 @@ export async function buildItemsFromCalculatorRows(
     const isService = !!r.isService || r.unitCode === "service";
     const unitCode = r.unitCode ?? (r.meters != null ? "m" : "piece");
 
-    // Find by exact name (case-insensitive)
-    let product = products.find((p: any) => p.name.toLowerCase() === r.name.toLowerCase());
+    const normalize = (name: string) => name.trim().toLowerCase();
+    const name = normalize(r.name);
+    let product = r.productId ? products.find((p) => p.id === r.productId) : undefined;
     if (!product) {
-      // Find by partial name
-      product = products.find(
-        (p: any) =>
-          p.name.toLowerCase().includes(r.name.toLowerCase()) ||
-          r.name.toLowerCase().includes(p.name.toLowerCase())
-      );
+      const exact = products.filter((p) => normalize(p.name) === name);
+      if (exact.length === 1) product = exact[0];
+      else if (exact.length > 1) throw new Error(productMappingError(r.name));
     }
-
     if (!product) {
-      throw new Error(`Product "${r.name}" is not mapped to the warehouse. Create or map it before creating an order.`);
+      const partial = products.filter((p) => normalize(p.name).includes(name) || name.includes(normalize(p.name)));
+      if (partial.length === 1) product = partial[0];
     }
-
-    let productId: string;
-    if (product) {
-      productId = product.id;
-    } else {
-      // Auto-create new product (services get the "service" unit)
-      const sku = `CALC-${Date.now().toString(36).toUpperCase()}-${r.name.replace(/\s/g, "").slice(0, 8).toUpperCase()}`;
-      const createRes = await fetch("/api/products", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          sku,
-          name: r.name,
-          unitCode: isService ? "service" : unitCode,
-          salePrice: Math.round(r.price || 0),
-          categoryId: null,
-        }),
-      });
-      if (!createRes.ok) {
-        const e = await createRes.json();
-        throw new Error(`Չհաջողվեց ստեղծել «${r.name}» ապրանքը: ${e.error ?? "սխալ"}`);
-      }
-      const created = await createRes.json();
-      productId = created.product.id;
-    }
+    if (!product) throw new Error(productMappingError(r.name));
+    const productId = product.id;
 
     // qty: for meter-priced rows the order item qty is the piece count (or 1);
     // for piece-priced rows it is the piece count; services are always 1.

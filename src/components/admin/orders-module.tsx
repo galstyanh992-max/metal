@@ -1,6 +1,8 @@
 "use client";
 
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { invalidateOrderQueries } from "@/lib/orders/invalidate";
+
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { SectionHeader, EmptyState } from "@/components/shared/primitives";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -55,11 +57,12 @@ const STATUS_COLORS: Record<string, string> = {
   CANCELLED: "bg-muted text-muted-foreground line-through",
 };
 
-export function OrdersModule({ role }: { role: string }) {
-  const { data, isLoading, refetch } = useQuery({ queryKey: ["orders"], queryFn: fetchOrders });
+export function OrdersModule({ role, initialOrderId = null }: { role: string; initialOrderId?: string | null }) {
+  const qc = useQueryClient();
+  const { data, isLoading, isError, refetch } = useQuery({ queryKey: ["orders"], queryFn: fetchOrders });
   const [createOpen, setCreateOpen] = useState(false);
   const [quickFillOpen, setQuickFillOpen] = useState(false);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(initialOrderId);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
@@ -117,9 +120,9 @@ export function OrdersModule({ role }: { role: string }) {
           <Button size="sm" variant={statusFilter === "all" ? "secondary" : "ghost"} className="h-8 text-xs" onClick={() => setStatusFilter("all")}>
             Բոլորը ({(data?.orders ?? []).length})
           </Button>
-          {Object.entries(statusCounts).map(([status, count]) => (
+          {Object.entries(STATUS_LABELS).filter(([status]) => role !== "WAREHOUSE" || status !== "DRAFT").map(([status]) => (
             <Button key={status} size="sm" variant={statusFilter === status ? "secondary" : "ghost"} className="h-8 text-xs whitespace-nowrap" onClick={() => setStatusFilter(status)}>
-              {STATUS_LABELS[status] ?? status} ({count as number})
+              {STATUS_LABELS[status]} ({statusCounts[status] ?? 0})
             </Button>
           ))}
           {(search || statusFilter !== "all") && (
@@ -129,6 +132,14 @@ export function OrdersModule({ role }: { role: string }) {
           )}
         </div>
       </div>
+
+      {isError && (
+        <div role="alert" className="border border-destructive/30 bg-destructive/5 p-4 text-sm flex items-center justify-between gap-3">
+          Չհաջողվեց բեռնել պատվերները։ Փորձեք կրկին։
+          <Button variant="outline" size="sm" onClick={() => refetch()}>Կրկին բեռնել</Button>
+        </div>
+      )}
+      {isLoading && <p role="status" className="text-sm text-muted-foreground">Պատվերները բեռնվում են…</p>}
 
       {/* Excel-like table */}
       <div className="border border-hairline overflow-x-auto bg-card">
@@ -149,6 +160,10 @@ export function OrdersModule({ role }: { role: string }) {
             key={o.id}
             className={`grid ${gridColumns} gap-0 border-b border-hairline hover:bg-muted/30 cursor-pointer transition-colors min-w-[680px] ${idx % 2 === 1 ? "bg-muted/10" : ""}`}
             onClick={() => setSelectedId(o.id)}
+            role="button"
+            tabIndex={0}
+            aria-label={`Բացել պատվերը ${o.number}`}
+            onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setSelectedId(o.id); } }}
           >
             <div className="px-3 py-2.5 border-r border-hairline text-xs font-mono flex items-center">{o.number}</div>
             <div className="px-3 py-2.5 border-r border-hairline text-sm font-medium flex items-center min-w-0">
@@ -171,21 +186,21 @@ export function OrdersModule({ role }: { role: string }) {
         ))}
 
         {/* Empty */}
-        {orders.length === 0 && !isLoading && (
+        {orders.length === 0 && !isLoading && !isError && (
           <div className="px-3 py-12 text-center text-sm text-muted-foreground">
             {search || statusFilter !== "all" ? "Ընտրված պայմաններով պատվերներ չկան" : "Պատվերներ չկան։ Սեղմեք «Նոր պատվեր»՝ սկսելու համար։"}
           </div>
         )}
       </div>
 
-      {createOpen && <CreateOrderDialog onClose={() => setCreateOpen(false)} onCreated={() => { refetch(); setCreateOpen(false); }} />}
-      {quickFillOpen && <QuickFillOrderDialog onClose={() => setQuickFillOpen(false)} onCreated={() => { refetch(); setQuickFillOpen(false); }} />}
+      {createOpen && <CreateOrderDialog onClose={() => setCreateOpen(false)} onCreated={(order) => { void invalidateOrderQueries(qc); setCreateOpen(false); setSearch(""); setStatusFilter("all"); setSelectedId(order.id); }} />}
+      {quickFillOpen && <QuickFillOrderDialog onClose={() => setQuickFillOpen(false)} onCreated={(order) => { void invalidateOrderQueries(qc); setQuickFillOpen(false); setSearch(""); setStatusFilter("all"); setSelectedId(order.id); }} />}
       <OrderDetailDrawer orderId={selectedId} open={!!selectedId} onClose={() => setSelectedId(null)} role={role} />
     </div>
   );
 }
 
-export function CreateOrderDialog({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+export function CreateOrderDialog({ onClose, onCreated }: { onClose: () => void; onCreated: (order: { id: string }) => void }) {
   const { data: clientsData } = useQuery({ queryKey: ["clients"], queryFn: fetchClients });
   const { data: productsData } = useQuery({ queryKey: ["products"], queryFn: fetchProducts });
   const { data: templateData } = useQuery({
@@ -213,7 +228,7 @@ export function CreateOrderDialog({ onClose, onCreated }: { onClose: () => void;
       }
       return res.json();
     },
-    onSuccess: (data) => { toast.success(data?.order?.status === "DRAFT" ? "Սևագիրը պահպանված է" : "Պատվերը ստեղծված է"); onCreated(); },
+    onSuccess: (data) => { toast.success(data?.order?.status === "DRAFT" ? "Սևագիրը պահպանված է" : "Պատվերը ստեղծված է"); onCreated(data.order); },
     onError: (e: any) => toast.error(e?.message ?? "Սխալ"),
   });
 
@@ -327,7 +342,7 @@ export function QuickFillOrderDialog({
   initialClientName,
 }: {
   onClose: () => void;
-  onCreated: () => void;
+  onCreated: (order: { id: string }) => void;
   initialClientId?: string;
   initialClientName?: string;
 }) {
@@ -370,7 +385,7 @@ export function QuickFillOrderDialog({
         ? `Պատվերը ստեղծված է · ${data.priceUpdates} գին պահպանված է`
         : "Պատվերը ստեղծված է";
       toast.success(msg);
-      onCreated();
+      onCreated(data.order);
     },
     onError: (e: any) => {
       if (e?.stockError && e?.details) {

@@ -1,5 +1,7 @@
 "use client";
 
+import { invalidateOrderQueries } from "@/lib/orders/invalidate";
+
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { RolshutterCalculator } from "./rolshutter-calculator";
@@ -112,8 +114,7 @@ export function RolshutterCalculatorWithOrder({
     },
     onSuccess: (data) => {
       toast.success(data?.order?.status === "DRAFT" ? "Սևագիրը պահպանված է" : `Պատվերը ստեղծված է · ${data?.priceUpdates > 0 ? data.priceUpdates + " գին պահպանված է" : "OK"}`);
-      qc.invalidateQueries({ queryKey: ["orders"] });
-      qc.invalidateQueries({ queryKey: ["products"] });
+      void invalidateOrderQueries(qc);
       setInternalClientId("");
       setRows([]);
       setTotal(0);

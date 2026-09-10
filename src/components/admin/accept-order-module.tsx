@@ -1,5 +1,7 @@
 "use client";
 
+import { invalidateOrderQueries } from "@/lib/orders/invalidate";
+
 import { useState, useMemo, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -41,7 +43,7 @@ type PaymentMethod = "debt" | "cash" | "transfer";
  * Shared: client selector, payment method, discount.
  * Unified receipt: combined items from both blocks + single create button.
  */
-export function AcceptOrderModule({ role }: { role: string }) {
+export function AcceptOrderModule({ role, onOrderCreated }: { role: string; onOrderCreated?: (order: { id: string }) => void }) {
   const qc = useQueryClient();
   const { data: clientsData } = useQuery({ queryKey: ["clients"], queryFn: fetchClients });
   const { data: productsData } = useQuery({ queryKey: ["products"], queryFn: fetchProducts });
@@ -151,9 +153,9 @@ export function AcceptOrderModule({ role }: { role: string }) {
         ? `Պատվերը ստեղծված է · ${data.priceUpdates} գին պահպանված է`
         : "Պատվերը ստեղծված է";
       toast.success(msg);
-      qc.invalidateQueries({ queryKey: ["orders"] });
-      qc.invalidateQueries({ queryKey: ["products"] });
+      void invalidateOrderQueries(qc);
       resetForm();
+      onOrderCreated?.(data.order);
     },
     onError: (e: any) => {
       if (e?.stockError && e?.details) {

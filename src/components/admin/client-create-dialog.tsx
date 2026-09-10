@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { QuickFillPanel, quickFillRowsToOrderItems, type QuickFillRow, type QuickFillTotals } from "./quick-fill-panel";
 import { RolshutterCalculator } from "@/components/rolshutter/rolshutter-calculator";
 import { buildItemsFromCalculatorRows, type CalculatorRow } from "@/lib/orders/calculator-order";
+import { invalidateOrderQueries } from "@/lib/orders/invalidate";
 
 async function fetchProducts() {
   const res = await fetch("/api/products");
@@ -23,7 +24,7 @@ async function fetchProducts() {
   return res.json();
 }
 
-export function ClientCreateDialog({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated?: () => void }) {
+export function ClientCreateDialog({ open, onClose, onCreated, onOrderCreated }: { open: boolean; onClose: () => void; onCreated?: () => void; onOrderCreated?: (order: { id: string }) => void }) {
   const [type, setType] = useState<"INDIVIDUAL" | "COMPANY">("INDIVIDUAL");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -38,6 +39,7 @@ export function ClientCreateDialog({ open, onClose, onCreated }: { open: boolean
   // Inline order entry — open by default
   const [showOrderSection, setShowOrderSection] = useState(true);
   const [orderTab, setOrderTab] = useState<"quickfill" | "calculator">("quickfill");
+  const [calculatorOpened, setCalculatorOpened] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<"debt" | "cash" | "transfer">("debt");
   const [savePrices, setSavePrices] = useState(true);
   const [discountPercent, setDiscountPercent] = useState("0");
@@ -49,6 +51,7 @@ export function ClientCreateDialog({ open, onClose, onCreated }: { open: boolean
   const [calcRows, setCalcRows] = useState<CalculatorRow[]>([]);
   const [calcTotal, setCalcTotal] = useState(0);
   const [stockError, setStockError] = useState<string[] | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
   const { data: productsData } = useQuery({ queryKey: ["products"], queryFn: fetchProducts });
   const products = productsData?.products ?? [];
 
@@ -89,7 +92,6 @@ export function ClientCreateDialog({ open, onClose, onCreated }: { open: boolean
       if (!res.ok) { const e = await res.json(); throw new Error(e.error ?? "failed"); }
       return res.json();
     },
-    onError: (e: any) => toast.error(e?.message ?? "Սխալ"),
   });
 
   const createOrderMutation = useMutation({
@@ -105,79 +107,71 @@ export function ClientCreateDialog({ open, onClose, onCreated }: { open: boolean
       }
       return res.json();
     },
-    onError: (e: any) => {
-      if (e?.stockError && e?.details) {
-        setStockError(e.details);
-        toast.error(`Պահեստի սխալ՝ ${e.details.length} ապրանք`);
-      } else {
-        toast.error(e?.message ?? "Պատվերի սխալ");
-      }
-    },
   });
 
   const reset = () => {
     setFirstName(""); setLastName(""); setCompanyName(""); setTaxId("");
     setPhone(""); setEmail(""); setPrimaryAddress(""); setCreditLimit("0");
     setCreatedClientId(null);
-    setShowOrderSection(false);
+    setShowOrderSection(true);
+    setOrderTab("quickfill"); setCalculatorOpened(false);
+    setRows([]); setCalcRows([]); setCalcTotal(0);
+    setTotals({ totalQty: 0, totalMeterage: 0, totalAmount: 0, selectedCount: 0, priceChanges: 0 });
+    setPaymentMethod("debt"); setDiscountPercent("0"); setSavePrices(true);
     setStockError(null);
+    setFormError(null);
   };
 
-  const submit = async () => {
+  const submit = async (status: "DRAFT" | "CONFIRMED" = "CONFIRMED") => {
+    setFormError(null);
+    setStockError(null);
     if (!phone) { toast.error("Հեռախոսը պարտադիր է"); return; }
     if (type === "INDIVIDUAL" && (!firstName || !lastName)) { toast.error("Անուն և Ազգանունը պարտադիր են"); return; }
     if (type === "COMPANY" && !companyName) { toast.error("Ընկերության անվանումը պարտադիր է"); return; }
 
     try {
-      const data = await createClientMutation.mutateAsync({
-        type,
-        firstName, lastName,
-        companyName: type === "COMPANY" ? companyName : undefined,
-        taxId: type === "COMPANY" ? taxId : undefined,
-        phone, email, primaryAddress,
-        preferredChannel,
-        creditLimit: Number(creditLimit) || 0,
-      });
-      const newClientId = data.client.id;
-      toast.success("Հաճախորդը ստեղծված է");
-      qc.invalidateQueries({ queryKey: ["clients"] });
+      // Resolve the order first, so catalog errors do not create an unused client.
+      const items = showOrderSection ? [
+        ...quickFillRowsToOrderItems(rows),
+        ...await buildItemsFromCalculatorRows(calcRows, products),
+      ] : [];
+      let newClientId = createdClientId;
+      if (!newClientId) {
+        const data = await createClientMutation.mutateAsync({
+          type,
+          firstName, lastName,
+          companyName: type === "COMPANY" ? companyName : undefined,
+          taxId: type === "COMPANY" ? taxId : undefined,
+          phone, email, primaryAddress,
+          preferredChannel,
+          creditLimit: Number(creditLimit) || 0,
+        });
+        newClientId = data.client.id;
+        setCreatedClientId(newClientId);
+        toast.success("Հաճախորդը ստեղծված է");
+        qc.invalidateQueries({ queryKey: ["clients"] });
+      }
 
-      // Build combined order items from both blocks
-      if (showOrderSection && combined.totalItemCount > 0) {
-        try {
-          const qfItems = quickFillRowsToOrderItems(rows);
-          const calcItems = await buildItemsFromCalculatorRows(calcRows, products);
-          const items = [...qfItems, ...calcItems];
-
-          if (items.length > 0) {
-            const orderData: any = await createOrderMutation.mutateAsync({
-              clientId: newClientId,
-              items,
-              savePrices,
-              paymentMethod,
-              discountPercent: Number(discountPercent) || 0,
-              note: `Ստեղծված է նոր հաճախորդի հետ · Ընդհանուր՝ ${combined.finalTotal.toLocaleString("hy-AM")} դր`,
-            });
-            const msg = orderData?.priceUpdates > 0
-              ? `Հաճախորդ և պատվեր ստեղծված են · ${orderData.priceUpdates} գին պահպանված է`
-              : "Հաճախորդ և պատվեր ստեղծված են";
-            toast.success(msg);
-            qc.invalidateQueries({ queryKey: ["orders"] });
-            qc.invalidateQueries({ queryKey: ["products"] });
-            reset();
-            onCreated?.();
-            onClose();
-            return;
-          }
-        } catch (e: any) {
-          console.error("Order creation failed:", e);
-          // Client was created — show it and stay open
-          setCreatedClientId(newClientId);
-          if (e?.stockError && e?.details) {
-            setStockError(e.details);
-          }
-          return;
-        }
+      if (items.length > 0) {
+        const orderData: any = await createOrderMutation.mutateAsync({
+          clientId: newClientId,
+          status,
+          items,
+          savePrices: status === "CONFIRMED" && savePrices,
+          paymentMethod,
+          discountPercent: Number(discountPercent) || 0,
+          note: `Ստեղծված է նոր հաճախորդի հետ · Ընդհանուր՝ ${combined.finalTotal.toLocaleString("hy-AM")} դր`,
+        });
+        const msg = orderData?.priceUpdates > 0
+          ? `Հաճախորդ և պատվեր ստեղծված են · ${orderData.priceUpdates} գին պահպանված է`
+          : "Հաճախորդ և պատվեր ստեղծված են";
+        toast.success(status === "DRAFT" ? "Սևագիրը պահպանված է" : msg);
+        void invalidateOrderQueries(qc);
+        reset();
+        onCreated?.();
+        onClose();
+        onOrderCreated?.(orderData.order);
+        return;
       }
 
       // No order items — just close
@@ -185,7 +179,10 @@ export function ClientCreateDialog({ open, onClose, onCreated }: { open: boolean
       onCreated?.();
       onClose();
     } catch (e: any) {
-      // toast already shown in onError
+      if (e?.stockError && e?.details) setStockError(e.details);
+      const message = e?.message ?? "Չհաջողվեց պահպանել։ Փորձեք կրկին։";
+      setFormError(message);
+      toast.error(message);
     }
   };
 
@@ -196,7 +193,7 @@ export function ClientCreateDialog({ open, onClose, onCreated }: { open: boolean
     : null;
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+    <Dialog open={open} onOpenChange={(o) => { if (!o) { reset(); onClose(); } }}>
       <DialogContent className="max-w-[1600px] w-[70vw] max-h-[88vh] overflow-hidden flex flex-col p-0 gap-0">
         {/* Header */}
         <DialogHeader className="px-6 py-4 border-b border-hairline bg-card shrink-0">
@@ -329,8 +326,7 @@ export function ClientCreateDialog({ open, onClose, onCreated }: { open: boolean
                 </Button>
               </div>
 
-              {showOrderSection && (
-                <div className="space-y-3">
+                <div hidden={!showOrderSection} className="space-y-3">
                   {/* Shared controls: payment + discount + save prices */}
                   <div className="flex items-center gap-3 flex-wrap">
                     <Label className="text-xs uppercase tracking-wider text-muted-foreground">Վճարման եղանակ՝</Label>
@@ -400,7 +396,7 @@ export function ClientCreateDialog({ open, onClose, onCreated }: { open: boolean
                       </button>
                       <button
                         type="button"
-                        onClick={() => setOrderTab("calculator")}
+                        onClick={() => { setCalculatorOpened(true); setOrderTab("calculator"); }}
                         className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-all rounded-md ${
                           orderTab === "calculator" ? "bg-primary text-primary-foreground" : "hover:bg-muted/40"
                         }`}
@@ -416,15 +412,18 @@ export function ClientCreateDialog({ open, onClose, onCreated }: { open: boolean
                     </div>
 
                     <div className="p-3">
-                      {orderTab === "quickfill" ? (
+                      <div hidden={orderTab !== "quickfill"}>
                         <QuickFillPanel embedded onChange={onQfChange} />
-                      ) : (
+                      </div>
+                      <div hidden={orderTab !== "calculator"}>
+                        {calculatorOpened && (
                         <RolshutterCalculator
                           products={products}
                           onRowsChange={onCalcRowsChange}
                           onTotalChange={onCalcTotalChange}
                         />
-                      )}
+                        )}
+                      </div>
                     </div>
                   </div>
 
@@ -518,11 +517,16 @@ export function ClientCreateDialog({ open, onClose, onCreated }: { open: boolean
                     </div>
                   </div>
                 </div>
-              )}
             </div>
           </div>
         </div>
 
+        {formError && (
+          <div role="alert" className="mx-6 mb-3 p-3 border border-status-red/30 bg-status-red/5 text-sm text-status-red">
+            {createdClientId && <p className="font-medium">Հաճախորդը պահպանված է։ Ուղղեք պատվերը և կրկին պահպանեք։</p>}
+            <p>{formError}</p>
+          </div>
+        )}
         {/* Footer */}
         <DialogFooter className="px-6 py-4 border-t border-hairline bg-card flex items-center justify-between gap-3 shrink-0">
           <div className="flex items-center gap-4 text-sm">
@@ -543,21 +547,15 @@ export function ClientCreateDialog({ open, onClose, onCreated }: { open: boolean
           </div>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="lg" onClick={() => { reset(); onClose(); }}>Փակել</Button>
-            {!createdClientId ? (
-              <Button onClick={submit} disabled={createClientMutation.isPending || createOrderMutation.isPending} size="lg" className="bg-primary gap-2">
-                {(createClientMutation.isPending || createOrderMutation.isPending) && <Loader2 className="size-5 animate-spin" />}
-                {combined.totalItemCount > 0 ? "Ստեղծել հաճախորդ և պատվեր" : "Ստեղծել հաճախորդ"}
-              </Button>
-            ) : (
-              <Button
-                onClick={() => { reset(); onCreated?.(); onClose(); }}
-                size="lg"
-                variant="outline"
-                className="gap-2"
-              >
-                Ավարտել
+            {showOrderSection && combined.totalItemCount > 0 && (
+              <Button variant="outline" onClick={() => submit("DRAFT")} disabled={createClientMutation.isPending || createOrderMutation.isPending} size="lg">
+                Պահպանել սևագիր
               </Button>
             )}
+              <Button onClick={() => submit()} disabled={createClientMutation.isPending || createOrderMutation.isPending || (!!createdClientId && (!showOrderSection || combined.totalItemCount === 0))} size="lg" className="bg-primary gap-2">
+                {(createClientMutation.isPending || createOrderMutation.isPending) && <Loader2 className="size-5 animate-spin" />}
+                {createdClientId ? "Պահպանել պատվերը" : showOrderSection && combined.totalItemCount > 0 ? "Ստեղծել հաճախորդ և պատվեր" : "Ստեղծել հաճախորդ"}
+              </Button>
           </div>
         </DialogFooter>
       </DialogContent>

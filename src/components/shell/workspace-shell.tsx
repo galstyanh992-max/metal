@@ -10,7 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import {
-  LayoutDashboard, Users, Package, Warehouse as WarehouseIcon,
+  LayoutDashboard, Users, Package, ShoppingCart, Warehouse as WarehouseIcon,
   Truck, FileText, Settings, LogOut, Menu, Search, Bell, Factory, Building2, BarChart3, Activity,
   ChevronDown, Receipt, Crown, Calculator, Mail, MessageCircle, DoorOpen,
   type LucideIcon,
@@ -23,6 +23,7 @@ import { ErrorBoundary } from "@/components/shared/error-boundary";
 const moduleLoading = () => <div className="h-40 animate-pulse rounded-lg bg-muted/40" />;
 const AdminDashboard = dynamic(() => import("@/components/admin/dashboard").then((module) => module.AdminDashboard), { loading: moduleLoading });
 const ClientsOrdersModule = dynamic(() => import("@/components/admin/clients-orders-module").then((module) => module.ClientsOrdersModule), { loading: moduleLoading });
+const OrdersModule = dynamic(() => import("@/components/admin/orders-module").then((module) => module.OrdersModule), { loading: moduleLoading });
 const ProductsModule = dynamic(() => import("@/components/admin/products-module").then((module) => module.ProductsModule), { loading: moduleLoading });
 const InventoryModule = dynamic(() => import("@/components/admin/inventory-module").then((module) => module.InventoryModule), { loading: moduleLoading });
 const OperatorDashboard = dynamic(() => import("@/components/operator/dashboard").then((module) => module.OperatorDashboard), { loading: moduleLoading });
@@ -44,6 +45,7 @@ type NavItem = { key: string; label: string; icon: LucideIcon; module: string; r
 const NAV: NavItem[] = [
   { key: "dashboard", label: "Վահանակ", icon: LayoutDashboard, module: "dashboard", roles: ["ADMIN", "OPERATOR", "WAREHOUSE"] },
   { key: "clients-orders", label: "Հաճախորդներ և Պատվերներ", icon: Users, module: "clients-orders", roles: ["ADMIN", "OPERATOR", "WAREHOUSE"] },
+  { key: "orders", label: "Պատվերներ", icon: ShoppingCart, module: "orders", roles: ["ADMIN", "OPERATOR", "WAREHOUSE"] },
   { key: "products", label: "Ապրանքներ", icon: Package, module: "products", roles: ["ADMIN", "OPERATOR", "WAREHOUSE"] },
   { key: "inventory", label: "Պահեստ", icon: WarehouseIcon, module: "inventory", roles: ["ADMIN"] },
   { key: "picks", label: "Ընտրում", icon: Package, module: "picks", roles: ["WAREHOUSE"] },
@@ -61,7 +63,7 @@ const NAV: NavItem[] = [
 ];
 
 const NAV_GROUPS = [
-  { label: "Աշխատանք", keys: ["dashboard", "clients-orders", "products", "inventory", "picks"] },
+  { label: "Աշխատանք", keys: ["dashboard", "clients-orders", "orders", "products", "inventory", "picks"] },
   { label: "Գնումներ և ֆինանսներ", keys: ["procurement", "suppliers", "finance", "loyalty", "tax"] },
   { label: "Վերլուծություն և կապ", keys: ["documents", "reports", "comms"] },
   { label: "Կարգավորումներ", keys: ["forms", "activity", "settings"] },
@@ -73,6 +75,16 @@ export function WorkspaceShell() {
   const [active, setActive] = useState("dashboard");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [savedOrderId, setSavedOrderId] = useState<string | null>(null);
+
+  const selectModule = (module: string) => {
+    setSavedOrderId(null);
+    setActive(module);
+  };
+  const openSavedOrder = (order: { id: string }) => {
+    setSavedOrderId(order.id);
+    setActive("orders");
+  };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -109,7 +121,8 @@ export function WorkspaceShell() {
       if (role === "WAREHOUSE") return <WarehouseDashboard />;
     }
     if (role === "WAREHOUSE" && active === "picks") return <WarehousePicks />;
-    if (active === "clients-orders") return <ClientsOrdersModule role={role} />;
+    if (active === "clients-orders") return <ClientsOrdersModule role={role} onOrderCreated={openSavedOrder} />;
+    if (active === "orders") return <OrdersModule key={savedOrderId ?? "orders"} role={role} initialOrderId={savedOrderId} />;
     if (active === "products") return <ProductsModule role={role} />;
     if (active === "inventory") return <ErrorBoundary><InventoryModule role={role} /></ErrorBoundary>;
     if (active === "finance" && role === "ADMIN") return <FinanceModule role={role} />;
@@ -129,7 +142,7 @@ export function WorkspaceShell() {
   return (
     <div className="min-h-screen flex bg-background">
       <aside className="hidden lg:flex w-56 flex-col border-r bg-sidebar">
-        <SidebarContent items={items} active={active} onSelect={setActive} role={role} userName={session?.user?.name ?? ""} userEmail={session?.user?.email ?? ""} />
+        <SidebarContent items={items} active={active} onSelect={selectModule} role={role} userName={session?.user?.name ?? ""} userEmail={session?.user?.email ?? ""} />
       </aside>
 
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
@@ -142,7 +155,7 @@ export function WorkspaceShell() {
           <SheetHeader className="sr-only">
             <SheetTitle>Հիմնական ցանկ</SheetTitle>
           </SheetHeader>
-          <SidebarContent items={items} active={active} onSelect={(k) => { setActive(k); setMobileOpen(false); }} role={role} userName={session?.user?.name ?? ""} userEmail={session?.user?.email ?? ""} />
+          <SidebarContent items={items} active={active} onSelect={(k) => { selectModule(k); setMobileOpen(false); }} role={role} userName={session?.user?.name ?? ""} userEmail={session?.user?.email ?? ""} />
         </SheetContent>
       </Sheet>
 
@@ -180,7 +193,7 @@ export function WorkspaceShell() {
         </main>
       </div>
 
-      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} items={items} onSelect={(k) => { setActive(k); setPaletteOpen(false); }} />
+      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} items={items} onSelect={(k) => { selectModule(k); setPaletteOpen(false); }} />
 
       <AssistantCloud />
     </div>

@@ -66,7 +66,7 @@ function clientDisplayName(c: any): string {
  *  - Debtors filter, search, Excel export
  *  - Quick actions: new client, quick-fill order, door calculator
  */
-export function ClientsOrdersModule({ role }: { role: string }) {
+export function ClientsOrdersModule({ role, onOrderCreated }: { role: string; onOrderCreated?: (order: { id: string }) => void }) {
   const qc = useQueryClient();
   const { data: clientsData, isLoading: clientsLoading } = useQuery({ queryKey: ["clients"], queryFn: fetchClients });
   const { data: ordersData, isLoading: ordersLoading, refetch: refetchOrders } = useQuery({ queryKey: ["orders"], queryFn: fetchOrders });
@@ -191,7 +191,7 @@ export function ClientsOrdersModule({ role }: { role: string }) {
       />
 
       {/* Accept order tab */}
-      {tab === "accept-order" && role !== "WAREHOUSE" && <AcceptOrderModule role={role} />}
+      {tab === "accept-order" && role !== "WAREHOUSE" && <AcceptOrderModule role={role} onOrderCreated={onOrderCreated} />}
 
       {/* Clients tab */}
       {tab === "clients" && (
@@ -356,6 +356,7 @@ export function ClientsOrdersModule({ role }: { role: string }) {
 
       {/* Drawers + dialogs */}
       <ClientCreateDialog
+        onOrderCreated={onOrderCreated}
         open={createClientOpen}
         onClose={() => setCreateClientOpen(false)}
         onCreated={() => {

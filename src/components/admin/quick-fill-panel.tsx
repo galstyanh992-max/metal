@@ -15,29 +15,8 @@ async function fetchProducts() {
   return res.json();
 }
 
-export type QuickFillRow = {
-  productId: string;
-  name: string;
-  sku: string;
-  unitCode: string;
-  unitSymbol: string;
-  qty: number;          // քանակ
-  meterage: number;     // մետրաժ (separate field for length-sensitive items)
-  unitPrice: number;    // գին per unit
-  useMeterage: boolean; // if true, total = meterage * unitPrice; else total = qty * unitPrice
-  selected: boolean;
-  salePriceOriginal: number; // from catalog
-  isFavorite: boolean;       // հիմնական — показывать первой
-  stock: number;             // available stock (onHand - reserved)
-};
-
-export type QuickFillTotals = {
-  totalQty: number;
-  totalMeterage: number;
-  totalAmount: number;
-  selectedCount: number;
-  priceChanges: number;
-};
+import { reconcileQuickFillRows, type QuickFillRow, type QuickFillTotals } from "@/lib/orders/quick-fill";
+export { quickFillRowsToOrderItems, type QuickFillRow, type QuickFillTotals } from "@/lib/orders/quick-fill";
 
 /**
  * QuickFillPanel — Excel-like grid for fast order entry.
@@ -60,37 +39,9 @@ export function QuickFillPanel({
   const [showSelectedOnly, setShowSelectedOnly] = useState(false);
   const [rows, setRows] = useState<QuickFillRow[]>([]);
 
-  // Initialize rows once products load
   useEffect(() => {
     if (!data?.products) return;
-    const all = data.products as Array<any>;
-    // Sort: 1) isFavorite first, 2) QF- items, 3) by name
-    const sorted = [...all].sort((a, b) => {
-      // favorites first
-      if (!!a.isFavorite !== !!b.isFavorite) return a.isFavorite ? -1 : 1;
-      // then QF- items
-      const aQF = a.sku?.startsWith("QF-") ? 0 : 1;
-      const bQF = b.sku?.startsWith("QF-") ? 0 : 1;
-      if (aQF !== bQF) return aQF - bQF;
-      return (a.name ?? "").localeCompare(b.name ?? "");
-    });
-    queueMicrotask(() => setRows(
-      sorted.map((p) => ({
-        productId: p.id,
-        name: p.name,
-        sku: p.sku,
-        unitCode: p.unit?.code ?? "piece",
-        unitSymbol: p.unit?.symbol ?? "հատ",
-        qty: 0,
-        meterage: 0,
-        unitPrice: p.salePrice ?? 0,
-        useMeterage: ["m", "m2", "kg"].includes(p.unit?.code),
-        selected: false,
-        salePriceOriginal: p.salePrice ?? 0,
-        isFavorite: !!p.isFavorite,
-        stock: p.stock?.available ?? 0,
-      }))
-    ));
+    queueMicrotask(() => setRows((previous) => reconcileQuickFillRows(data.products, previous)));
   }, [data]);
 
   // Favorites-only filter state
@@ -281,8 +232,8 @@ export function QuickFillPanel({
             const lineTotal = qtyForCalc * r.unitPrice;
             const isQuickFill = r.sku.startsWith("QF-");
             const priceChanged = r.unitPrice !== r.salePriceOriginal;
-            const outOfStock = r.stock <= 0;
-            const overStock = r.qty > r.stock;
+            const outOfStock = r.unitCode !== "service" && r.stock <= 0;
+            const overStock = r.unitCode !== "service" && qtyForCalc > r.stock;
             return (
               <div
                 key={r.productId}
@@ -294,7 +245,7 @@ export function QuickFillPanel({
                   <div className="px-1.5 py-2 border-r border-hairline flex items-center justify-center">
                     <Checkbox
                       checked={r.selected}
-                      disabled={outOfStock}
+                      aria-label={`Ընտրել ${r.name}`}
                       onCheckedChange={(v) => updateRow(absIdx, { selected: !!v })}
                       className="size-3.5"
                     />
@@ -324,10 +275,10 @@ export function QuickFillPanel({
                   {/* Stock */}
                   <div className="px-1.5 py-2 border-r border-hairline text-right">
                     <span className={`text-xs tabular-nums font-medium ${outOfStock ? "text-status-red" : r.stock < 10 ? "text-status-orange" : "text-muted-foreground"}`}>
-                      {outOfStock ? "0" : r.stock}
+                      {r.unitCode === "service" ? "—" : r.stock}
                     </span>
                   </div>
-                  {/* Qty — capped at available stock */}
+                  {/* Drafts can include products that are not currently in stock. */}
                   <div className="px-1.5 py-1.5 border-r border-hairline">
                     {r.useMeterage ? (
                       <div className="h-7 flex items-center justify-end px-1 text-xs text-muted-foreground">—</div>
@@ -336,13 +287,11 @@ export function QuickFillPanel({
                         type="number"
                         min={0}
                         step="1"
-                        max={outOfStock ? 0 : r.stock}
+                        aria-label={`Քանակ՝ ${r.name}`}
                         value={r.qty || ""}
-                        disabled={outOfStock}
                         onChange={(e) => {
-                          const v = Number(e.target.value) || 0;
-                          const capped = outOfStock ? 0 : Math.min(v, r.stock);
-                          updateRow(absIdx, { qty: capped, selected: r.selected || !!e.target.value });
+                          const qty = Math.max(0, Math.trunc(Number(e.target.value) || 0));
+                          updateRow(absIdx, { qty, selected: r.selected || qty > 0 });
                         }}
                         placeholder="0"
                         className={`h-7 text-xs text-right tabular-nums px-1.5 focus-steel ${overStock ? "border-status-red" : ""}`}
@@ -357,10 +306,10 @@ export function QuickFillPanel({
                         min={0}
                         step="0.01"
                         value={r.meterage || ""}
-                        disabled={outOfStock}
-                        onChange={(e) => updateRow(absIdx, { meterage: Number(e.target.value) || 0, selected: r.selected || !!e.target.value })}
+                        aria-label={`Մետրաժ՝ ${r.name}`}
+                        onChange={(e) => updateRow(absIdx, { meterage: Math.max(0, Number(e.target.value) || 0), selected: r.selected || !!e.target.value })}
                         placeholder={r.unitSymbol}
-                        className="h-7 text-xs text-right tabular-nums px-1.5 focus-steel"
+                        className={`h-7 text-xs text-right tabular-nums px-1.5 focus-steel ${overStock ? "border-status-red" : ""}`}
                       />
                     ) : (
                       <div className="h-7 flex items-center justify-end px-1 text-xs text-muted-foreground">—</div>
@@ -371,6 +320,7 @@ export function QuickFillPanel({
                     <Input
                       type="number"
                       min={0}
+                      aria-label={`Գին՝ ${r.name}`}
                       value={r.unitPrice || ""}
                       onChange={(e) => updateRow(absIdx, { unitPrice: Number(e.target.value) || 0, selected: r.selected || !!e.target.value })}
                       placeholder="0"
@@ -427,28 +377,4 @@ export function QuickFillPanel({
       )}
     </div>
   );
-}
-
-/**
- * Extract selected rows from QuickFill as order items payload.
- */
-export function quickFillRowsToOrderItems(rows: QuickFillRow[]) {
-  return rows
-    .filter((r) => r.selected && (r.qty > 0 || r.meterage > 0))
-    .map((r) => {
-      // If meterage filled, use it as primary qty (allows decimal); else integer qty
-      const useMeterage = r.meterage > 0;
-      const qty = useMeterage ? Math.max(1, Math.ceil(r.meterage)) : r.qty;
-      return {
-        productId: r.productId,
-        qty,
-        parameters: {
-          quantity: String(useMeterage ? r.meterage : r.qty),
-          ...(useMeterage ? { meterage: String(r.meterage), measurement: String(r.meterage), measurementUnit: r.unitSymbol } : {}),
-          unitPrice: String(r.unitPrice),
-        },
-        unitPrice: r.unitPrice,
-        savePriceToProduct: r.unitPrice !== r.salePriceOriginal,
-      };
-    });
 }
