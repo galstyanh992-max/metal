@@ -31,11 +31,6 @@ export function AuthScreen({ mode, onModeChange }: { mode: "signin" | "signup"; 
     }
   };
 
-  const fillDemo = (em: string, pw: string) => {
-    setEmail(em);
-    setPassword(pw);
-  };
-
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-md">
@@ -90,28 +85,6 @@ export function AuthScreen({ mode, onModeChange }: { mode: "signin" | "signup"; 
             </Button>
           </form>
 
-          {/* Demo accounts */}
-          <div className="mt-6 pt-6 border-t border-hairline">
-            <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">Դեմո հաշիվներ</div>
-            <div className="grid grid-cols-2 gap-2">
-              <button onClick={() => fillDemo("admin1@armroll.am", "admin123")} className="text-left p-2 rounded-lg hover:bg-muted/40 transition-colors">
-                <div className="text-xs font-medium">Ադմինիստրատոր</div>
-                <div className="text-[10px] text-muted-foreground">admin1@armroll.am</div>
-              </button>
-              <button onClick={() => fillDemo("operator@armroll.am", "operator123")} className="text-left p-2 rounded-lg hover:bg-muted/40 transition-colors">
-                <div className="text-xs font-medium">Օպերատոր</div>
-                <div className="text-[10px] text-muted-foreground">operator@armroll.am</div>
-              </button>
-              <button onClick={() => fillDemo("warehouse@armroll.am", "warehouse123")} className="text-left p-2 rounded-lg hover:bg-muted/40 transition-colors">
-                <div className="text-xs font-medium">Պահեստապետ</div>
-                <div className="text-[10px] text-muted-foreground">warehouse@armroll.am</div>
-              </button>
-              <button onClick={() => fillDemo("admin2@armroll.am", "admin123")} className="text-left p-2 rounded-lg hover:bg-muted/40 transition-colors">
-                <div className="text-xs font-medium">Ադմինիստրատոր 2</div>
-                <div className="text-[10px] text-muted-foreground">admin2@armroll.am</div>
-              </button>
-            </div>
-          </div>
         </div>
 
         <div className="text-center mt-6 text-xs text-muted-foreground">
