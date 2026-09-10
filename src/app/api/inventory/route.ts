@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAction } from "@/lib/rbac";
+import { roundInventoryQuantity } from "@/lib/inventory/quantity";
 
 /**
  * GET /api/inventory — list inventory states per branch.
@@ -82,7 +83,7 @@ export async function GET(req: Request) {
           branchCode: b.code,
           onHand,
           reserved,
-          available: Math.max(0, onHand - reserved),
+          available: Math.max(0, roundInventoryQuantity(onHand - reserved)),
         };
       });
 
@@ -98,9 +99,9 @@ export async function GET(req: Request) {
       return {
         ...p,
         state: {
-          onHand: totalOnHand,
-          reserved: totalReserved,
-          available: Math.max(0, totalOnHand - totalReserved),
+          onHand: roundInventoryQuantity(totalOnHand),
+          reserved: roundInventoryQuantity(totalReserved),
+          available: Math.max(0, roundInventoryQuantity(totalOnHand - totalReserved)),
         },
         byBranch,
       };

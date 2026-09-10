@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { EmptyState } from "@/components/shared/primitives";
 import { TrendingUp, TrendingDown, Lock, Undo2, AlertTriangle, Scale, Package } from "lucide-react";
+import { formatInventoryQuantity } from "@/lib/inventory/quantity";
 
 const TYPE_LABELS: Record<string, string> = {
   RECEIVE: "Ստացում",
@@ -71,15 +72,15 @@ export function InventoryHistoryDrawer({ productId, open, onClose }: { productId
             <div className="grid grid-cols-3 gap-2 pt-2">
               <div className="bg-muted/30 border border-hairline p-2 text-center">
                 <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Մնացորդ</div>
-                <div className="text-lg font-semibold tabular-nums">{state.onHand}</div>
+                <div className="text-lg font-semibold tabular-nums">{formatInventoryQuantity(state.onHand)} {product.unit?.symbol}</div>
               </div>
               <div className="bg-muted/30 border border-hairline p-2 text-center">
                 <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Ամրագրված</div>
-                <div className="text-lg font-semibold tabular-nums text-status-yellow">{state.reserved}</div>
+                <div className="text-lg font-semibold tabular-nums text-status-yellow">{formatInventoryQuantity(state.reserved)} {product.unit?.symbol}</div>
               </div>
               <div className="bg-muted/30 border border-hairline p-2 text-center">
                 <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Մատչելի</div>
-                <div className="text-lg font-semibold tabular-nums text-status-green">{state.available}</div>
+                <div className="text-lg font-semibold tabular-nums text-status-green">{formatInventoryQuantity(state.available)} {product.unit?.symbol}</div>
               </div>
             </div>
           )}
@@ -103,7 +104,7 @@ export function InventoryHistoryDrawer({ productId, open, onClose }: { productId
                 <TableBody>
                   {movements.map((m: any) => {
                     const Icon = TYPE_ICONS[m.type] ?? Package;
-                    const isPositive = ["RECEIVE", "RETURN", "RESERVE", "RELEASE_RESERVATION"].includes(m.type) ? (m.type === "RESERVE" ? false : true) : false;
+                    const isPositive = m.type === "ADJUSTMENT" ? m.qty > 0 : ["RECEIVE", "RETURN", "RELEASE_RESERVATION"].includes(m.type);
                     return (
                       <TableRow key={m.id} className="border-hairline">
                         <TableCell>
@@ -115,10 +116,11 @@ export function InventoryHistoryDrawer({ productId, open, onClose }: { productId
                           </div>
                         </TableCell>
                         <TableCell className={`text-right tabular-nums font-medium ${isPositive ? "text-status-green" : "text-status-orange"}`}>
-                          {isPositive ? "+" : "−"}{m.qty}
+                          {isPositive ? "+" : "−"}{formatInventoryQuantity(Math.abs(m.qty))} {product.unit?.symbol}
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">
                           {m.refType === "ORDER" ? `Պատվեր` : m.refType === "PURCHASE_ORDER" ? `PO` : m.refType === "SEED" ? "Սկզբնական" : m.refType ?? "—"}
+                          {m.branch && <div className="text-[10px]">{m.branch.name}</div>}
                           {m.note && <div className="text-[10px]">{m.note}</div>}
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">{new Date(m.createdAt).toLocaleString("hy-AM")}</TableCell>

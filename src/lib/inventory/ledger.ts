@@ -9,6 +9,7 @@
  */
 import { db } from "@/lib/db";
 import { Prisma, type MovementType } from "@prisma/client";
+import { roundInventoryQuantity } from "./quantity";
 
 const ADDS_TO_ON_HAND: MovementType[] = ["RECEIVE", "RETURN"];
 const SUBS_FROM_ON_HAND: MovementType[] = ["ISSUE", "WRITE_OFF"];
@@ -43,9 +44,9 @@ async function getInventoryState(client: LedgerClient, productId: string, branch
   }
 
   return {
-    onHand: Math.max(0, onHand),
-    reserved: Math.max(0, reserved),
-    available: Math.max(0, onHand - reserved),
+    onHand: Math.max(0, roundInventoryQuantity(onHand)),
+    reserved: Math.max(0, roundInventoryQuantity(reserved)),
+    available: Math.max(0, roundInventoryQuantity(onHand - reserved)),
   };
 }
 
@@ -85,7 +86,9 @@ export async function recordMovement(params: {
   branchId?: string;
 }, transaction?: Prisma.TransactionClient): Promise<{ ok: boolean; error?: string }> {
   const { productId, type, qty, byUserId, refType, refId, note, branchId } = params;
-  if (qty <= 0) return { ok: false, error: "qty must be positive" };
+  if (!Number.isFinite(qty) || qty === 0 || (type !== "ADJUSTMENT" && qty < 0)) {
+    return { ok: false, error: "qty must be a finite nonzero number (positive unless adjusting)" };
+  }
 
   const record = async (tx: Prisma.TransactionClient) => {
     const state = await getInventoryState(tx, productId, branchId);
@@ -109,7 +112,9 @@ export async function recordMovement(params: {
     } else if (type === "RETURN") {
       // allowed — adds to on-hand
     } else if (type === "ADJUSTMENT") {
-      // signed adjustment; can be negative (correction)
+      if (roundInventoryQuantity(state.onHand + qty) < state.reserved) {
+        return { ok: false, error: "Ճշգրտումից հետո մնացորդը չի կարող պակաս լինել ամրագրված քանակից" };
+      }
     }
 
     await tx.inventoryMovement.create({

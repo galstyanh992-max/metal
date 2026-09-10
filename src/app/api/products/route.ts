@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAction } from "@/lib/rbac";
+import { roundInventoryQuantity } from "@/lib/inventory/quantity";
 
 export async function GET() {
   try {
@@ -30,14 +31,14 @@ export async function GET() {
 
     const withStock = products.map((p) => {
       const st = stockMap.get(p.id) ?? { onHand: 0, reserved: 0 };
-      const onHand = Math.max(0, st.onHand);
-      const reserved = Math.max(0, st.reserved);
+      const onHand = Math.max(0, roundInventoryQuantity(st.onHand));
+      const reserved = Math.max(0, roundInventoryQuantity(st.reserved));
       return {
         ...p,
         stock: {
           onHand,
           reserved,
-          available: Math.max(0, onHand - reserved),
+          available: Math.max(0, roundInventoryQuantity(onHand - reserved)),
         },
       };
     });

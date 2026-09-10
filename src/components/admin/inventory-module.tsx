@@ -19,6 +19,7 @@ import { TransferDialog } from "./transfer-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { exportToExcel } from "@/lib/export/excel";
 import { toast } from "sonner";
+import { calculateInventoryQuantity, formatInventoryQuantity, inventoryDimension, inventoryInputUnits, type InventoryQuantityInput } from "@/lib/inventory/quantity";
 
 async function fetchInventory() {
   const res = await fetch("/api/inventory");
@@ -36,6 +37,17 @@ async function fetchCategories() {
   const res = await fetch("/api/categories");
   if (!res.ok) throw new Error("failed");
   return res.json();
+}
+
+function stockSummary(items: any[], value: (product: any) => number) {
+  const totals = new Map<string, { amount: number; symbol: string }>();
+  for (const product of items) {
+    const key = product.unit?.code ?? "piece";
+    const total = totals.get(key) ?? { amount: 0, symbol: product.unit?.symbol ?? "հատ" };
+    total.amount += value(product);
+    totals.set(key, total);
+  }
+  return [...totals.values()].filter((total) => total.amount !== 0).map((total) => `${formatInventoryQuantity(total.amount)} ${total.symbol}`).join(" · ") || "0";
 }
 
 export function InventoryModule({ role }: { role: string }) {
@@ -106,9 +118,9 @@ export function InventoryModule({ role }: { role: string }) {
     });
   }, [branchFiltered, filterCategoryId, search]);
 
-  const totalOnHand = filteredItems.reduce((s: number, p: any) => s + p.state.onHand, 0);
-  const totalReserved = filteredItems.reduce((s: number, p: any) => s + p.state.reserved, 0);
-  const totalAvailable = filteredItems.reduce((s: number, p: any) => s + p.state.available, 0);
+  const totalOnHand = stockSummary(filteredItems, (p) => p.state.onHand);
+  const totalReserved = stockSummary(filteredItems, (p) => p.state.reserved);
+  const totalAvailable = stockSummary(filteredItems, (p) => p.state.available);
   const lowStockCount = filteredItems.filter((p: any) => p.state.available < p.minStock).length;
 
   return (
@@ -187,15 +199,8 @@ export function InventoryModule({ role }: { role: string }) {
       {/* Branches overview */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
         {branches.map((b: any) => {
-          let branchOnHand = 0;
-          let branchAvailable = 0;
-          items.forEach((p: any) => {
-            const bs = p.byBranch?.find((x: any) => x.branchId === b.id);
-            if (bs) {
-              branchOnHand += bs.onHand;
-              branchAvailable += bs.available;
-            }
-          });
+          const branchOnHand = stockSummary(items, (p) => p.byBranch?.find((x: any) => x.branchId === b.id)?.onHand ?? 0);
+          const branchAvailable = stockSummary(items, (p) => p.byBranch?.find((x: any) => x.branchId === b.id)?.available ?? 0);
           return (
             <Card key={b.id} className="border-hairline shadow-none">
               <CardContent className="p-3">
@@ -204,8 +209,8 @@ export function InventoryModule({ role }: { role: string }) {
                   <div className="text-sm font-semibold truncate">{b.name}</div>
                 </div>
                 <div className="text-xs text-muted-foreground space-y-0.5">
-                  <div>Մնացորդ՝ <strong className="text-foreground tabular-nums">{branchOnHand}</strong> հատ</div>
-                  <div>Մատչելի՝ <strong className="text-foreground tabular-nums">{branchAvailable}</strong> հատ</div>
+                  <div>Մնացորդ՝ <strong className="text-foreground tabular-nums">{branchOnHand}</strong></div>
+                  <div>Մատչելի՝ <strong className="text-foreground tabular-nums">{branchAvailable}</strong></div>
                 </div>
                 {b.phone && <div className="text-[10px] text-muted-foreground mt-1">{b.phone}</div>}
               </CardContent>
@@ -248,23 +253,23 @@ export function InventoryModule({ role }: { role: string }) {
                 return (
                   <TableRow key={p.id} className="border-hairline hover:bg-muted/40 cursor-pointer" onClick={() => setSelectedId(p.id)}>
                     <TableCell className="text-sm font-medium">{p.name}</TableCell>
-                    <TableCell className="text-xs font-mono text-muted-foreground">{p.sku}</TableCell>
+                    <TableCell className="text-xs font-mono text-muted-foreground">{p.sku}<div className="mt-1">{p.unit?.symbol}</div></TableCell>
                     {branches.map((b: any) => {
                       const bs = p.byBranch?.find((x: any) => x.branchId === b.id);
                       const onHand = bs?.onHand ?? 0;
                       return (
                         <TableCell key={b.id} className="text-right tabular-nums text-xs">
                           {onHand > 0 ? (
-                            <span className={onHand < (p.minStock / branches.length) ? "text-status-orange" : ""}>{onHand}</span>
+                            <span className={onHand < (p.minStock / branches.length) ? "text-status-orange" : ""}>{formatInventoryQuantity(onHand)}</span>
                           ) : (
                             <span className="text-muted-foreground/40">—</span>
                           )}
                         </TableCell>
                       );
                     })}
-                    <TableCell className="text-right tabular-nums">{p.state.onHand}</TableCell>
+                    <TableCell className="text-right tabular-nums">{formatInventoryQuantity(p.state.onHand)}</TableCell>
                     <TableCell className={`text-right tabular-nums font-medium ${isCritical ? "text-status-red" : isLow ? "text-status-orange" : ""}`}>
-                      {p.state.available}
+                      {formatInventoryQuantity(p.state.available)}
                     </TableCell>
                     <TableCell className="text-right tabular-nums text-muted-foreground">{p.minStock}</TableCell>
                     <TableCell>
@@ -312,9 +317,13 @@ export function InventoryModule({ role }: { role: string }) {
           product={adjustProduct.product}
           mode={adjustProduct.mode}
           branches={branches}
+          initialBranchId={filterBranchId !== "all" ? filterBranchId : ""}
           onClose={() => setAdjustProduct(null)}
           onSaved={() => {
             qc.invalidateQueries({ queryKey: ["inventory"] });
+            qc.invalidateQueries({ queryKey: ["products"] });
+            qc.invalidateQueries({ queryKey: ["dashboard"] });
+            qc.invalidateQueries({ queryKey: ["op-dashboard"] });
             setAdjustProduct(null);
           }}
         />
@@ -357,17 +366,32 @@ const MODE_LABELS: Record<string, { title: string; description: string; icon: an
 };
 
 function InventoryAdjustDialog({
-  product, mode, branches, onClose, onSaved,
+  product, mode, branches, initialBranchId, onClose, onSaved,
 }: {
   product: any;
   mode: "RECEIVE" | "WRITE_OFF" | "ADJUSTMENT";
   branches: any[];
+  initialBranchId?: string;
   onClose: () => void;
   onSaved: () => void;
 }) {
   const [qty, setQty] = useState("");
-  const [branchId, setBranchId] = useState(branches[0]?.id ?? "");
+  const [branchId, setBranchId] = useState(initialBranchId || branches[0]?.id || "");
   const [note, setNote] = useState("");
+  const stockUnit = product.unit ?? { code: "piece", symbol: "հատ" };
+  const dimension = inventoryDimension(stockUnit.code);
+  const [inputMode, setInputMode] = useState<"total" | "dimensions">("total");
+  const [inputUnit, setInputUnit] = useState(stockUnit.code);
+  const [count, setCount] = useState("");
+  const [length, setLength] = useState("");
+  const [width, setWidth] = useState("");
+  const [height, setHeight] = useState("");
+  const [amountPerPiece, setAmountPerPiece] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const measurement: InventoryQuantityInput = { mode: inputMode, unit: inputUnit, amount: qty, count, length, width, height, amountPerPiece };
+  const unitOptions = inventoryInputUnits(stockUnit.code, inputMode);
+  let quantityResult: ReturnType<typeof calculateInventoryQuantity> | null = null;
+  try { quantityResult = calculateInventoryQuantity(measurement, stockUnit, mode === "ADJUSTMENT"); } catch { /* Preview appears when required fields are valid. */ }
   const meta = MODE_LABELS[mode];
   const Icon = meta.icon;
 
@@ -376,7 +400,7 @@ function InventoryAdjustDialog({
       const res = await fetch(`/api/inventory/${product.id}`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ type: mode, qty: Number(qty), branchId, note }),
+        body: JSON.stringify({ type: mode, measurement, branchId, note }),
       });
       if (!res.ok) { const e = await res.json(); throw new Error(e.error ?? "failed"); }
       return res.json();
@@ -385,13 +409,15 @@ function InventoryAdjustDialog({
       toast.success(`${meta.title} — կատարված է`);
       onSaved();
     },
-    onError: (e: any) => toast.error(e?.message ?? "Սխալ"),
+    onError: (e: any) => { setError(e?.message ?? "Սխալ"); toast.error(e?.message ?? "Սխալ"); },
   });
 
   const submit = () => {
-    const n = Number(qty);
-    if (!n || (mode !== "ADJUSTMENT" && n <= 0)) {
-      toast.error("Քանակը պետք է լինի դրական թիվ");
+    setError(null);
+    try {
+      calculateInventoryQuantity(measurement, stockUnit, mode === "ADJUSTMENT");
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Սխալ քանակ");
       return;
     }
     if (!branchId) {
@@ -403,7 +429,7 @@ function InventoryAdjustDialog({
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className={`flex items-center gap-2 ${meta.color}`}>
             <Icon className="size-4" />
@@ -414,12 +440,13 @@ function InventoryAdjustDialog({
           <div className="p-3 border border-hairline bg-muted/30">
             <div className="text-sm font-medium">{product.name}</div>
             <div className="text-xs text-muted-foreground font-mono">{product.sku}</div>
+            <div className="mt-1 text-xs text-muted-foreground">Հաշվառման միավոր՝ <strong>{stockUnit.symbol}</strong></div>
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs uppercase tracking-wider text-muted-foreground">Մասնաճյուղ *</Label>
+            <Label htmlFor="inventory-branch" className="text-xs uppercase tracking-wider text-muted-foreground">Մասնաճյուղ *</Label>
             <Select value={branchId} onValueChange={setBranchId}>
-              <SelectTrigger><SelectValue placeholder="Ընտրեք մասնաճյուղը" /></SelectTrigger>
+              <SelectTrigger id="inventory-branch"><SelectValue placeholder="Ընտրեք մասնաճյուղը" /></SelectTrigger>
               <SelectContent>
                 {branches.map((b: any) => (
                   <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
@@ -430,13 +457,54 @@ function InventoryAdjustDialog({
 
           <p className="text-xs text-muted-foreground">{meta.description}</p>
 
-          <div className="space-y-1.5">
-            <Label className="text-xs uppercase tracking-wider text-muted-foreground">
-              Քանակ {mode === "ADJUSTMENT" && "(+ կամ −)"}
-            </Label>
-            <Input type="number" value={qty} onChange={(e) => setQty(e.target.value)} placeholder="0"
-              className="focus-steel tabular-nums text-lg" autoFocus />
-          </div>
+          {dimension !== "count" && (
+            <div className="grid grid-cols-2 gap-2" aria-label="Մուտքագրման եղանակ">
+              <Button variant={inputMode === "total" ? "secondary" : "outline"} aria-pressed={inputMode === "total"} onClick={() => { setInputMode("total"); setInputUnit(stockUnit.code); setError(null); }}>Ընդհանուր քանակ</Button>
+              <Button variant={inputMode === "dimensions" ? "secondary" : "outline"} aria-pressed={inputMode === "dimensions"} onClick={() => { setInputMode("dimensions"); setInputUnit(["area", "volume"].includes(dimension) ? "m" : stockUnit.code); setError(null); }}>Հաշվել չափերով</Button>
+            </div>
+          )}
+
+          {unitOptions.length > 0 && (
+            <div className="space-y-1.5">
+              <Label htmlFor="inventory-input-unit">{inputMode === "dimensions" ? "Չափերի միավոր" : "Մուտքագրման միավոր"}</Label>
+              <Select value={inputUnit} onValueChange={setInputUnit}>
+                <SelectTrigger id="inventory-input-unit"><SelectValue /></SelectTrigger>
+                <SelectContent>{unitOptions.map((unit) => <SelectItem key={unit.code} value={unit.code}>{unit.symbol}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {inputMode === "total" ? (
+            <div className="space-y-1.5">
+              <Label htmlFor="inventory-quantity">Քանակ ({unitOptions.find((unit) => unit.code === inputUnit)?.symbol ?? stockUnit.symbol}) {mode === "ADJUSTMENT" && "(+ կամ −)"}</Label>
+              <Input id="inventory-quantity" inputMode="decimal" value={qty} onChange={(e) => setQty(e.target.value)} placeholder={dimension === "count" ? "10" : "6,2"} className="focus-steel tabular-nums text-lg" autoFocus />
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="inventory-count">Հատերի քանակ</Label>
+                <Input id="inventory-count" inputMode="numeric" value={count} onChange={(e) => setCount(e.target.value)} placeholder="10" />
+              </div>
+              {["length", "area", "volume"].includes(dimension) ? (
+                <>
+                  <div className="space-y-1.5"><Label htmlFor="inventory-length">Մեկ հատի երկարություն</Label><Input id="inventory-length" inputMode="decimal" value={length} onChange={(e) => setLength(e.target.value)} placeholder="6,2" /></div>
+                  {["area", "volume"].includes(dimension) && <div className="space-y-1.5"><Label htmlFor="inventory-width">Մեկ հատի լայնություն</Label><Input id="inventory-width" inputMode="decimal" value={width} onChange={(e) => setWidth(e.target.value)} placeholder="1,5" /></div>}
+                  {dimension === "volume" && <div className="space-y-1.5"><Label htmlFor="inventory-height">Մեկ հատի բարձրություն</Label><Input id="inventory-height" inputMode="decimal" value={height} onChange={(e) => setHeight(e.target.value)} placeholder="0,5" /></div>}
+                </>
+              ) : (
+                <div className="space-y-1.5"><Label htmlFor="inventory-per-piece">{dimension === "mass" ? "Մեկ հատի քաշը" : "Մեկ հատի ծավալը"}</Label><Input id="inventory-per-piece" inputMode="decimal" value={amountPerPiece} onChange={(e) => setAmountPerPiece(e.target.value)} placeholder="2,5" /></div>
+              )}
+            </div>
+          )}
+
+          {dimension === "count" && <p className="text-xs text-muted-foreground">Չափերով հաշվառման համար ապրանքի քարտում ընտրեք մ, մ² կամ կգ միավորը։</p>}
+          {quantityResult && (
+            <div role="status" className="p-3 border border-primary/20 bg-primary/5 text-sm space-y-1">
+              <div className="tabular-nums">{quantityResult.calculation}</div>
+              <div className="font-medium">{mode === "WRITE_OFF" ? "Դուրս կգրվի" : "Կմուտքագրվի"}՝ {formatInventoryQuantity(quantityResult.qty)} {stockUnit.symbol}</div>
+            </div>
+          )}
+          {error && <p role="alert" className="text-sm text-status-red">{error}</p>}
 
           <div className="space-y-1.5">
             <Label className="text-xs uppercase tracking-wider text-muted-foreground">Նշում (ոչ պարտադիր)</Label>

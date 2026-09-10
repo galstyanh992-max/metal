@@ -493,7 +493,7 @@ model InventoryMovement {
   id         String       @id @default(cuid())
   productId  String
   type       MovementType
-  qty        Int          // positive for additions, negative for issues (we'll store absolute + sign via type)
+  qty        Float        // quantity in the product's stock unit, including fractional measurements
   refType    String?      // "ORDER" | "PURCHASE_ORDER" | "MANUAL" | "TRANSFER"
   refId      String?
   lot        String?
@@ -516,8 +516,8 @@ model InventorySnapshot {
   id        String   @id @default(cuid())
   productId String
   branchId  String?
-  onHand    Int      @default(0)
-  reserved  Int      @default(0)
+  onHand    Float    @default(0)
+  reserved  Float    @default(0)
   updatedAt DateTime @updatedAt
 
   product   Product  @relation(fields: [productId], references: [id])
