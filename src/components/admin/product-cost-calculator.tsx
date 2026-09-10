@@ -126,7 +126,7 @@ export function ProductCostCalculator({
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-5xl w-[95vw] max-h-[92vh] overflow-hidden flex flex-col p-0 gap-0">
+      <DialogContent className="max-w-5xl w-[95vw] max-h-[92vh] overflow-hidden flex flex-col p-0 gap-0 max-sm:w-[calc(100%-1rem)] max-sm:max-h-[calc(100dvh-1rem)]">
         <DialogHeader className="px-5 py-3 border-b border-hairline bg-card shrink-0">
           <DialogTitle className="flex items-center gap-2 text-base">
             <Calculator className="size-4 text-primary" />

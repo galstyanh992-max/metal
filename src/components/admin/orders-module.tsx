@@ -88,17 +88,17 @@ export function OrdersModule({ role, initialOrderId = null }: { role: string; in
   return (
     <div className="space-y-4">
       {/* Header bar */}
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <h2 className="text-lg font-semibold">Պատվերներ</h2>
           <span className="text-sm text-muted-foreground tabular-nums">{orders.length}</span>
         </div>
         {role !== "WAREHOUSE" && (
-          <div className="flex items-center gap-2">
-            <Button size="sm" variant="outline" className="gap-2" onClick={() => setQuickFillOpen(true)}>
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
+            <Button size="sm" variant="outline" className="w-full justify-center gap-2 sm:w-auto" onClick={() => setQuickFillOpen(true)}>
               <Zap className="size-4 text-primary" /> Արագ լրացում
             </Button>
-            <Button size="sm" className="gap-2 bg-primary" onClick={() => setCreateOpen(true)}>
+            <Button size="sm" className="w-full justify-center gap-2 bg-primary sm:w-auto" onClick={() => setCreateOpen(true)}>
               <Plus className="size-4" /> Նոր պատվեր
             </Button>
           </div>
@@ -410,8 +410,8 @@ export function QuickFillOrderDialog({
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-[1600px] w-[70vw] h-[88vh] overflow-hidden flex flex-col p-0 gap-0">
-        <DialogHeader className="px-6 py-3 border-b border-hairline bg-card shrink-0">
+      <DialogContent className="max-w-[1600px] w-[70vw] h-[88vh] overflow-hidden flex flex-col p-0 gap-0 max-sm:w-[calc(100%-1rem)] max-sm:h-[calc(100dvh-1rem)] max-sm:max-h-none">
+        <DialogHeader className="px-4 py-3 border-b border-hairline bg-card shrink-0 sm:px-6">
           <DialogTitle className="flex items-center gap-2 text-base">
             <Zap className="size-4 text-primary" />
             Պատվերի լրացում
@@ -422,9 +422,9 @@ export function QuickFillOrderDialog({
         </DialogHeader>
 
         {/* Client + payment selector */}
-        <div className="px-6 py-3 border-b border-hairline bg-muted/20 flex items-center gap-4 flex-wrap shrink-0">
+        <div className="px-4 py-3 border-b border-hairline bg-muted/20 flex items-center gap-3 flex-wrap shrink-0 sm:px-6 sm:gap-4">
           <Label className="text-xs uppercase tracking-wider text-muted-foreground shrink-0">Հաճախորդ</Label>
-          <div className="flex-1 min-w-[300px]">
+          <div className="w-full min-w-0 sm:flex-1 sm:min-w-[300px]">
             {initialClientId && initialClientName ? (
               <div className="h-10 px-3 flex items-center bg-card border border-hairline text-sm font-medium">
                 {initialClientName}
@@ -439,7 +439,7 @@ export function QuickFillOrderDialog({
               />
             )}
           </div>
-          <div className="flex items-center gap-1 border border-hairline bg-card">
+          <div className="flex w-full items-center justify-between gap-1 border border-hairline bg-card sm:w-auto">
             {([
               { v: "debt", label: "Պարտք" },
               { v: "cash", label: "Առձեռն" },
@@ -448,7 +448,7 @@ export function QuickFillOrderDialog({
               <button
                 key={opt.v}
                 onClick={() => setPaymentMethod(opt.v)}
-                className={`px-4 py-2 text-sm font-medium transition-colors ${
+                className={`flex-1 px-2 py-2 text-xs font-medium transition-colors sm:flex-none sm:px-4 sm:text-sm ${
                   paymentMethod === opt.v
                     ? "bg-primary text-primary-foreground"
                     : "hover:bg-muted/40 text-muted-foreground"
@@ -518,8 +518,8 @@ export function QuickFillOrderDialog({
         </div>
 
         {/* Footer (always visible) */}
-        <DialogFooter className="px-5 py-2.5 border-t-2 border-primary/30 bg-primary/5 flex items-center justify-between gap-3 shrink-0">
-          <div className="flex items-center gap-4 text-sm">
+        <DialogFooter className="flex-col items-stretch px-4 py-2.5 border-t-2 border-primary/30 bg-primary/5 gap-3 shrink-0 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs sm:text-sm">
             <div className="flex items-center gap-1.5">
               <span className="text-muted-foreground">Ընտրված՝</span>
               <span className="font-semibold tabular-nums text-sm">{totals.selectedCount}</span>
@@ -564,12 +564,12 @@ export function QuickFillOrderDialog({
               </div>
             )}
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={onClose} disabled={mutation.isPending}>Չեղարկել</Button>
-            <Button variant="outline" onClick={() => submit("DRAFT")} disabled={mutation.isPending || totals.selectedCount === 0} className="gap-2">
+          <div className="grid grid-cols-1 gap-2 sm:flex sm:items-center">
+            <Button variant="outline" onClick={onClose} disabled={mutation.isPending} className="w-full sm:w-auto">Չեղարկել</Button>
+            <Button variant="outline" onClick={() => submit("DRAFT")} disabled={mutation.isPending || totals.selectedCount === 0} className="w-full gap-2 sm:w-auto">
               <Save className="size-4" /> Պահպանել սևագիր
             </Button>
-            <Button onClick={() => submit("CONFIRMED")} disabled={mutation.isPending || totals.selectedCount === 0} className="bg-primary gap-2">
+            <Button onClick={() => submit("CONFIRMED")} disabled={mutation.isPending || totals.selectedCount === 0} className="w-full bg-primary gap-2 sm:w-auto">
               {mutation.isPending && <Loader2 className="size-4 animate-spin" />}
               <Zap className="size-4" />
               Ստեղծել պատվեր ({totals.selectedCount})

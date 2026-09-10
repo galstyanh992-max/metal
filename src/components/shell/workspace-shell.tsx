@@ -147,11 +147,11 @@ export function WorkspaceShell() {
 
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
         <SheetTrigger asChild>
-          <Button variant="ghost" size="icon" className="lg:hidden absolute top-3 left-3 z-50">
+          <Button variant="ghost" size="icon" className="lg:hidden absolute top-2 left-2 z-50 size-10">
             <Menu className="size-5" />
           </Button>
         </SheetTrigger>
-        <SheetContent side="left" className="w-60 p-0">
+        <SheetContent side="left" className="w-[82vw] max-w-72 p-0">
           <SheetHeader className="sr-only">
             <SheetTitle>Հիմնական ցանկ</SheetTitle>
           </SheetHeader>
@@ -160,8 +160,8 @@ export function WorkspaceShell() {
       </Sheet>
 
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="h-12 border-b flex items-center justify-between px-4 lg:px-6 gap-4 bg-card">
-          <div className="flex items-center gap-3 ml-12 lg:ml-0">
+        <header className="h-12 border-b flex items-center justify-between px-3 sm:px-4 lg:px-6 gap-2 sm:gap-4 bg-card">
+          <div className="flex flex-1 min-w-0 items-center gap-3 ml-11 lg:ml-0">
             <h2 className="text-sm font-medium truncate">
               {items.find((i) => i.key === active)?.label ?? "Վահանակ"}
             </h2>
@@ -169,17 +169,17 @@ export function WorkspaceShell() {
               {role === "ADMIN" ? "Ադմինիստրատոր" : role === "OPERATOR" ? "Օպերատոր" : "Պահեստապետ"}
             </Badge>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
             <button
               onClick={() => setPaletteOpen(true)}
-              className="flex items-center gap-2 px-3 h-8 text-sm text-muted-foreground border rounded-lg hover:bg-muted/30 min-w-[120px] lg:min-w-[200px]"
+              className="flex size-8 items-center justify-center px-0 text-sm text-muted-foreground border rounded-lg hover:bg-muted/30 sm:w-auto sm:min-w-[120px] sm:px-3 lg:min-w-[200px]"
             >
               <Search className="size-3.5 shrink-0" />
               <span className="hidden md:inline flex-1 text-left text-xs">Որոնում…</span>
               <kbd className="hidden md:inline-flex text-[9px] px-1 py-0.5 border rounded">⌘K</kbd>
             </button>
             <NotificationsBell />
-            <Button variant="ghost" size="sm" onClick={handleLogout} className="gap-2 rounded-lg">
+            <Button variant="ghost" size="sm" onClick={handleLogout} className="size-8 gap-2 rounded-lg px-0 sm:h-8 sm:w-auto sm:px-3">
               <LogOut className="size-4" />
               <span className="hidden sm:inline">Ելք</span>
             </Button>
@@ -187,7 +187,7 @@ export function WorkspaceShell() {
         </header>
 
         <main className="flex-1 overflow-auto">
-          <div className="p-4 lg:p-6 max-w-[1600px] mx-auto page-enter">
+          <div className="p-3 sm:p-4 lg:p-6 max-w-[1600px] mx-auto page-enter">
             {renderModule()}
           </div>
         </main>

@@ -124,7 +124,7 @@ export function CategoryManagerDialog({ onClose }: { onClose: () => void }) {
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-4xl w-[95vw] max-h-[92vh] overflow-hidden flex flex-col p-0 gap-0">
+      <DialogContent className="max-w-4xl w-[95vw] max-h-[92vh] overflow-hidden flex flex-col p-0 gap-0 max-sm:w-[calc(100%-1rem)] max-sm:max-h-[calc(100dvh-1rem)]">
         <DialogHeader className="px-6 py-4 border-b border-hairline bg-card shrink-0">
           <DialogTitle className="flex items-center gap-2 text-lg">
             <FolderTree className="size-5 text-primary" />

@@ -104,7 +104,7 @@ export function TransferDialog({
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-3xl max-h-[92vh] overflow-hidden flex flex-col p-0 gap-0">
+      <DialogContent className="max-w-3xl max-h-[92vh] overflow-hidden flex flex-col p-0 gap-0 max-sm:w-[calc(100%-1rem)] max-sm:max-h-[calc(100dvh-1rem)]">
         <DialogHeader className="px-5 py-4 border-b border-hairline bg-card shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <ArrowRightLeft className="size-5 text-primary" />
@@ -112,9 +112,9 @@ export function TransferDialog({
           </DialogTitle>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+        <div className="flex-1 overflow-y-auto p-4 space-y-4 sm:p-5">
           {/* Branch selectors */}
-          <div className="grid grid-cols-[1fr_auto_1fr] gap-3 items-end">
+          <div className="grid grid-cols-1 gap-3 items-end sm:grid-cols-[1fr_auto_1fr]">
             <div className="space-y-1.5">
               <Label className="text-xs uppercase tracking-wider text-muted-foreground">Որ մասնաճյուղից *</Label>
               <Select value={fromBranchId} onValueChange={(v) => { setFromBranchId(v); setQuantities({}); }}>
@@ -127,7 +127,7 @@ export function TransferDialog({
               </Select>
             </div>
 
-            <div className="pb-2">
+            <div className="hidden pb-2 sm:block">
               <ArrowRight className="size-5 text-primary" />
             </div>
 

@@ -194,9 +194,9 @@ export function ClientCreateDialog({ open, onClose, onCreated, onOrderCreated }:
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) { reset(); onClose(); } }}>
-      <DialogContent className="max-w-[1600px] w-[70vw] max-h-[88vh] overflow-hidden flex flex-col p-0 gap-0">
+      <DialogContent className="max-w-[1600px] w-[70vw] max-h-[88vh] overflow-hidden flex flex-col p-0 gap-0 max-sm:w-[calc(100%-1rem)] max-sm:max-h-[calc(100dvh-1rem)]">
         {/* Header */}
-        <DialogHeader className="px-6 py-4 border-b border-hairline bg-card shrink-0">
+        <DialogHeader className="px-4 py-4 border-b border-hairline bg-card shrink-0 sm:px-6">
           <DialogTitle className="flex items-center gap-2 text-lg">
             <User className="size-5 text-primary" />
             Նոր հաճախորդ
@@ -211,7 +211,7 @@ export function ClientCreateDialog({ open, onClose, onCreated, onOrderCreated }:
 
         {/* Body — scrollable */}
         <div className="flex-1 overflow-y-auto min-h-0">
-          <div className="p-6 space-y-4">
+          <div className="p-4 space-y-4 sm:p-6">
             {/* Type toggle */}
             <div className="grid grid-cols-2 gap-2">
               <button
@@ -242,7 +242,7 @@ export function ClientCreateDialog({ open, onClose, onCreated, onOrderCreated }:
 
             {/* Personal / Company fields */}
             {type === "INDIVIDUAL" ? (
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label className="text-xs uppercase tracking-wider text-muted-foreground">Անուն *</Label>
                   <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} disabled={!!createdClientId} className="focus-steel" />
@@ -258,7 +258,7 @@ export function ClientCreateDialog({ open, onClose, onCreated, onOrderCreated }:
                   <Label className="text-xs uppercase tracking-wider text-muted-foreground">Ընկերության անվանում *</Label>
                   <Input value={companyName} onChange={(e) => setCompanyName(e.target.value)} disabled={!!createdClientId} className="focus-steel" />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="space-y-1.5">
                     <Label className="text-xs uppercase tracking-wider text-muted-foreground">ՀՎՀՀ (հարկային)</Label>
                     <Input value={taxId} onChange={(e) => setTaxId(e.target.value)} disabled={!!createdClientId} className="focus-steel tabular-nums" />
@@ -271,7 +271,7 @@ export function ClientCreateDialog({ open, onClose, onCreated, onOrderCreated }:
               </>
             )}
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label className="text-xs uppercase tracking-wider text-muted-foreground">Հեռախոս *</Label>
                 <Input value={phone} onChange={(e) => setPhone(e.target.value)} disabled={!!createdClientId} placeholder="+374 99 123456" className="focus-steel tabular-nums" />
@@ -522,14 +522,14 @@ export function ClientCreateDialog({ open, onClose, onCreated, onOrderCreated }:
         </div>
 
         {formError && (
-          <div role="alert" className="mx-6 mb-3 p-3 border border-status-red/30 bg-status-red/5 text-sm text-status-red">
+          <div role="alert" className="mx-4 mb-3 p-3 border border-status-red/30 bg-status-red/5 text-sm text-status-red sm:mx-6">
             {createdClientId && <p className="font-medium">Հաճախորդը պահպանված է։ Ուղղեք պատվերը և կրկին պահպանեք։</p>}
             <p>{formError}</p>
           </div>
         )}
         {/* Footer */}
-        <DialogFooter className="px-6 py-4 border-t border-hairline bg-card flex items-center justify-between gap-3 shrink-0">
-          <div className="flex items-center gap-4 text-sm">
+        <DialogFooter className="flex-col items-stretch px-4 py-4 border-t border-hairline bg-card gap-3 shrink-0 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <div className="flex flex-wrap items-center gap-2 text-xs sm:gap-4 sm:text-sm">
             {showOrderSection && combined.totalItemCount > 0 && (
               <>
                 <span className="text-muted-foreground">Ապրանքներ՝ <strong className="text-foreground">{combined.totalItemCount}</strong></span>
@@ -545,14 +545,14 @@ export function ClientCreateDialog({ open, onClose, onCreated, onOrderCreated }:
               </>
             )}
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="lg" onClick={() => { reset(); onClose(); }}>Փակել</Button>
+          <div className="grid grid-cols-1 gap-2 sm:flex sm:items-center">
+            <Button variant="outline" size="lg" onClick={() => { reset(); onClose(); }} className="w-full sm:w-auto">Փակել</Button>
             {showOrderSection && combined.totalItemCount > 0 && (
-              <Button variant="outline" onClick={() => submit("DRAFT")} disabled={createClientMutation.isPending || createOrderMutation.isPending} size="lg">
+              <Button variant="outline" onClick={() => submit("DRAFT")} disabled={createClientMutation.isPending || createOrderMutation.isPending} size="lg" className="w-full sm:w-auto">
                 Պահպանել սևագիր
               </Button>
             )}
-              <Button onClick={() => submit()} disabled={createClientMutation.isPending || createOrderMutation.isPending || (!!createdClientId && (!showOrderSection || combined.totalItemCount === 0))} size="lg" className="bg-primary gap-2">
+              <Button onClick={() => submit()} disabled={createClientMutation.isPending || createOrderMutation.isPending || (!!createdClientId && (!showOrderSection || combined.totalItemCount === 0))} size="lg" className="w-full bg-primary gap-2 sm:w-auto">
                 {(createClientMutation.isPending || createOrderMutation.isPending) && <Loader2 className="size-5 animate-spin" />}
                 {createdClientId ? "Պահպանել պատվերը" : showOrderSection && combined.totalItemCount > 0 ? "Ստեղծել հաճախորդ և պատվեր" : "Ստեղծել հաճախորդ"}
               </Button>

@@ -17,7 +17,7 @@ export function AssistantCloud() {
       {/* Floating panel */}
       <div
         className={cn(
-          "fixed bottom-20 right-4 z-50 w-[calc(100vw-2rem)] max-w-md h-[70vh] max-h-[600px]",
+          "fixed bottom-16 right-3 z-40 w-[calc(100vw-1.5rem)] max-w-md h-[calc(100dvh-7rem)] max-h-[600px] sm:bottom-20 sm:right-4 sm:w-[calc(100vw-2rem)] sm:h-[70vh]",
           "transition-all duration-200 origin-bottom-right",
           open
             ? "opacity-100 scale-100 pointer-events-auto"
@@ -34,12 +34,12 @@ export function AssistantCloud() {
         onClick={() => setOpen((o) => !o)}
         aria-label={open ? "Փակել օգնականը" : "Բացել օգնականը"}
         className={cn(
-          "fixed bottom-4 right-4 z-50 size-14 rounded-full shadow-lg flex items-center justify-center",
+          "fixed bottom-3 right-3 z-40 size-12 rounded-full shadow-lg flex items-center justify-center sm:bottom-4 sm:right-4 sm:size-14",
           "bg-primary text-primary-foreground hover:bg-primary/90 transition-all",
           "hover:scale-105 active:scale-95"
         )}
       >
-        {open ? <X className="size-6" /> : <Bot className="size-6" />}
+        {open ? <X className="size-5 sm:size-6" /> : <Bot className="size-5 sm:size-6" />}
       </button>
     </>
   );
