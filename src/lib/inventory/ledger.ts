@@ -32,6 +32,10 @@ async function getInventoryState(client: LedgerClient, productId: string, branch
     select: { type: true, qty: true },
   });
 
+  return inventoryStateFromMovements(movements);
+}
+
+export function inventoryStateFromMovements(movements: { type: MovementType; qty: number }[]): InventoryState {
   let onHand = 0;
   let reserved = 0;
 
@@ -48,6 +52,12 @@ async function getInventoryState(client: LedgerClient, productId: string, branch
     reserved: Math.max(0, roundInventoryQuantity(reserved)),
     available: Math.max(0, roundInventoryQuantity(onHand - reserved)),
   };
+}
+
+export async function lockInventoryProducts(tx: Prisma.TransactionClient, productIds: string[]) {
+  const ids = [...new Set(productIds)].sort();
+  if (!ids.length) return;
+  await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "Product" WHERE "id" IN (${Prisma.join(ids)}) ORDER BY "id" FOR UPDATE`);
 }
 
 export async function computeInventoryState(productId: string, branchId?: string): Promise<InventoryState> {
@@ -91,6 +101,7 @@ export async function recordMovement(params: {
   }
 
   const record = async (tx: Prisma.TransactionClient) => {
+    await lockInventoryProducts(tx, [productId]);
     const state = await getInventoryState(tx, productId, branchId);
 
     if (type === "RESERVE") {

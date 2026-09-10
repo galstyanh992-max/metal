@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { evaluateFormula } from "@/lib/bom/dsl";
-import { recordMovement } from "@/lib/inventory/ledger";
+import { reserveOrderStock, type StockRequirement } from "@/lib/inventory/order-reservations";
 import { createOrderDocuments } from "./documents";
 
 export class OrderConfirmationError extends Error {}
@@ -24,6 +24,12 @@ export async function confirmDraftOrder(
     });
     if (!order.items.length) throw new OrderConfirmationError("Ավելացրեք ապրանքներ պատվերին");
 
+    const categoryIds = [...new Set(order.items.map((item) => item.product.categoryId).filter((id): id is string => !!id))];
+    const rules = categoryIds.length ? await tx.bomRule.findMany({
+      where: { productTypeId: { in: categoryIds }, active: true, archivedAt: null },
+      include: { componentProduct: true },
+    }) : [];
+    const requirements: StockRequirement[] = [];
     for (const item of order.items) {
       const isService = item.product.unit.code === "service" || item.parameters.some((p) => p.fieldKey === "isService" && p.value === "true");
       if (!Number.isSafeInteger(item.qty) || item.qty <= 0 || item.unitPriceSnapshot <= 0) {
@@ -31,20 +37,9 @@ export async function confirmDraftOrder(
       }
       if (isService) continue;
 
-      const reserve = async (productId: string, qty: number, name: string, note: string) => {
-        const result = await recordMovement({
-          productId, qty, type: "RESERVE", byUserId: userId,
-          refType: "ORDER", refId: id, note,
-        }, tx);
-        if (!result.ok) throw new OrderConfirmationError(`«${name}» — ${result.error}`);
-      };
-      await reserve(item.productId, item.qty, item.productName, `Պատվեր ${order.number}`);
+      requirements.push({ productId: item.productId, qty: item.qty, name: item.productName });
 
       if (!item.product.categoryId) continue;
-      const rules = await tx.bomRule.findMany({
-        where: { productTypeId: item.product.categoryId, active: true, archivedAt: null },
-        include: { componentProduct: true },
-      });
       const ctx: Record<string, number> = {};
       for (const parameter of item.parameters) {
         const value = Number(parameter.value);
@@ -54,6 +49,7 @@ export async function confirmDraftOrder(
       ctx.qty ??= ctx.quantity;
 
       for (const rule of rules) {
+        if (rule.productTypeId !== item.product.categoryId) continue;
         let rawQty: number;
         try {
           rawQty = evaluateFormula(rule.formulaExpr, { ...ctx, coefficient: rule.coefficient, waste: rule.waste });
@@ -65,13 +61,15 @@ export async function confirmDraftOrder(
         const qty = Math.max(rule.minimum, roundedQty);
         if (!Number.isFinite(qty) || qty < 0) throw new OrderConfirmationError("Բաղադրիչի քանակը սխալ է");
         if (qty === 0) continue;
-        await reserve(rule.componentProductId, qty, rule.componentProduct.name, `BOM: ${order.number} → ${rule.componentProduct.name}`);
+        requirements.push({ productId: rule.componentProductId, qty, name: rule.componentProduct.name });
       }
     }
 
+    await reserveOrderStock(tx, id, userId, requirements);
+
     const paidNow = paymentMethod === "cash" || paymentMethod === "transfer";
     const paidAmount = paidNow ? order.totalAmount : order.paidAmount;
-    await tx.order.update({
+    const confirmed = await tx.order.update({
       where: { id },
       data: { paidAmount, outstandingAmount: Math.max(0, order.totalAmount - paidAmount) },
     });
@@ -93,5 +91,6 @@ export async function confirmDraftOrder(
         afterJson: JSON.stringify({ status: "CONFIRMED", paymentMethod }),
       },
     });
+    return { id: confirmed.id, status: confirmed.status, paidAmount: confirmed.paidAmount, outstandingAmount: confirmed.outstandingAmount };
   }, { timeout: 30000 });
 }

@@ -62,14 +62,15 @@ export function OrderDetailDrawer({ orderId, open, onClose, role }: { orderId: s
   });
 
   const actionMutation = useMutation({
-    mutationFn: async (action: string) => {
-      const res = await fetch(`/api/orders/${orderId}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ action, ...(action === "confirm" ? { paymentMethod } : {}) }) });
+    mutationFn: async ({ action, id, method }: { action: string; id: string; method: string }) => {
+      const res = await fetch(`/api/orders/${id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ action, ...(action === "confirm" ? { paymentMethod: method } : {}) }) });
       if (!res.ok) { const e = await res.json(); throw new Error(e.error ?? "failed"); }
       return res.json();
     },
-    onSuccess: (_, action) => {
+    onSuccess: (result, { action, id }) => {
+      qc.setQueryData(["order", id], (previous: any) => previous && result.order ? { ...previous, order: { ...previous.order, ...result.order } } : previous);
       toast.success(`Պատվերը ${action === "confirm" ? "հաստատված է" : action === "cancel" ? "չեղարկված է" : "պատրաստ է"}`);
-      qc.invalidateQueries({ queryKey: ["order", orderId] });
+      qc.invalidateQueries({ queryKey: ["order", id] });
       qc.invalidateQueries({ queryKey: ["orders"] });
       for (const key of ["dashboard", "clients", "client", "debts", "payments", "documents", "reports", "products"]) {
         qc.invalidateQueries({ queryKey: [key] });
@@ -81,6 +82,8 @@ export function OrderDetailDrawer({ orderId, open, onClose, role }: { orderId: s
 
   const order = data?.order;
   if (!order) return null;
+
+  const runAction = (action: string) => actionMutation.mutate({ action, id: order.id, method: paymentMethod });
 
   const isDraft = order.status === "DRAFT";
   const canConfirm = role !== "WAREHOUSE" && isDraft;
@@ -132,22 +135,28 @@ export function OrderDetailDrawer({ orderId, open, onClose, role }: { orderId: s
           {/* Actions */}
           <div className="flex flex-wrap gap-2">
             {canConfirm && (
-              <Button size="sm" className="gap-2 bg-primary" disabled={actionMutation.isPending} onClick={() => actionMutation.mutate("confirm")}>
-                {actionMutation.isPending && actionMutation.variables === "confirm" ? <Loader2 className="size-3.5 animate-spin" /> : <CheckCircle2 className="size-3.5" />}
+              <Button size="sm" className="gap-2 bg-primary" disabled={actionMutation.isPending} onClick={() => runAction("confirm")}>
+                {actionMutation.isPending && actionMutation.variables?.action === "confirm" ? <Loader2 className="size-3.5 animate-spin" /> : <CheckCircle2 className="size-3.5" />}
                 Հաստատել և պահել պաշարը
               </Button>
             )}
             {canMarkReady && (
-              <Button size="sm" variant="outline" className="gap-2" disabled={actionMutation.isPending} onClick={() => actionMutation.mutate("mark_ready")}>
+              <Button size="sm" variant="outline" className="gap-2" disabled={actionMutation.isPending} onClick={() => runAction("mark_ready")}>
                 <Package className="size-3.5" /> Պատրաստ է
               </Button>
             )}
             {canCancel && (
-              <Button size="sm" variant="outline" className="gap-2 text-destructive" disabled={actionMutation.isPending} onClick={() => actionMutation.mutate("cancel")}>
+              <Button size="sm" variant="outline" className="gap-2 text-destructive" disabled={actionMutation.isPending} onClick={() => runAction("cancel")}>
                 <XCircle className="size-3.5" /> Չեղարկել
               </Button>
             )}
           </div>
+
+          {actionMutation.isError && actionMutation.variables?.id === order.id && (
+            <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+              {actionMutation.error.message}
+            </p>
+          )}
 
           {!isDraft && <div className="space-y-2">
             <h4 className="text-xs uppercase tracking-wider text-muted-foreground font-medium flex items-center gap-2">

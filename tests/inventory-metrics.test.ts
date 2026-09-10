@@ -54,6 +54,7 @@ function warehouse() {
   const movements: any[] = [];
   const snapshots: any[] = [];
   const tx: any = {
+    $queryRaw: async () => [],
     inventoryMovement: {
       findMany: async ({ where }: any) => movements.filter((movement) => movement.productId === where.productId && movement.branchId === where.branchId),
       create: async ({ data }: any) => { movements.push(data); return data; },
