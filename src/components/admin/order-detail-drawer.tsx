@@ -164,7 +164,7 @@ export function OrderDetailDrawer({ orderId, open, onClose, role }: { orderId: s
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {DOCUMENTS
-                .filter((document) => (role === "WAREHOUSE" ? document.warehouse : !document.warehouse))
+                .filter((document) => (role === "WAREHOUSE" ? document.warehouse : true))
                 .filter((document) => !document.needsPayment || (order.payments?.length ?? 0) > 0)
                 .map((document) => (
                   <Button key={document.type} size="sm" variant="outline" className="justify-start gap-2" asChild>

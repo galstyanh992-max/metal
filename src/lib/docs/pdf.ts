@@ -39,11 +39,72 @@ try {
 const FONT_REG = "NotoArmenian";
 const FONT_BOLD = "NotoArmenian-Bold";
 
+// PDFKit measures typography in points. 0.3 mm is the required breathing room
+// between text baselines in every printable document.
+export const DOCUMENT_LINE_GAP = (0.3 / 25.4) * 72;
+// Keep the lower part of the page free for the QR code and footer. This also
+// avoids PDFKit creating a trailing page when it reaches the A4 bottom margin.
+const TABLE_CONTENT_BOTTOM = 660;
+
+type TableCell = {
+  text: string;
+  x: number;
+  width: number;
+  align?: "left" | "right" | "center" | "justify";
+  color?: string;
+  font?: string;
+};
+
+function createPdfDocument() {
+  const doc = new PDFDocument({ size: "A4", margin: 50 });
+  registerFonts(doc);
+  doc.lineGap(DOCUMENT_LINE_GAP);
+  return doc;
+}
+
+function textHeight(doc: any, text: string, width: number, fontSize = 9) {
+  doc.fontSize(fontSize).font(FONT_REG);
+  return doc.heightOfString(text || "—", { width, lineGap: DOCUMENT_LINE_GAP });
+}
+
+function drawTableHeader(doc: any, y: number, cells: TableCell[]) {
+  const headerHeight = Math.max(...cells.map((cell) => textHeight(doc, cell.text, cell.width)), 11);
+  doc.fontSize(9).font(FONT_BOLD).fillColor("#666");
+  for (const cell of cells) {
+    doc.text(cell.text, cell.x, y, { width: cell.width, align: cell.align, lineGap: DOCUMENT_LINE_GAP });
+  }
+  doc.moveTo(50, y + headerHeight + 4).lineTo(545, y + headerHeight + 4).strokeColor("#ccc").lineWidth(0.5).stroke();
+  return y + headerHeight + 12;
+}
+
+function drawTableRow(doc: any, y: number, cells: TableCell[]) {
+  const rowHeight = Math.max(18, ...cells.map((cell) => textHeight(doc, cell.text, cell.width))) + 4;
+  for (const cell of cells) {
+    doc.fontSize(9).font(cell.font ?? FONT_REG).fillColor(cell.color ?? "#000");
+    doc.text(cell.text, cell.x, y, { width: cell.width, align: cell.align, lineGap: DOCUMENT_LINE_GAP });
+  }
+  return rowHeight;
+}
+
+function addTablePage(doc: any, title: string, cells: TableCell[]) {
+  doc.addPage();
+  doc.fontSize(12).font(FONT_BOLD).fillColor("#000").text(title, 50, 50, { width: 495 });
+  doc.moveTo(50, 70).lineTo(545, 70).strokeColor("#999").lineWidth(0.5).stroke();
+  return drawTableHeader(doc, 85, cells);
+}
+
+function addFooter(doc: any) {
+  doc.fontSize(8).font(FONT_REG).fillColor("#999").text(
+    "Arm Roll ERP · Հայաստան · Տպվել է " + new Date().toLocaleString("hy-AM"),
+    50, 780, { align: "center", width: 495, lineGap: DOCUMENT_LINE_GAP }
+  );
+}
+
 /**
  * Register Armenian fonts on a PDFDocument instance.
  * Falls back to Helvetica only if Armenian font files are missing (rare).
  */
-function registerFonts(doc: PDFKit.PDFDocument) {
+function registerFonts(doc: any) {
   if (REGULAR_FONT && BOLD_FONT) {
     doc.registerFont(FONT_REG, REGULAR_FONT);
     doc.registerFont(FONT_BOLD, BOLD_FONT);
@@ -91,8 +152,7 @@ export async function generateOrderPdf(orderId: string, type: DocumentType, role
     return isFinite(n) ? n : null;
   };
 
-  const doc = new PDFDocument({ size: "A4", margin: 50 });
-  registerFonts(doc);
+  const doc = createPdfDocument();
   const chunks: Buffer[] = [];
   doc.on("data", (chunk: Buffer) => chunks.push(chunk));
 
@@ -101,70 +161,89 @@ export async function generateOrderPdf(orderId: string, type: DocumentType, role
   doc.fontSize(8).font(FONT_REG).fillColor("#666").text("ERP · ARMENIA", 50, 75, { width: 200 });
   doc.fillColor("#000");
 
-  doc.fontSize(16).font(FONT_BOLD).text(DOC_TYPE_LABELS[type] ?? type, 350, 50, { align: "right", width: 200 });
-  doc.fontSize(10).font(FONT_REG).text(order.number, 350, 72, { align: "right", width: 200 });
-  doc.text(new Date(order.createdAt).toLocaleDateString("hy-AM"), 350, 86, { align: "right", width: 200 });
+  const documentTitle = DOC_TYPE_LABELS[type] ?? type;
+  const titleHeight = textHeight(doc, documentTitle, 200, 16);
+  doc.fontSize(16).font(FONT_BOLD).text(documentTitle, 350, 50, { align: "right", width: 200, lineGap: DOCUMENT_LINE_GAP });
+  const numberY = 50 + titleHeight + 3;
+  doc.fontSize(10).font(FONT_REG).text(order.number, 350, numberY, { align: "right", width: 200, lineGap: DOCUMENT_LINE_GAP });
+  const dateY = numberY + textHeight(doc, order.number, 200, 10) + 2;
+  doc.text(new Date(order.createdAt).toLocaleDateString("hy-AM"), 350, dateY, { align: "right", width: 200, lineGap: DOCUMENT_LINE_GAP });
 
-  doc.moveTo(50, 105).lineTo(545, 105).strokeColor("#999").lineWidth(0.5).stroke();
+  const dividerY = Math.max(105, dateY + textHeight(doc, new Date(order.createdAt).toLocaleDateString("hy-AM"), 200, 10) + 8);
+  doc.moveTo(50, dividerY).lineTo(545, dividerY).strokeColor("#999").lineWidth(0.5).stroke();
 
   // Client info
-  doc.fontSize(9).font(FONT_BOLD).fillColor("#666").text("ՀԱՃԱԽՈՐԴ", 50, 120);
+  let clientY = dividerY + 15;
+  doc.fontSize(9).font(FONT_BOLD).fillColor("#666").text("ՀԱՃԱԽՈՐԴ", 50, clientY, { lineGap: DOCUMENT_LINE_GAP });
+  clientY += textHeight(doc, "ՀԱՃԱԽՈՐԴ", 280) + 4;
   doc.fontSize(11).font(FONT_REG).fillColor("#000");
   const clientName = order.client?.type === "COMPANY" ? order.client?.companyName : `${order.client?.firstName ?? ""} ${order.client?.lastName ?? ""}`;
-  doc.text(clientName ?? "", 50, 135);
+  doc.text(clientName ?? "", 50, clientY, { width: 280, lineGap: DOCUMENT_LINE_GAP });
+  clientY += textHeight(doc, clientName ?? "", 280, 11) + 3;
   doc.fontSize(9).font(FONT_REG).fillColor("#666");
-  doc.text(order.client?.phone ?? "", 50, 152);
-  if (order.client?.email) doc.text(order.client.email, 50, 166);
-  if (order.client?.primaryAddress) doc.text(order.client.primaryAddress, 50, 180);
+  for (const value of [order.client?.phone, order.client?.email, order.client?.primaryAddress]) {
+    if (!value) continue;
+    doc.text(value, 50, clientY, { width: 280, lineGap: DOCUMENT_LINE_GAP });
+    clientY += textHeight(doc, value, 280) + 3;
+  }
 
   doc.fillColor("#000");
 
   // Items table
   const isWarehouseDoc = type === "WAREHOUSE_ORDER";
-  const showPrices = role !== "WAREHOUSE" && !isWarehouseDoc;
+  // The warehouse document is a picking sheet. It is price-free even when
+  // generated by an administrator.
+  const showPrices = !isWarehouseDoc && role !== "WAREHOUSE";
+  const columns: TableCell[] = isWarehouseDoc
+    ? [
+        { text: "#", x: 50, width: 20 },
+        { text: "ԱՊՐԱՆՔ", x: 70, width: 200 },
+        { text: "ԳՈՒՅՆ", x: 270, width: 120 },
+        { text: "ՄԵՏՐ", x: 390, width: 75, align: "right" },
+        { text: "ՔԱՆԱԿ", x: 465, width: 80, align: "right" },
+      ]
+    : [
+        { text: "#", x: 50, width: 20 },
+        { text: "ԱՊՐԱՆՔ", x: 70, width: 150 },
+        { text: "ԳՈՒՅՆ", x: 220, width: 90 },
+        { text: "ՄԵՏՐ", x: 310, width: 50, align: "right" },
+        { text: "ՔԱՆԱԿ", x: 360, width: 50, align: "right" },
+        { text: "ԳԻՆ", x: 420, width: 60, align: "right" },
+        { text: "ԳՈՒՄԱՐ", x: 480, width: 65, align: "right" },
+      ];
 
-  const tableTop = 210;
-  doc.fontSize(9).font(FONT_BOLD).fillColor("#666");
-  doc.text("#", 50, tableTop, { width: 20 });
-  doc.text("ԱՊՐԱՆՔ", 70, tableTop, { width: 150 });
-  doc.text("ԳՈՒՅՆ", 220, tableTop, { width: 90 });
-  doc.text("ՄԵՏՐ", 310, tableTop, { width: 50, align: "right" });
-  doc.text("ՔԱՆԱԿ", 360, tableTop, { width: 50, align: "right" });
-  if (showPrices) {
-    doc.text("ԳԻՆ", 420, tableTop, { width: 60, align: "right" });
-    doc.text("ԳՈՒՄԱՐ", 480, tableTop, { width: 65, align: "right" });
-  }
-
-  doc.moveTo(50, tableTop + 15).lineTo(545, tableTop + 15).strokeColor("#ccc").lineWidth(0.5).stroke();
-
-  let y = tableTop + 25;
-  order.items.forEach((item, idx) => {
+  let y = drawTableHeader(doc, Math.max(210, clientY + 12), columns);
+  for (const [idx, item] of order.items.entries()) {
     const meterage = paramNum(item, "measurement") ?? paramNum(item, "meterage");
     const measurementUnit = param(item, "measurementUnit") ?? item.product?.unit?.symbol ?? "";
     const color = param(item, "color") ?? item.product?.color ?? null;
 
-    doc.fontSize(9).font(FONT_REG).fillColor("#000");
-    doc.text(String(idx + 1), 50, y, { width: 20 });
-    doc.text(item.productName, 70, y, { width: 150 });
-    doc.text(color ?? "—", 220, y, { width: 90 });
-    // Մետր — length of one piece (or total meterage for meter-priced rows).
-    // For piece/service items without a length, show "—".
-    if (meterage != null) {
-      doc.text(`${meterage.toFixed(3)} ${measurementUnit}`, 310, y, { width: 50, align: "right" });
-    } else {
-      doc.text("—", 310, y, { width: 50, align: "right" });
-    }
-    // Քանակ — piece count (services show 1).
-    doc.text(String(item.qty), 360, y, { width: 50, align: "right" });
-    if (showPrices) {
-      doc.text(`${item.unitPriceSnapshot.toLocaleString("hy-AM")} դր`, 420, y, { width: 60, align: "right" });
-      doc.text(`${item.lineTotal.toLocaleString("hy-AM")} դր`, 480, y, { width: 65, align: "right" });
-    }
-    y += 18;
-  });
+    const meterageText = meterage != null ? `${meterage.toFixed(3)} ${measurementUnit}` : "—";
+    const cells: TableCell[] = isWarehouseDoc
+      ? [
+          { text: String(idx + 1), x: 50, width: 20 },
+          { text: item.productName, x: 70, width: 200 },
+          { text: color ?? "—", x: 270, width: 120 },
+          { text: meterageText, x: 390, width: 75, align: "right" },
+          { text: String(item.qty), x: 465, width: 80, align: "right" },
+        ]
+      : [
+          { text: String(idx + 1), x: 50, width: 20 },
+          { text: item.productName, x: 70, width: 150 },
+          { text: color ?? "—", x: 220, width: 90 },
+          { text: meterageText, x: 310, width: 50, align: "right" },
+          { text: String(item.qty), x: 360, width: 50, align: "right" },
+          { text: `${item.unitPriceSnapshot.toLocaleString("hy-AM")} դր`, x: 420, width: 60, align: "right" },
+          { text: `${item.lineTotal.toLocaleString("hy-AM")} դր`, x: 480, width: 65, align: "right" },
+        ];
+    const rowHeight = Math.max(18, ...cells.map((cell) => textHeight(doc, cell.text, cell.width))) + 4;
+    if (y + rowHeight > TABLE_CONTENT_BOTTOM) y = addTablePage(doc, documentTitle, columns);
+    y += drawTableRow(doc, y, cells);
+  }
 
   // Totals
   if (showPrices) {
+    if (y + 72 > TABLE_CONTENT_BOTTOM) y = addTablePage(doc, documentTitle, columns);
     y += 10;
     doc.moveTo(350, y).lineTo(545, y).strokeColor("#999").lineWidth(0.5).stroke();
     y += 10;
@@ -182,17 +261,14 @@ export async function generateOrderPdf(orderId: string, type: DocumentType, role
     const qrDataUrl = await QRCode.toDataURL(JSON.stringify({ type: "order", id: order.id, number: order.number }), {
       width: 80, margin: 1, color: { dark: "#000", light: "#fff" },
     });
-    doc.image(qrDataUrl, 440, 720, { width: 80, height: 80 });
-    doc.fontSize(7).fillColor("#999").text(order.number, 440, 805, { width: 80, align: "center" });
+    doc.image(qrDataUrl, 450, 680, { width: 70, height: 70 });
+    doc.fontSize(7).fillColor("#999").text(order.number, 450, 755, { width: 70, align: "center", lineGap: DOCUMENT_LINE_GAP });
   } catch (e) {
     // QR generation failed — continue without it
   }
 
   // Footer
-  doc.fontSize(8).fillColor("#999").text(
-    "Arm Roll ERP · Հայաստան · Ստեղծված է " + new Date().toLocaleString("hy-AM"),
-    50, 820, { align: "center", width: 495 }
-  );
+  addFooter(doc);
 
   doc.end();
 
@@ -243,8 +319,7 @@ export async function generateDebtStatementPdf(clientId: string): Promise<PdfGen
   });
   if (!client) throw new Error("Client not found");
 
-  const doc = new PDFDocument({ size: "A4", margin: 50 });
-  registerFonts(doc);
+  const doc = createPdfDocument();
   const chunks: Buffer[] = [];
   doc.on("data", (chunk: Buffer) => chunks.push(chunk));
 
@@ -260,12 +335,17 @@ export async function generateDebtStatementPdf(clientId: string): Promise<PdfGen
 
   // Client info
   const clientName = client.type === "COMPANY" ? client.companyName : `${client.firstName} ${client.lastName}`;
-  doc.fontSize(9).font(FONT_BOLD).fillColor("#666").text("ՀԱՃԱԽՈՐԴ", 50, 110);
-  doc.fontSize(12).font(FONT_REG).fillColor("#000").text(clientName, 50, 125);
+  let clientY = 110;
+  doc.fontSize(9).font(FONT_BOLD).fillColor("#666").text("ՀԱՃԱԽՈՐԴ", 50, clientY, { lineGap: DOCUMENT_LINE_GAP });
+  clientY += textHeight(doc, "ՀԱՃԱԽՈՐԴ", 280) + 4;
+  doc.fontSize(12).font(FONT_REG).fillColor("#000").text(clientName ?? "—", 50, clientY, { width: 280, lineGap: DOCUMENT_LINE_GAP });
+  clientY += textHeight(doc, clientName ?? "—", 280, 12) + 3;
   doc.fontSize(9).font(FONT_REG).fillColor("#666");
-  doc.text(client.phone, 50, 142);
-  if (client.email) doc.text(client.email, 50, 156);
-  if (client.type === "COMPANY" && client.taxId) doc.text(`ՀՎՀՀ: ${client.taxId}`, 50, 170);
+  for (const value of [client.phone, client.email, client.type === "COMPANY" && client.taxId ? `ՀՎՀՀ: ${client.taxId}` : null]) {
+    if (!value) continue;
+    doc.text(value, 50, clientY, { width: 280, lineGap: DOCUMENT_LINE_GAP });
+    clientY += textHeight(doc, value, 280) + 3;
+  }
 
   // Summary
   const totalDebt = client.orders.reduce((s, o) => s + o.outstandingAmount, 0);
@@ -276,41 +356,39 @@ export async function generateDebtStatementPdf(clientId: string): Promise<PdfGen
   doc.fontSize(9).font(FONT_REG).fillColor("#666").text(`${totalOrders} չվճարված պատվեր`, 350, 160, { width: 195, align: "right" });
 
   // Orders table
-  const tableTop = 200;
-  doc.fontSize(9).font(FONT_BOLD).fillColor("#666");
-  doc.text("#", 50, tableTop, { width: 30 });
-  doc.text("ՊԱՏՎԵՐ", 85, tableTop, { width: 100 });
-  doc.text("ԱՄՍԱԹԻՎ", 200, tableTop, { width: 80 });
-  doc.text("ԸՆԴՀԱՆՈՒՐ", 320, tableTop, { width: 80, align: "right" });
-  doc.text("ՎՃԱՐՎԱԾ", 410, tableTop, { width: 60, align: "right" });
-  doc.text("ՄՆԱՑՈՐԴ", 480, tableTop, { width: 65, align: "right" });
-
-  doc.moveTo(50, tableTop + 15).lineTo(545, tableTop + 15).strokeColor("#ccc").lineWidth(0.5).stroke();
-
-  let y = tableTop + 25;
-  client.orders.forEach((order, idx) => {
-    doc.fontSize(9).font(FONT_REG).fillColor("#000");
-    doc.text(String(idx + 1), 50, y, { width: 30 });
-    doc.text(order.number, 85, y, { width: 100 });
-    doc.text(new Date(order.createdAt).toLocaleDateString("hy-AM"), 200, y, { width: 80 });
-    doc.text(`${order.totalAmount.toLocaleString("hy-AM")} դր`, 320, y, { width: 80, align: "right" });
-    doc.text(`${order.paidAmount.toLocaleString("hy-AM")} դր`, 410, y, { width: 60, align: "right" });
-    doc.font(FONT_BOLD).fillColor("#c00").text(`${order.outstandingAmount.toLocaleString("hy-AM")} դր`, 480, y, { width: 65, align: "right" });
-    y += 18;
-  });
+  const columns: TableCell[] = [
+    { text: "#", x: 50, width: 30 },
+    { text: "ՊԱՏՎԵՐ", x: 85, width: 100 },
+    { text: "ԱՄՍԱԹԻՎ", x: 200, width: 80 },
+    { text: "ԸՆԴՀԱՆՈՒՐ", x: 320, width: 80, align: "right" },
+    { text: "ՎՃԱՐՎԱԾ", x: 410, width: 60, align: "right" },
+    { text: "ՄՆԱՑՈՐԴ", x: 480, width: 65, align: "right" },
+  ];
+  const statementTitle = "ՊԱՐՏՔԻ ՏԵՂԵԿԱԳԻՐ";
+  let y = drawTableHeader(doc, Math.max(200, clientY + 12), columns);
+  for (const [idx, order] of client.orders.entries()) {
+    const cells: TableCell[] = [
+      { text: String(idx + 1), x: 50, width: 30 },
+      { text: order.number, x: 85, width: 100 },
+      { text: new Date(order.createdAt).toLocaleDateString("hy-AM"), x: 200, width: 80 },
+      { text: `${order.totalAmount.toLocaleString("hy-AM")} դր`, x: 320, width: 80, align: "right" },
+      { text: `${order.paidAmount.toLocaleString("hy-AM")} դր`, x: 410, width: 60, align: "right" },
+      { text: `${order.outstandingAmount.toLocaleString("hy-AM")} դր`, x: 480, width: 65, align: "right", color: "#c00", font: FONT_BOLD },
+    ];
+    const rowHeight = Math.max(18, ...cells.map((cell) => textHeight(doc, cell.text, cell.width))) + 4;
+    if (y + rowHeight > TABLE_CONTENT_BOTTOM) y = addTablePage(doc, statementTitle, columns);
+    y += drawTableRow(doc, y, cells);
+  }
 
   // Total
+  if (y + 48 > TABLE_CONTENT_BOTTOM) y = addTablePage(doc, statementTitle, columns);
   y += 10;
   doc.moveTo(350, y).lineTo(545, y).strokeColor("#999").lineWidth(0.5).stroke();
   y += 10;
   doc.fontSize(11).font(FONT_BOLD).fillColor("#000").text("ՄԱՔՐ ՊԱՐՏՔ՝", 350, y, { width: 130, align: "right" });
   doc.fontSize(14).fillColor("#c00").text(`${totalDebt.toLocaleString("hy-AM")} դր`, 480, y, { width: 65, align: "right" });
 
-  // Footer
-  doc.fontSize(8).fillColor("#999").text(
-    "Arm Roll ERP · Հայաստան · Ստեղծված է " + new Date().toLocaleString("hy-AM"),
-    50, 820, { align: "center", width: 495 }
-  );
+  addFooter(doc);
 
   doc.end();
 
@@ -334,8 +412,7 @@ export async function generateProcurementPdf(poId: string): Promise<PdfGenResult
   });
   if (!po) throw new Error("Purchase order not found");
 
-  const doc = new PDFDocument({ size: "A4", margin: 50 });
-  registerFonts(doc);
+  const doc = createPdfDocument();
   const chunks: Buffer[] = [];
   doc.on("data", (chunk: Buffer) => chunks.push(chunk));
 
@@ -351,12 +428,18 @@ export async function generateProcurementPdf(poId: string): Promise<PdfGenResult
   doc.moveTo(50, 105).lineTo(545, 105).strokeColor("#999").lineWidth(0.5).stroke();
 
   // Supplier info
-  doc.fontSize(9).font(FONT_BOLD).fillColor("#666").text("ՄԱՏԱԿԱՐԱՐ", 50, 120);
-  doc.fontSize(11).font(FONT_REG).fillColor("#000").text(po.supplier?.name ?? "—", 50, 135);
+  let supplierY = 120;
+  doc.fontSize(9).font(FONT_BOLD).fillColor("#666").text("ՄԱՏԱԿԱՐԱՐ", 50, supplierY, { lineGap: DOCUMENT_LINE_GAP });
+  supplierY += textHeight(doc, "ՄԱՏԱԿԱՐԱՐ", 280) + 4;
+  const supplierName = po.supplier?.name ?? "—";
+  doc.fontSize(11).font(FONT_REG).fillColor("#000").text(supplierName, 50, supplierY, { width: 280, lineGap: DOCUMENT_LINE_GAP });
+  supplierY += textHeight(doc, supplierName, 280, 11) + 3;
   doc.fontSize(9).font(FONT_REG).fillColor("#666");
-  if (po.supplier?.phone) doc.text(po.supplier.phone, 50, 152);
-  if (po.supplier?.email) doc.text(po.supplier.email, 50, 166);
-  if (po.supplier?.taxId) doc.text(`ՀՎՀՀ: ${po.supplier.taxId}`, 50, 180);
+  for (const value of [po.supplier?.phone, po.supplier?.email, po.supplier?.taxId ? `ՀՎՀՀ: ${po.supplier.taxId}` : null]) {
+    if (!value) continue;
+    doc.text(value, 50, supplierY, { width: 280, lineGap: DOCUMENT_LINE_GAP });
+    supplierY += textHeight(doc, value, 280) + 3;
+  }
 
   // Status
   doc.fillColor("#000");
@@ -364,39 +447,37 @@ export async function generateProcurementPdf(poId: string): Promise<PdfGenResult
   doc.fontSize(12).font(FONT_BOLD).fillColor(po.status === "RECEIVED" ? "#0a0" : "#c80").text(po.status, 350, 135, { width: 195, align: "right" });
 
   // Items table
-  const tableTop = 210;
-  doc.fontSize(9).font(FONT_BOLD).fillColor("#666");
-  doc.text("#", 50, tableTop, { width: 30 });
-  doc.text("ԱՊՐԱՆՔ", 85, tableTop, { width: 200 });
-  doc.text("ՔԱՆԱԿ", 340, tableTop, { width: 50, align: "right" });
-  doc.text("ԳԻՆ", 410, tableTop, { width: 60, align: "right" });
-  doc.text("ԳՈՒՄԱՐ", 480, tableTop, { width: 65, align: "right" });
-
-  doc.moveTo(50, tableTop + 15).lineTo(545, tableTop + 15).strokeColor("#ccc").lineWidth(0.5).stroke();
-
-  let y = tableTop + 25;
-  po.items.forEach((item, idx) => {
-    doc.fontSize(9).font(FONT_REG).fillColor("#000");
-    doc.text(String(idx + 1), 50, y, { width: 30 });
-    doc.text(item.product?.name ?? "—", 85, y, { width: 200 });
-    doc.text(`${item.qty} ${item.product?.unit?.symbol ?? ""}`, 340, y, { width: 50, align: "right" });
-    doc.text(`${item.unitPrice.toLocaleString("hy-AM")} դր`, 410, y, { width: 60, align: "right" });
-    doc.text(`${item.total.toLocaleString("hy-AM")} դր`, 480, y, { width: 65, align: "right" });
-    y += 18;
-  });
+  const columns: TableCell[] = [
+    { text: "#", x: 50, width: 30 },
+    { text: "ԱՊՐԱՆՔ", x: 85, width: 200 },
+    { text: "ՔԱՆԱԿ", x: 340, width: 50, align: "right" },
+    { text: "ԳԻՆ", x: 410, width: 60, align: "right" },
+    { text: "ԳՈՒՄԱՐ", x: 480, width: 65, align: "right" },
+  ];
+  const procurementTitle = "ԳՆՄԱՆ ՓԱՍՏԱԹՈՒՂԹ";
+  let y = drawTableHeader(doc, Math.max(210, supplierY + 12), columns);
+  for (const [idx, item] of po.items.entries()) {
+    const cells: TableCell[] = [
+      { text: String(idx + 1), x: 50, width: 30 },
+      { text: item.product?.name ?? "—", x: 85, width: 200 },
+      { text: `${item.qty} ${item.product?.unit?.symbol ?? ""}`, x: 340, width: 50, align: "right" },
+      { text: `${item.unitPrice.toLocaleString("hy-AM")} դր`, x: 410, width: 60, align: "right" },
+      { text: `${item.total.toLocaleString("hy-AM")} դր`, x: 480, width: 65, align: "right" },
+    ];
+    const rowHeight = Math.max(18, ...cells.map((cell) => textHeight(doc, cell.text, cell.width))) + 4;
+    if (y + rowHeight > TABLE_CONTENT_BOTTOM) y = addTablePage(doc, procurementTitle, columns);
+    y += drawTableRow(doc, y, cells);
+  }
 
   // Total
+  if (y + 48 > TABLE_CONTENT_BOTTOM) y = addTablePage(doc, procurementTitle, columns);
   y += 10;
   doc.moveTo(350, y).lineTo(545, y).strokeColor("#999").lineWidth(0.5).stroke();
   y += 10;
   doc.fontSize(11).font(FONT_BOLD).fillColor("#000").text("ԸՆԴՀԱՆՈՒՐ՝", 350, y, { width: 130, align: "right" });
   doc.fontSize(14).text(`${po.totalAmount.toLocaleString("hy-AM")} դր`, 480, y, { width: 65, align: "right" });
 
-  // Footer
-  doc.fontSize(8).fillColor("#999").text(
-    "Arm Roll ERP · Հայաստան · Ստեղծված է " + new Date().toLocaleString("hy-AM"),
-    50, 820, { align: "center", width: 495 }
-  );
+  addFooter(doc);
 
   doc.end();
 
