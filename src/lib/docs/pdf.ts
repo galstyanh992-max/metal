@@ -47,6 +47,7 @@ const DOCUMENT_FOOTER_Y = 801;
 // Keep the lower part of the page free for the QR code and footer. This also
 // avoids PDFKit creating a trailing page when it reaches the A4 bottom margin.
 const TABLE_CONTENT_BOTTOM = 660;
+const ORDER_TABLE_CONTENT_BOTTOM = 760;
 
 type TableCell = {
   text: string;
@@ -82,10 +83,14 @@ function drawTableHeader(doc: any, y: number, cells: TableCell[]) {
   return y + headerHeight + 12;
 }
 
-function drawTableRow(doc: any, y: number, cells: TableCell[]) {
-  const rowHeight = Math.max(18, ...cells.map((cell) => textHeight(doc, cell.text, cell.width))) + 4;
+function getTableRowHeight(doc: any, cells: TableCell[], fontSize = 9, minHeight = 18, padding = 4) {
+  return Math.max(minHeight, ...cells.map((cell) => textHeight(doc, cell.text, cell.width, fontSize))) + padding;
+}
+
+function drawTableRow(doc: any, y: number, cells: TableCell[], fontSize = 9, minHeight = 18, padding = 4) {
+  const rowHeight = getTableRowHeight(doc, cells, fontSize, minHeight, padding);
   for (const cell of cells) {
-    doc.fontSize(9).font(cell.font ?? FONT_REG).fillColor(cell.color ?? "#000");
+    doc.fontSize(fontSize).font(cell.font ?? FONT_REG).fillColor(cell.color ?? "#000");
     doc.text(cell.text, cell.x, y, { width: cell.width, align: cell.align, lineGap: DOCUMENT_LINE_GAP });
   }
   return rowHeight;
@@ -161,34 +166,33 @@ export async function generateOrderPdf(orderId: string, type: DocumentType, role
   const chunks: Buffer[] = [];
   doc.on("data", (chunk: Buffer) => chunks.push(chunk));
 
-  // Header
-  doc.fontSize(20).font(FONT_BOLD).text("ARM ROLL", 50, DOCUMENT_VERTICAL_MARGIN, { width: 200 });
-  doc.fontSize(8).font(FONT_REG).fillColor("#666").text("ERP · ARMENIA", 50, DOCUMENT_VERTICAL_MARGIN + 25, { width: 200 });
-  doc.fillColor("#000");
-
+  // Compact one-page header: company, document details, client data and QR
+  // share one block so the items table receives the maximum usable height.
   const documentTitle = DOC_TYPE_LABELS[type] ?? type;
-  const titleHeight = textHeight(doc, documentTitle, 200, 16);
-  doc.fontSize(16).font(FONT_BOLD).text(documentTitle, 350, DOCUMENT_VERTICAL_MARGIN, { align: "right", width: 200, lineGap: DOCUMENT_LINE_GAP });
-  const numberY = DOCUMENT_VERTICAL_MARGIN + titleHeight + 3;
+  const clientName = [order.client?.firstName, order.client?.lastName].filter(Boolean).join(" ") || "—";
+  const clientDetails = [clientName, order.client?.phone, order.client?.primaryAddress].filter(Boolean).join(" · ");
   const orderMeta = `${order.number} · ${new Date(order.createdAt).toLocaleDateString("hy-AM")}`;
-  doc.fontSize(10).font(FONT_REG).text(orderMeta, 350, numberY, { align: "right", width: 200, lineGap: DOCUMENT_LINE_GAP });
 
-  const dividerY = Math.max(DOCUMENT_VERTICAL_MARGIN + 55, numberY + textHeight(doc, orderMeta, 200, 10) + 8);
+  doc.fontSize(16).font(FONT_BOLD).fillColor("#000").text("ARM ROLL", 50, DOCUMENT_VERTICAL_MARGIN, { width: 115 });
+  doc.fontSize(7).font(FONT_REG).fillColor("#666").text("ERP · ARMENIA", 50, DOCUMENT_VERTICAL_MARGIN + 19, { width: 115 });
+
+  const titleHeight = textHeight(doc, documentTitle, 300, 12);
+  doc.fontSize(12).font(FONT_BOLD).fillColor("#000").text(documentTitle, 170, DOCUMENT_VERTICAL_MARGIN, { align: "right", width: 300, lineGap: DOCUMENT_LINE_GAP });
+  const metaY = DOCUMENT_VERTICAL_MARGIN + titleHeight + 1;
+  doc.fontSize(9).font(FONT_REG).text(orderMeta, 170, metaY, { align: "right", width: 300, lineGap: DOCUMENT_LINE_GAP });
+
+  const clientY = Math.max(DOCUMENT_VERTICAL_MARGIN + 38, metaY + textHeight(doc, orderMeta, 300, 9) + 4);
+  doc.fontSize(8).font(FONT_REG).fillColor("#555").text(clientDetails, 50, clientY, { width: 415, lineGap: DOCUMENT_LINE_GAP });
+  const dividerY = Math.max(DOCUMENT_VERTICAL_MARGIN + 58, clientY + textHeight(doc, clientDetails, 415, 8) + 6);
   doc.moveTo(50, dividerY).lineTo(545, dividerY).strokeColor("#999").lineWidth(0.5).stroke();
 
-  // Client info
-  let clientY = dividerY + 15;
-  doc.fontSize(9).font(FONT_BOLD).fillColor("#666").text("ՀԱՃԱԽՈՐԴ", 50, clientY, { lineGap: DOCUMENT_LINE_GAP });
-  clientY += textHeight(doc, "ՀԱՃԱԽՈՐԴ", 280) + 4;
-  doc.fontSize(11).font(FONT_REG).fillColor("#000");
-  const clientName = [order.client?.firstName, order.client?.lastName].filter(Boolean).join(" ") || "—";
-  doc.text(clientName, 50, clientY, { width: 280, lineGap: DOCUMENT_LINE_GAP });
-  clientY += textHeight(doc, clientName, 280, 11) + 3;
-  doc.fontSize(9).font(FONT_REG).fillColor("#666");
-  for (const value of [order.client?.phone, order.client?.primaryAddress]) {
-    if (!value) continue;
-    doc.text(value, 50, clientY, { width: 280, lineGap: DOCUMENT_LINE_GAP });
-    clientY += textHeight(doc, value, 280) + 3;
+  try {
+    const qrDataUrl = await QRCode.toDataURL(JSON.stringify({ type: "order", id: order.id, number: order.number }), {
+      width: 48, margin: 1, color: { dark: "#000", light: "#fff" },
+    });
+    doc.image(qrDataUrl, 492, DOCUMENT_VERTICAL_MARGIN, { width: 48, height: 48 });
+  } catch (e) {
+    // QR generation failed — the printable document remains valid.
   }
 
   doc.fillColor("#000");
@@ -208,15 +212,15 @@ export async function generateOrderPdf(orderId: string, type: DocumentType, role
       ]
     : [
         { text: "#", x: 50, width: 20 },
-        { text: "ԱՊՐԱՆՔ", x: 70, width: 150 },
-        { text: "ԳՈՒՅՆ", x: 220, width: 90 },
-        { text: "ՄԵՏՐ", x: 310, width: 50, align: "right" },
-        { text: "ՔԱՆԱԿ", x: 360, width: 50, align: "right" },
-        { text: "ԳԻՆ", x: 420, width: 60, align: "right" },
-        { text: "ԳՈՒՄԱՐ", x: 480, width: 65, align: "right" },
+        { text: "ԱՊՐԱՆՔ", x: 70, width: 120 },
+        { text: "ԳՈՒՅՆ", x: 190, width: 110 },
+        { text: "ՄԵՏՐ", x: 300, width: 45, align: "right" },
+        { text: "ՔԱՆԱԿ", x: 345, width: 45, align: "right" },
+        { text: "ԳԻՆ", x: 390, width: 75, align: "right" },
+        { text: "ԳՈՒՄԱՐ", x: 465, width: 80, align: "right" },
       ];
 
-  let y = drawTableHeader(doc, Math.max(DOCUMENT_VERTICAL_MARGIN + 160, clientY + 12), columns);
+  let y = drawTableHeader(doc, dividerY + 10, columns);
   for (const [idx, item] of order.items.entries()) {
     const meterage = paramNum(item, "measurement") ?? paramNum(item, "meterage");
     const measurementUnit = param(item, "measurementUnit") ?? item.product?.unit?.symbol ?? "";
@@ -233,21 +237,21 @@ export async function generateOrderPdf(orderId: string, type: DocumentType, role
         ]
       : [
           { text: String(idx + 1), x: 50, width: 20 },
-          { text: item.productName, x: 70, width: 150 },
-          { text: color ?? "—", x: 220, width: 90 },
-          { text: meterageText, x: 310, width: 50, align: "right" },
-          { text: String(item.qty), x: 360, width: 50, align: "right" },
-          { text: `${item.unitPriceSnapshot.toLocaleString("hy-AM")} դր`, x: 420, width: 60, align: "right" },
-          { text: `${item.lineTotal.toLocaleString("hy-AM")} դր`, x: 480, width: 65, align: "right" },
+          { text: item.productName, x: 70, width: 120 },
+          { text: color ?? "—", x: 190, width: 110 },
+          { text: meterageText, x: 300, width: 45, align: "right" },
+          { text: String(item.qty), x: 345, width: 45, align: "right" },
+          { text: `${item.unitPriceSnapshot.toLocaleString("hy-AM")} դր`, x: 390, width: 75, align: "right" },
+          { text: `${item.lineTotal.toLocaleString("hy-AM")} դր`, x: 465, width: 80, align: "right" },
         ];
-    const rowHeight = Math.max(18, ...cells.map((cell) => textHeight(doc, cell.text, cell.width))) + 4;
-    if (y + rowHeight > TABLE_CONTENT_BOTTOM) y = addTablePage(doc, documentTitle, columns);
-    y += drawTableRow(doc, y, cells);
+    const rowHeight = getTableRowHeight(doc, cells, 7.5, 12, 2);
+    if (y + rowHeight > ORDER_TABLE_CONTENT_BOTTOM) y = addTablePage(doc, documentTitle, columns);
+    y += drawTableRow(doc, y, cells, 7.5, 12, 2);
   }
 
   // Totals
   if (showPrices) {
-    if (y + 72 > TABLE_CONTENT_BOTTOM) y = addTablePage(doc, documentTitle, columns);
+    if (y + 72 > ORDER_TABLE_CONTENT_BOTTOM) y = addTablePage(doc, documentTitle, columns);
     y += 10;
     doc.moveTo(350, y).lineTo(545, y).strokeColor("#999").lineWidth(0.5).stroke();
     y += 10;
@@ -258,17 +262,6 @@ export async function generateOrderPdf(orderId: string, type: DocumentType, role
     doc.text(`Վճարված՝ ${order.paidAmount.toLocaleString("hy-AM")} դր`, 350, y, { width: 195, align: "right" });
     y += 14;
     doc.text(`Մնացորդ՝ ${order.outstandingAmount.toLocaleString("hy-AM")} դր`, 350, y, { width: 195, align: "right" });
-  }
-
-  // QR code (bottom right)
-  try {
-    const qrDataUrl = await QRCode.toDataURL(JSON.stringify({ type: "order", id: order.id, number: order.number }), {
-      width: 80, margin: 1, color: { dark: "#000", light: "#fff" },
-    });
-    doc.image(qrDataUrl, 450, 680, { width: 70, height: 70 });
-    doc.fontSize(7).fillColor("#999").text(order.number, 450, 755, { width: 70, align: "center", lineGap: DOCUMENT_LINE_GAP });
-  } catch (e) {
-    // QR generation failed — continue without it
   }
 
   // Footer
