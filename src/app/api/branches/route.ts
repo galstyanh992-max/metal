@@ -24,34 +24,38 @@ export async function GET() {
 }
 
 /**
- * POST /api/branches — create a new branch (ADMIN only)
- * Body: { code, name, address?, phone? }
+ * POST /api/branches — create a new warehouse (ADMIN only)
+ * Body: { name, address?, phone?, code? }
  */
 export async function POST(req: Request) {
   try {
     const { userId } = await requireRole("ADMIN");
     const body = await req.json();
-    const { code, name, address, phone, sortOrder } = body as {
-      code: string;
+    const { code: submittedCode, name, address, phone, sortOrder } = body as {
+      code?: string;
       name: string;
       address?: string;
       phone?: string;
       sortOrder?: number;
     };
 
-    if (!code || !name) {
-      return NextResponse.json({ error: "code and name required" }, { status: 400 });
+    const displayName = name?.trim();
+    if (!displayName) {
+      return NextResponse.json({ error: "Պահեստի անունը պարտադիր է" }, { status: 400 });
     }
 
-    const existing = await db.branch.findUnique({ where: { code } });
-    if (existing) {
-      return NextResponse.json({ error: `code "${code}"-ը արդեն օգտագործվում է` }, { status: 409 });
+    const requestedCode = submittedCode?.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    const baseCode = requestedCode || "warehouse";
+    let code = baseCode;
+    let suffix = 2;
+    while (await db.branch.findUnique({ where: { code } })) {
+      code = `${baseCode}-${suffix++}`;
     }
 
     const branch = await db.branch.create({
       data: {
         code,
-        name,
+        name: displayName,
         address: address || null,
         phone: phone || null,
         sortOrder: Number(sortOrder) || 0,
@@ -64,7 +68,7 @@ export async function POST(req: Request) {
         action: "branch.create",
         entityType: "Branch",
         entityId: branch.id,
-        afterJson: JSON.stringify({ code, name }),
+        afterJson: JSON.stringify({ code, name: displayName }),
       },
     });
 

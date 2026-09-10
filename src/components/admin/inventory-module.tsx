@@ -16,6 +16,7 @@ import {
 import { useState, useMemo } from "react";
 import { InventoryHistoryDrawer } from "./inventory-history-drawer";
 import { TransferDialog } from "./transfer-dialog";
+import { BranchManagerDialog } from "./branch-manager-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { exportToExcel } from "@/lib/export/excel";
 import { toast } from "sonner";
@@ -57,6 +58,7 @@ export function InventoryModule({ role }: { role: string }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [adjustProduct, setAdjustProduct] = useState<any | null>(null);
   const [transferOpen, setTransferOpen] = useState(false);
+  const [branchManagerOpen, setBranchManagerOpen] = useState(false);
   const [filterBranchId, setFilterBranchId] = useState<string>("");
   const [filterCategoryId, setFilterCategoryId] = useState<string>("");
   const [search, setSearch] = useState("");
@@ -181,6 +183,17 @@ export function InventoryModule({ role }: { role: string }) {
               {exporting ? <Loader2 className="size-4 animate-spin" /> : <FileSpreadsheet className="size-4 text-status-green" />}
               Excel
             </Button>
+            {isAdmin && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-2"
+                onClick={() => setBranchManagerOpen(true)}
+              >
+                <Building2 className="size-4 text-primary" />
+                Պահեստներ
+              </Button>
+            )}
             {isAdmin && (
               <Button
                 size="sm"
@@ -337,6 +350,17 @@ export function InventoryModule({ role }: { role: string }) {
           onSaved={() => {
             qc.invalidateQueries({ queryKey: ["inventory"] });
             setTransferOpen(false);
+          }}
+        />
+      )}
+
+      {isAdmin && (
+        <BranchManagerDialog
+          open={branchManagerOpen}
+          onOpenChange={setBranchManagerOpen}
+          branches={branches}
+          onDeleted={(id) => {
+            if (filterBranchId === id) setFilterBranchId("");
           }}
         />
       )}
