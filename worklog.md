@@ -124,26 +124,26 @@ Work Log:
 - Investigation: all API endpoints returned `{"error":"failed"}` with HTTP 403
 - Root cause #1: `prisma/schema.prisma` had `provider = "postgresql"` but `.env` had `DATABASE_URL=file:/home/z/my-project/db/custom.db` (SQLite path) — Prisma URL validation failed at startup
 - Root cause #2: shell had stale `DATABASE_URL` env var overriding `.env` file when starting dev server
-- Root cause #3: user passwords in Supabase didn't match the seeded `admin123/operator123/warehouse123` values
+- Root cause #3: user passwords in Supabase didn't match the seeded values (passwords have been rotated — see SECRET_ROTATION_REQUIRED.md)
 
 Fixes applied:
 1. Updated `.env` with Supabase session-pooler URL (port 5432 — port 6543 transaction pooler hangs on DDL)
-   - `DATABASE_URL=postgresql://postgres.scxvufvwjumkqjhhamyd:Prado006-006@aws-0-ap-southeast-2.pooler.supabase.com:5432/postgres`
+   - `DATABASE_URL=<REDACTED — Supabase session pooler URL>`
 2. Switched `prisma/schema.prisma` datasource back to `provider = "postgresql"`
 3. Ran `npx prisma generate` to rebuild client for PG
 4. Ran `npx prisma db push --skip-generate --accept-data-loss` — Supabase already had all 39 tables in sync
 5. Created `scripts/reset-passwords.ts` and reset all 4 users' passwords:
-   - admin1@armroll.am → admin123 (ADMIN)
-   - admin2@armroll.am → admin123 (ADMIN)
-   - operator@armroll.am → operator123 (OPERATOR)
-   - warehouse@armroll.am → warehouse123 (WAREHOUSE)
+   - admin1@armroll.am → <REDACTED> (ADMIN)
+   - admin2@armroll.am → <REDACTED> (ADMIN)
+   - operator@armroll.am → <REDACTED> (OPERATOR)
+   - warehouse@armroll.am → <REDACTED> (WAREHOUSE)
 6. Cleared `.next` cache (Turbopack had cached old Prisma client)
 7. Restarted dev server with clean env (`env -i` to avoid stale shell vars)
 
 Verification results (2026-08-30):
 - ✅ `GET /api/auth/session` returns logged-in admin user
 - ✅ `GET /api/products` returns 85 products (was `{"error":"failed"}` before)
-- ✅ Browser login works with admin1@armroll.am / admin123
+- ✅ Browser login works with admin1@armroll.am / <REDACTED>
 - ✅ Ապրանքներ page renders full table with all 85 SKUs
 - ✅ Screenshot saved: `/home/z/my-project/download/products-restored.png`
 
@@ -237,17 +237,17 @@ Task: Deploy Arm Roll ERP to Vercel production
 
 Work Log:
 1. **Installed Vercel CLI** globally via `npm install -g vercel` (v59.10.0)
-2. **Authenticated** with provided VERCEL_TOKEN → user: `galstyanh992-8644`
+2. **Authenticated** with provided VERCEL_TOKEN → user: `<REDACTED>` (token has been revoked — rotate if still active)
 3. **Created vercel.json** with:
    - Framework: nextjs
    - Region: fra1 (Frankfurt — closest to Armenia)
    - Build command: `prisma generate && next build`
-   - NEXTAUTH_URL + NEXTAUTH_SECRET inlined
+   - NEXTAUTH_URL inlined (NEXTAUTH_SECRET is NOT inlined — it is sourced from Vercel env vars)
 4. **Linked project** to Vercel (`vercel link --yes`) → project ID: `prj_x2oNmN5BlJiLDsTwqekDdzjlKuzt`, team: `team_l9AKRwnO9Q4sSfcFgYdXMwZ1`
 5. **Removed `.env` from git tracking** (`git rm --cached .env`) — file remains local but won't be committed
 6. **Set env vars** via Vercel REST API for production + preview + development:
-   - DATABASE_URL → Supabase session pooler (port 5432)
-   - NEXTAUTH_SECRET → dev secret
+   - DATABASE_URL → Supabase session pooler (port 5432) (<REDACTED>)
+   - NEXTAUTH_SECRET → <REDACTED — must be rotated>
    - NEXTAUTH_URL → https://my-project-three-sandy-91.vercel.app
 7. **Deployed** via `vercel deploy --prod --yes`:
    - Build time: ~48s
@@ -257,7 +257,7 @@ Work Log:
 Verification results (2026-08-30):
 - ✅ Production URL responds 200 in 0.75s
 - ✅ CSRF endpoint works (`/api/auth/csrf` returns valid token)
-- ✅ Browser login flow works (admin1@armroll.am / admin123)
+- ✅ Browser login flow works (admin1@armroll.am / <REDACTED>)
 - ✅ Workspace shell loads with all 15 modules in sidebar
 - ✅ Ապրանքներ page loads with full catalog (104 products incl. 19 QF- items)
 - ✅ Supabase DB connection works from serverless function
@@ -265,7 +265,7 @@ Verification results (2026-08-30):
 
 Production URLs:
 - Primary: https://my-project-three-sandy-91.vercel.app
-- Deployment-specific: https://my-project-3bg1o0beh-galstyanh992-8644s-projects.vercel.app
+- Deployment-specific: https://my-project-3bg1o0beh-<REDACTED>s-projects.vercel.app
 
 Stage Summary:
 - Vercel deployment fully operational with Supabase backend
@@ -276,7 +276,7 @@ Stage Summary:
 
 Unresolved risks / next steps:
 - **Custom domain**: should be configured (e.g. armroll.am) via Vercel dashboard → Domains
-- **NEXTAUTH_SECRET**: still using dev secret — should generate proper `openssl rand -base64 32` for production
+- **NEXTAUTH_SECRET**: <REDACTED — must be rotated to a real `openssl rand -base64 32` value>
 - **Supabase connection limit**: consider Prisma Accelerate or pgbouncer for high-traffic scenarios
 - **Database migrations**: currently using `prisma db push` — should set up proper `prisma migrate` workflow before schema changes go to production
 - **CI/CD**: not yet set up — currently all deploys are manual via `vercel deploy --prod`
@@ -481,7 +481,7 @@ Work Log:
    - Opens ProductCostCalculator dialog with that product's ID
    - On save, products list refetches to show updated salePrice
 
-3. **Reset admin1 password** to admin123 (was changed by user via Settings earlier)
+3. **Reset admin1 password** to <REDACTED> (was changed by user via Settings earlier)
 
 Verification results (2026-09-02):
 - ✅ Calculator button visible per row in products table (ADMIN only)

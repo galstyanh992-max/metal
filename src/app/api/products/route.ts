@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { requireAction } from "@/lib/rbac";
+import { requirePermission } from "@/lib/authz";
 import { roundInventoryQuantity } from "@/lib/inventory/quantity";
 
 export async function GET() {
   try {
-    const { role } = await requireAction("product.list");
+    const ctx = await requirePermission("product.list");
+    const role = ctx.role;
     const [products, snapshots] = await Promise.all([
       db.product.findMany({
       where: { active: true, archivedAt: null },
@@ -71,7 +72,7 @@ export async function GET() {
  */
 export async function POST(req: Request) {
   try {
-    const { userId } = await requireAction("product.create");
+    const ctx = await requirePermission("product.create");
     const body = await req.json();
     const {
       sku, name, unitId, unitCode, categoryId, color, description,
@@ -126,7 +127,7 @@ export async function POST(req: Request) {
     // Audit log
     await db.auditLog.create({
       data: {
-        actorId: userId,
+        actorId: ctx.userId,
         action: "product.create",
         entityType: "Product",
         entityId: product.id,
@@ -136,6 +137,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ product }, { status: 201 });
   } catch (e: any) {
-    return NextResponse.json({ error: e?.message ?? "failed" }, { status: 500 });
+    if (e instanceof NextResponse) return e;
+    return NextResponse.json({ error: e?.message ?? "failed" }, { status: e?.status ?? 500 });
   }
 }

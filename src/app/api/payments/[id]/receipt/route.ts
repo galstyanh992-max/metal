@@ -2,7 +2,8 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { requireAction } from "@/lib/rbac";
+import { requirePermission, canAccessPayment } from "@/lib/authz";
+import crypto from "node:crypto";
 
 const MAX_RECEIPT_SIZE = 10 * 1024 * 1024;
 const EXTENSIONS: Record<string, string> = {
@@ -12,10 +13,24 @@ const EXTENSIONS: Record<string, string> = {
   "image/webp": "webp",
 };
 
+/**
+ * POST /api/payments/[id]/receipt — upload a payment receipt.
+ *
+ * SECURITY: Receipts are stored in a PRIVATE directory (var/uploads/receipts),
+ * NOT under public/. They are served only via the authenticated download route
+ * which checks object-level authorization (canAccessPayment).
+ *
+ * Filenames are generated server-side (random) — never derived from the
+ * client-supplied filename, to prevent path traversal and collision attacks.
+ */
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { userId } = await requireAction("finance.record_payment");
+    const ctx = await requirePermission("finance.record_payment");
     const { id } = await params;
+
+    const allowed = await canAccessPayment(ctx, id);
+    if (!allowed) return NextResponse.json({ error: "Վճարումը չի գտնվել" }, { status: 404 });
+
     const payment = await db.orderPayment.findUnique({ where: { id }, select: { id: true } });
     if (!payment) return NextResponse.json({ error: "Վճարումը չի գտնվել" }, { status: 404 });
 
@@ -32,24 +47,26 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     }
 
     const extension = EXTENSIONS[receipt.type];
-    const fileName = `${id}-${Date.now()}.${extension}`;
-    const relativeUrl = `/uploads/receipts/${fileName}`;
-    const destination = join(process.cwd(), "public", "uploads", "receipts");
-    await mkdir(destination, { recursive: true });
-    await writeFile(join(destination, fileName), Buffer.from(await receipt.arrayBuffer()));
+    const random = crypto.randomBytes(16).toString("hex");
+    const fileName = `${id}-${random}.${extension}`;
+    const privateRoot = join(process.cwd(), "var", "uploads", "receipts");
+    await mkdir(privateRoot, { recursive: true });
+    await writeFile(join(privateRoot, fileName), Buffer.from(await receipt.arrayBuffer()));
 
-    await db.orderPayment.update({ where: { id }, data: { receiptUrl: relativeUrl } });
+    const receiptRef = `/api/payments/${id}/receipt/file`;
+    await db.orderPayment.update({ where: { id }, data: { receiptUrl: receiptRef } });
     await db.auditLog.create({
       data: {
-        actorId: userId,
+        actorId: ctx.userId,
         action: "payment.receipt_upload",
         entityType: "OrderPayment",
         entityId: id,
-        afterJson: JSON.stringify({ receiptUrl: relativeUrl }),
+        afterJson: JSON.stringify({ receiptUrl: receiptRef, storedFile: `<REDACTED>` }),
       },
     });
-    return NextResponse.json({ receiptUrl: relativeUrl });
+    return NextResponse.json({ receiptUrl: receiptRef });
   } catch (error: any) {
-    return NextResponse.json({ error: error?.message ?? "Չհաջողվեց կցել չեկը" }, { status: 500 });
+    if (error instanceof NextResponse) return error;
+    return NextResponse.json({ error: error?.message ?? "Չհաջողվեց կցել չեկը" }, { status: error?.status ?? 500 });
   }
 }

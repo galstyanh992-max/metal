@@ -7,7 +7,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     const { role } = await requireAction("finance.view_debt");
     const { id } = await params;
     const result = await generateDebtStatementPdf(id);
-    return new NextResponse(result.buffer, {
+    return new NextResponse(new Uint8Array(result.buffer), {
       headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition": `inline; filename="${result.filename}"`,

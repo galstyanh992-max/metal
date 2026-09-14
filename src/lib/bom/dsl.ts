@@ -158,29 +158,196 @@ export function evaluateFormula(expr: string, ctx: Record<string, number>): numb
 
 /**
  * Evaluate a condition expression like "operation == 'մոտորով'"
- * Supports ==, !=, >, <, >=, <=, &&, ||, and string literals.
+ *
+ * SECURITY: This is a restricted AST evaluator — NOT `new Function` / `eval`.
+ * Supported tokens: identifiers, string literals, numbers, ==, !=, >, <, >=, <=,
+ * &&, ||, !, ( ). No property access (.), no brackets, no function calls,
+ * no constructor/prototype/__proto__, no globals (window/document/process/globalThis/fetch).
+ *
+ * Conditions are validated before evaluation. Malicious payloads are rejected.
  */
+
+type CondToken =
+  | { kind: "ident"; value: string }
+  | { kind: "str"; value: string }
+  | { kind: "num"; value: number }
+  | { kind: "op"; value: "==" | "!=" | ">" | "<" | ">=" | "<=" | "&&" | "||" | "!" }
+  | { kind: "paren"; value: "(" | ")" };
+
+const COND_FORBIDDEN_IDENTS = new Set([
+  "constructor", "prototype", "__proto__", "globalThis", "window", "document",
+  "process", "fetch", "eval", "Function", "require", "module", "exports",
+  "this", "self",
+]);
+
+function tokenizeCondition(input: string): CondToken[] {
+  const tokens: CondToken[] = [];
+  // Token spec in priority order. String literals first so quotes are consumed whole.
+  const re = /(\s+)|('(?:[^'\\]|\\.)*')|("(?:[^"\\]|\\.)*")|([A-Za-z_$][A-Za-z0-9_$]*)|(>=|<=|==|!=|&&|\|\|)|(!|\(|\)|>|<)|(-?\d+(?:\.\d+)?)/g;
+  let m: RegExpExecArray | null;
+  re.lastIndex = 0;
+  let last = 0;
+  while ((m = re.exec(input)) !== null) {
+    if (m.index > last) {
+      // Unconsumed characters between tokens — reject.
+      const gap = input.slice(last, m.index);
+      if (gap.trim().length > 0) throw new Error(`Unexpected characters: ${gap}`);
+    }
+    last = re.lastIndex;
+    if (m[1] !== undefined) continue; // whitespace
+    if (m[2] !== undefined) {
+      const value = m[2].replace(/^['"]/, "").replace(/['"]$/, "").replace(/\\(.)/g, "$1");
+      tokens.push({ kind: "str", value });
+    } else if (m[3] !== undefined) {
+      const value = m[3].replace(/^['"]/, "").replace(/['"]$/, "").replace(/\\(.)/g, "$1");
+      tokens.push({ kind: "str", value });
+    } else if (m[4] !== undefined) {
+      const id = m[4];
+      if (COND_FORBIDDEN_IDENTS.has(id)) throw new Error(`Forbidden identifier: ${id}`);
+      tokens.push({ kind: "ident", value: id });
+    } else if (m[5] !== undefined) {
+      tokens.push({ kind: "op", value: m[5] as any });
+    } else if (m[6] !== undefined) {
+      if (m[6] === "(" || m[6] === ")") {
+        tokens.push({ kind: "paren", value: m[6] as "(" | ")" });
+      } else {
+        tokens.push({ kind: "op", value: m[6] as "!" | ">" | "<" });
+      }
+    } else if (m[7] !== undefined) {
+      tokens.push({ kind: "num", value: parseFloat(m[7]) });
+    }
+  }
+  if (last < input.length) {
+    const tail = input.slice(last);
+    if (tail.trim().length > 0) throw new Error(`Unexpected trailing characters: ${tail}`);
+  }
+  return tokens;
+}
+
+class CondParser {
+  private pos = 0;
+  constructor(private tokens: CondToken[]) {}
+
+  parse(): (ctx: Record<string, any>) => boolean {
+    const fn = this.parseOr();
+    if (this.pos < this.tokens.length) throw new Error("Unexpected token at " + this.pos);
+    return fn;
+  }
+
+  private peek(): CondToken | null {
+    return this.tokens[this.pos] ?? null;
+  }
+
+  private next(): CondToken {
+    const t = this.tokens[this.pos++];
+    if (!t) throw new Error("Unexpected end of input");
+    return t;
+  }
+
+  private parseOr(): (ctx: Record<string, any>) => boolean {
+    let left = this.parseAnd();
+    while (true) {
+      const t = this.peek();
+      if (t && t.kind === "op" && t.value === "||") {
+        this.next();
+        const right = this.parseAnd();
+        const l = left;
+        left = (ctx) => l(ctx) || right(ctx);
+      } else break;
+    }
+    return left;
+  }
+
+  private parseAnd(): (ctx: Record<string, any>) => boolean {
+    let left = this.parseNot();
+    while (true) {
+      const t = this.peek();
+      if (t && t.kind === "op" && t.value === "&&") {
+        this.next();
+        const right = this.parseNot();
+        const l = left;
+        left = (ctx) => l(ctx) && right(ctx);
+      } else break;
+    }
+    return left;
+  }
+
+  private parseNot(): (ctx: Record<string, any>) => boolean {
+    const t = this.peek();
+    if (t && t.kind === "op" && t.value === "!") {
+      this.next();
+      const inner = this.parseNot();
+      return (ctx) => !inner(ctx);
+    }
+    return this.parseComparison();
+  }
+
+  private parseComparison(): (ctx: Record<string, any>) => boolean {
+    const left = this.parsePrimary();
+    const t = this.peek();
+    if (t && t.kind === "op" && ["==", "!=", ">", "<", ">=", "<="].includes(t.value)) {
+      this.next();
+      const right = this.parsePrimary();
+      const op = t.value;
+      const l = left;
+      const r = right;
+      return (ctx) => {
+        const lv = l(ctx);
+        const rv = r(ctx);
+        switch (op) {
+          case "==": return lv == rv;
+          case "!=": return lv != rv;
+          case ">": return lv > rv;
+          case "<": return lv < rv;
+          case ">=": return lv >= rv;
+          case "<=": return lv <= rv;
+          default: return false;
+        }
+      };
+    }
+    // Bare expression — truthiness.
+    return (ctx) => Boolean(left(ctx));
+  }
+
+  private parsePrimary(): (ctx: Record<string, any>) => any {
+    const t = this.next();
+    if (t.kind === "str") return () => t.value;
+    if (t.kind === "num") return () => t.value;
+    if (t.kind === "ident") {
+      // No property access allowed — bare identifier resolves to ctx value.
+      return (ctx) => (t.value in ctx ? ctx[t.value] : undefined);
+    }
+    if (t.kind === "paren" && t.value === "(") {
+      const inner = this.parseOr();
+      const close = this.next();
+      if (close.kind !== "paren" || close.value !== ")") throw new Error("Expected )");
+      return inner;
+    }
+    if (t.kind === "op" && t.value === "!") {
+      // Handled in parseNot; reaching here is a parse error.
+      throw new Error("Unexpected !");
+    }
+    throw new Error("Unexpected token in primary");
+  }
+}
+
+const condCache = new Map<string, (ctx: Record<string, any>) => boolean>();
+
 export function evaluateCondition(expr: string, ctx: Record<string, any>): boolean {
   if (!expr || !expr.trim()) return true;
   try {
-    // Simple safe evaluator — only allow comparisons and boolean ops
-    const safe = expr
-      .replace(/'([^']*)'/g, '"$1"')
-      .replace(/==/g, "===")
-      .replace(/!=/g, "!==")
-      .replace(/&&/g, " && ")
-      .replace(/\|\|/g, " || ");
-    // Whitelist characters — allow Unicode letters (Armenian) and digits
-    if (!/^[\p{L}\p{N}\s"()+\-*/<>=&|!.,]+$/u.test(safe)) {
-      console.warn("Unsafe condition expression rejected:", expr);
-      return false;
-    }
-    const keys = Object.keys(ctx).filter((k) => /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(k));
-    const vals = keys.map((k) => ctx[k]);
-    const fn = new Function(...keys, `"use strict"; return (${safe});`);
-    return !!fn(...vals);
+    const cached = condCache.get(expr);
+    const fn = cached ?? new CondParser(tokenizeCondition(expr)).parse();
+    if (!cached) condCache.set(expr, fn);
+    return Boolean(fn(ctx));
   } catch (e) {
     console.warn("Condition eval failed:", expr, e);
     return false;
   }
+}
+
+/** Validate a condition expression without evaluating it. Throws on invalid input. */
+export function validateCondition(expr: string): void {
+  if (!expr || !expr.trim()) return;
+  new CondParser(tokenizeCondition(expr)).parse();
 }

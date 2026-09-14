@@ -35,7 +35,8 @@ export async function DELETE(req: Request) {
     }
 
     await db.$transaction(async (tx) => {
-      await tx.user.update({ where: { id: userId }, data: { active: false, archivedAt: new Date() } });
+      // Disabling a user invalidates all outstanding JWTs.
+      await tx.user.update({ where: { id: userId }, data: { active: false, archivedAt: new Date(), sessionVersion: { increment: 1 } } });
       await tx.auditLog.create({
         data: {
           actorId,
@@ -130,6 +131,8 @@ export async function PATCH(req: Request) {
     }
 
     const patch: any = {};
+    let passwordChanged = false;
+    let activeChanged = false;
     if (typeof email === "string" && email.trim() && email !== existing.email) {
       // Check uniqueness
       const taken = await db.user.findUnique({ where: { email: email.trim().toLowerCase() } });
@@ -138,18 +141,27 @@ export async function PATCH(req: Request) {
       }
       patch.email = email.trim().toLowerCase();
     }
-    if (typeof password === "string" && password.length >= 4) {
-      patch.passwordHash = bcrypt.hashSync(password, 10);
+    if (typeof password === "string" && password.length >= 8) {
+      patch.passwordHash = bcrypt.hashSync(password, 12);
+      passwordChanged = true;
+    } else if (typeof password === "string" && password.length > 0 && password.length < 8) {
+      return NextResponse.json({ error: "Գաղտնաբառը պետք է ունենա առնվազն 8 նիշ" }, { status: 400 });
     }
     if (typeof name === "string" && name.trim()) {
       patch.name = name.trim();
     }
-    if (typeof active === "boolean") {
+    if (typeof active === "boolean" && active !== existing.active) {
       patch.active = active;
+      activeChanged = true;
     }
 
     if (Object.keys(patch).length === 0) {
       return NextResponse.json({ user: existing, changed: false });
+    }
+
+    // Password or active-state changes must invalidate outstanding JWTs.
+    if (passwordChanged || activeChanged) {
+      patch.sessionVersion = { increment: 1 };
     }
 
     const updated = await db.user.update({
@@ -173,7 +185,8 @@ export async function PATCH(req: Request) {
           email: updated.email,
           name: updated.name,
           active: updated.active,
-          passwordChanged: !!patch.passwordHash,
+          passwordChanged,
+          sessionInvalidated: passwordChanged || activeChanged,
         }),
       },
     });

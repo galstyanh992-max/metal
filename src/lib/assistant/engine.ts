@@ -2,15 +2,21 @@
  * Assistant engine — deterministic, DB-grounded Q&A.
  * No external LLM required. Reads live Supabase data via Prisma.
  * Answers in Armenian.
+ *
+ * SECURITY: All queries are scoped by the caller's role. The assistant
+ * MUST NOT leak CRM/financial data to roles that lack the corresponding
+ * permission (warehouse, in particular). Authorization is enforced at the
+ * query layer — we never fetch-then-hide.
  */
 
 import { db } from "@/lib/db";
+import { can } from "@/lib/rbac";
+import type { AuthContext } from "@/lib/authz";
 import {
   PROJECT_OVERVIEW,
   ROLES,
   MODULES,
   ORDER_STATUSES,
-  CLIENT_STATUSES,
   DOCUMENT_TYPES,
   HELP_TEXT,
 } from "./knowledge";
@@ -30,8 +36,15 @@ export interface AssistantReply {
   data?: any;
 }
 
-export async function answerQuestion(question: string): Promise<AssistantReply> {
+function deny(): AssistantReply {
+  return {
+    text: "Ներողություն, այս տեղեկատվությունը հասանելի չէ ձեր դերին։",
+  };
+}
+
+export async function answerQuestion(question: string, ctx: AuthContext): Promise<AssistantReply> {
   const q = question.toLowerCase().trim();
+  const role = ctx.role;
 
   // ---- Greetings / help ----
   if (/^(բարև|ողջույն|հայ|hi|hello|բարեւ)/.test(q)) {
@@ -60,11 +73,11 @@ export async function answerQuestion(question: string): Promise<AssistantReply> 
 
   // ---- Clients ----
   if (/հաճախորդ|client|հաճախորդներ/.test(q)) {
+    if (!can(role, "client.list")) return deny();
     const count = await db.client.count({ where: { active: true, archivedAt: null } });
     if (/քանի|թիվ|count/.test(q)) {
       return { text: `Համակարգում կա ${count} ակտիվ հաճախորդ։` };
     }
-    // Search by name
     const nameMatch = q.match(/հաճախորդ[ին]?\s+([ա-ֆԱ-Ֆa-zA-Z]+)/);
     if (nameMatch) {
       const term = nameMatch[1];
@@ -83,9 +96,13 @@ export async function answerQuestion(question: string): Promise<AssistantReply> 
       if (clients.length === 0) {
         return { text: `«${term}» անունով հաճախորդ չգտնվեց։` };
       }
+      const canFinance = can(role, "client.view_finance");
       const lines = clients.map((c) => {
         const debt = c.orders.reduce((s, o) => s + o.outstandingAmount, 0);
-        return `• ${clientName(c)} — ${c.phone}${debt > 0 ? `, պարտք՝ ${fmt(debt)} դր` : ""}`;
+        const base = `• ${clientName(c)}`;
+        const phone = canFinance ? ` — ${c.phone}` : "";
+        const debtStr = canFinance && debt > 0 ? `, պարտք՝ ${fmt(debt)} դր` : "";
+        return `${base}${phone}${debtStr}`;
       }).join("\n");
       return { text: `Գտնված հաճախորդներ՝\n${lines}` };
     }
@@ -93,32 +110,47 @@ export async function answerQuestion(question: string): Promise<AssistantReply> 
       where: { active: true, archivedAt: null },
       orderBy: { createdAt: "desc" },
       take: 10,
+      select: { firstName: true, lastName: true, companyName: true, type: true, phone: true },
     });
-    const lines = clients.map((c) => `• ${clientName(c)} — ${c.phone}`).join("\n");
+    const canFinance = can(role, "client.view_finance");
+    const lines = clients.map((c) => {
+      const base = `• ${clientName(c)}`;
+      return canFinance ? `${base} — ${c.phone}` : base;
+    }).join("\n");
     return { text: `Վերջին հաճախորդները (${count} ընդհանուր)՝\n${lines}` };
   }
 
   // ---- Orders ----
   if (/պատվեր|order/.test(q)) {
-    const count = await db.order.count();
+    if (!can(role, "order.list")) return deny();
+    const where = role === "OPERATOR"
+      ? { OR: [{ createdById: ctx.userId }, { items: { some: { pickedById: ctx.userId } } }] }
+      : role === "WAREHOUSE"
+        ? { status: { not: "DRAFT" } as const }
+        : {};
+    const count = await db.order.count({ where });
     if (/քանի|թիվ|count/.test(q)) {
       return { text: `Համակարգում կա ${count} պատվեր։` };
     }
     const orders = await db.order.findMany({
+      where,
       orderBy: { createdAt: "desc" },
       take: 8,
       include: { client: true },
     });
     if (orders.length === 0) return { text: "Պատվերներ դեռ չկան։" };
+    const canViewPrice = can(role, "order.view_price");
     const lines = orders.map((o) => {
       const name = o.client ? clientName(o.client) : "—";
-      return `• ${o.number} — ${name}, ${ORDER_STATUSES[o.status] ?? o.status}, ${fmt(o.totalAmount)} դր (${fmtDate(o.createdAt)})`;
+      const price = canViewPrice ? `, ${fmt(o.totalAmount)} դր` : "";
+      return `• ${o.number} — ${name}, ${ORDER_STATUSES[o.status] ?? o.status}${price} (${fmtDate(o.createdAt)})`;
     }).join("\n");
     return { text: `Վերջին պատվերները (${count} ընդհանուր)՝\n${lines}` };
   }
 
   // ---- Products ----
   if (/ապրանք|product|sku/.test(q)) {
+    if (!can(role, "product.list")) return deny();
     const count = await db.product.count({ where: { active: true, archivedAt: null } });
     if (/քանի|թիվ|count/.test(q)) {
       return { text: `Կատալոգում կա ${count} ակտիվ ապրանք։` };
@@ -148,12 +180,17 @@ export async function answerQuestion(question: string): Promise<AssistantReply> 
       take: 10,
       include: { unit: true },
     });
-    const lines = products.map((p) => `• ${p.name} (${p.sku}) — ${fmt(p.salePrice)} դր/${p.unit?.symbol ?? "հատ"}`).join("\n");
+    const canViewSale = can(role, "product.view_sale_price");
+    const lines = products.map((p) => {
+      const price = canViewSale ? ` — ${fmt(p.salePrice)} դր/${p.unit?.symbol ?? "հատ"}` : "";
+      return `• ${p.name} (${p.sku})${price}`;
+    }).join("\n");
     return { text: `Վերջին ապրանքները (${count} ընդհանուր)՝\n${lines}` };
   }
 
   // ---- Inventory ----
   if (/պահեստ|մնացորդ|inventory|stock/.test(q)) {
+    if (!can(role, "inventory.view_on_hand")) return deny();
     const snapshots = await db.inventorySnapshot.findMany({
       include: { product: { include: { unit: true } } },
     });
@@ -167,6 +204,7 @@ export async function answerQuestion(question: string): Promise<AssistantReply> 
 
   // ---- Debts ----
   if (/պարտք|պարտատեր|debt/.test(q)) {
+    if (!can(role, "finance.view_debt")) return deny();
     const clients = await db.client.findMany({
       where: { active: true, archivedAt: null },
       include: { orders: { where: { outstandingAmount: { gt: 0 } } } },
@@ -190,6 +228,7 @@ export async function answerQuestion(question: string): Promise<AssistantReply> 
 
   // ---- Sales ----
   if (/վաճառք|եկամուտ|sales|շրջանառություն/.test(q)) {
+    if (!can(role, "finance.view_profit")) return deny();
     const now = new Date();
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -206,6 +245,7 @@ export async function answerQuestion(question: string): Promise<AssistantReply> 
 
   // ---- Suppliers ----
   if (/մատակարար|supplier/.test(q)) {
+    if (!can(role, "procurement.manage_suppliers") && !can(role, "procurement.create_request")) return deny();
     const suppliers = await db.supplier.findMany({ where: { active: true }, take: 10 });
     if (suppliers.length === 0) return { text: "Մատակարարներ դեռ չկան։" };
     const lines = suppliers.map((s) => `• ${s.name}${s.phone ? ` — ${s.phone}` : ""}`).join("\n");
@@ -214,6 +254,7 @@ export async function answerQuestion(question: string): Promise<AssistantReply> 
 
   // ---- Documents ----
   if (/փաստաթուղթ|շաբլոն|document|template/.test(q)) {
+    if (!can(role, "doc.view_templates")) return deny();
     const templates = await db.documentTemplate.findMany({ orderBy: { type: "asc" } });
     if (templates.length === 0) return { text: "Փաստաթղթերի շաբլոններ չկան։" };
     const lines = templates.map((t) => `• ${DOCUMENT_TYPES[t.type] ?? t.type} — v${t.version} (${t.active ? "ակտիվ" : "պասիվ"})`).join("\n");
@@ -222,6 +263,7 @@ export async function answerQuestion(question: string): Promise<AssistantReply> 
 
   // ---- Forms ----
   if (/ձև|form|դինամիկ/.test(q)) {
+    if (!can(role, "admin.manage_forms")) return deny();
     const templates = await db.formTemplate.findMany({
       include: { groups: { include: { fields: true } } },
     });
@@ -235,6 +277,7 @@ export async function answerQuestion(question: string): Promise<AssistantReply> 
 
   // ---- Users ----
   if (/օգտատեր|user|աշխատակից/.test(q)) {
+    if (!can(role, "admin.manage_users")) return deny();
     const users = await db.user.findMany({ where: { active: true }, select: { name: true, email: true, role: true } });
     const lines = users.map((u) => `• ${u.name} — ${u.email} (${u.role})`).join("\n");
     return { text: `Օգտատերեր (${users.length})՝\n${lines}` };

@@ -1,16 +1,17 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { requireAction } from "@/lib/rbac";
+import { requirePermission, scopeOrdersForUser } from "@/lib/authz";
 import { computeLineTotal, parseDecimal } from "@/lib/orders/calc-math";
 import { createOrderDocuments } from "@/lib/orders/documents";
 
 export async function GET() {
   try {
-    const { role } = await requireAction("order.list");
+    const ctx = await requirePermission("order.list");
 
-    // OPTIMIZED: Use select instead of include to fetch only needed fields
+    // OPTIMIZED: Use select instead of include to fetch only needed fields.
+    // Object-level scoping is applied via scopeOrdersForUser (IDOR fix).
     const orders = await db.order.findMany({
-      where: role === "WAREHOUSE" ? { status: { not: "DRAFT" } } : undefined,
+      where: scopeOrdersForUser(ctx),
       select: {
         id: true,
         number: true,
@@ -28,6 +29,7 @@ export async function GET() {
         dueDate: true,
         createdAt: true,
         updatedAt: true,
+        createdById: true,
         client: {
           select: { id: true, type: true, firstName: true, lastName: true, companyName: true, phone: true, email: true },
         },
@@ -42,7 +44,7 @@ export async function GET() {
 
     // Strip financial fields for warehouse
     const sanitized = orders.map((o) => {
-      if (role === "WAREHOUSE") {
+      if (ctx.role === "WAREHOUSE") {
         const { baseAmount, discountAmount, taxAmount, totalAmount, paidAmount, outstandingAmount, costAmount, grossProfit, marginPercent, ...rest } = o;
         return {
           ...rest,
@@ -52,7 +54,7 @@ export async function GET() {
           }),
         };
       }
-      if (role === "OPERATOR") {
+      if (ctx.role === "OPERATOR") {
         const { costAmount, grossProfit, marginPercent, ...rest } = o;
         return rest;
       }
@@ -61,13 +63,14 @@ export async function GET() {
 
     return NextResponse.json({ orders: sanitized });
   } catch (e: any) {
-    return NextResponse.json({ error: e?.message ?? "failed" }, { status: 403 });
+    if (e instanceof NextResponse) return e;
+    return NextResponse.json({ error: e?.message ?? "failed" }, { status: e?.status ?? 403 });
   }
 }
 
 export async function POST(req: Request) {
   try {
-    const { role, userId } = await requireAction("order.create");
+    const ctx = await requirePermission("order.create");
     const body = await req.json();
     const { clientId, items, note, dueDate, savePrices, paymentMethod, discountPercent, status = "CONFIRMED" } = body as {
       status?: "DRAFT" | "CONFIRMED";
@@ -231,8 +234,18 @@ export async function POST(req: Request) {
     const marginPercent = totalAmount > 0 ? Math.round((grossProfit / totalAmount) * 10000) : 0;
 
     const year = new Date().getFullYear();
-    const count = await db.order.count({ where: { number: { startsWith: `ORD-${year}-` } } });
-    const number = `ORD-${year}-${String(count + 1).padStart(4, "0")}`;
+    // Collision-safe number generation: count-based seed, with unique constraint
+    // as the real guard. On P2002 we retry with an incremented seed.
+    let attempt = 0;
+    let number = "";
+    while (true) {
+      const count = await db.order.count({ where: { number: { startsWith: `ORD-${year}-` } } });
+      number = `ORD-${year}-${String(count + 1 + attempt).padStart(4, "0")}`;
+      const exists = await db.order.findUnique({ where: { number }, select: { id: true } });
+      if (!exists) break;
+      attempt += 1;
+      if (attempt > 50) throw new Error("Could not allocate order number");
+    }
 
     const order = await db.$transaction(async (tx) => {
       const order = await tx.order.create({
@@ -246,14 +259,14 @@ export async function POST(req: Request) {
           totalAmount,
           paidAmount,
           outstandingAmount,
-          costAmount: role === "OPERATOR" ? 0 : costAmount,
-          grossProfit: role === "OPERATOR" ? 0 : grossProfit,
-          marginPercent: role === "OPERATOR" ? 0 : marginPercent,
+          costAmount: ctx.role === "OPERATOR" ? 0 : costAmount,
+          grossProfit: ctx.role === "OPERATOR" ? 0 : grossProfit,
+          marginPercent: ctx.role === "OPERATOR" ? 0 : marginPercent,
           dueDate: dueDate ? new Date(dueDate) : null,
           note: note ?? (paymentMethod ? `Վճարման եղանակ՝ ${paymentMethod === "cash" ? "Առձեռն" : paymentMethod === "transfer" ? "Փոխանցում" : "Պարտք"}` : null),
-          createdById: userId,
+          createdById: ctx.userId,
           items: { create: orderItemsData },
-          statusHistory: { create: { status, byUserId: userId } },
+          statusHistory: { create: { status, byUserId: ctx.userId } },
         },
         include: { items: true },
       });
@@ -267,17 +280,17 @@ export async function POST(req: Request) {
             method: paymentMethod === "cash" ? "cash" : "bank",
             paidAt: new Date(),
             note: `Արագ վճարում (${paymentMethod === "cash" ? "Առձեռն" : "Փոխանցում"})`,
-            byUserId: userId,
+            byUserId: ctx.userId,
           },
         });
       }
 
-      if (!isDraft) await createOrderDocuments(tx, order.id, userId, isPaidNow);
+      if (!isDraft) await createOrderDocuments(tx, order.id, ctx.userId, isPaidNow);
 
       // Audit log
       await tx.auditLog.create({
         data: {
-          actorId: userId,
+          actorId: ctx.userId,
           action: "order.create",
           entityType: "Order",
           entityId: order.id,
@@ -307,13 +320,13 @@ export async function POST(req: Request) {
               productId: pu.productId,
               salePrice: pu.salePrice,
               purchasePrice: productMap.get(pu.productId)?.purchasePrice ?? 0,
-              changedById: userId,
+              changedById: ctx.userId,
               reason: `Quick-Fill update (order ${number})`,
             },
           });
           await tx.auditLog.create({
             data: {
-              actorId: userId,
+              actorId: ctx.userId,
               action: "price.update",
               entityType: "Product",
               entityId: pu.productId,
@@ -330,6 +343,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ order, priceUpdates: priceUpdates.length });
   } catch (e: any) {
     if (e instanceof NextResponse) return e;
-    return NextResponse.json({ error: e?.message ?? "failed" }, { status: 500 });
+    return NextResponse.json({ error: e?.message ?? "failed" }, { status: e?.status ?? 500 });
   }
 }

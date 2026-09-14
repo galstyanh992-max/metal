@@ -52,5 +52,19 @@ prompt
 server.log
 backups/
 public/uploads/
+# DB snapshots — never commit local SQLite/development databases.
+db/*.db
+db/*.db-journal
+db/*.db-wal
+db/*.db-shm
+# Synthetic dev fixture is allowed (committed explicitly if needed)
+!db/.gitkeep
+
+# Private uploads (receipts, documents) — never committed, never public.
+var/
+
+# Vercel local
+.vercel/
+
 # Skills directory
 /skills/

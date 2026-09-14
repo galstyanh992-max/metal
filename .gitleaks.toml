@@ -1,0 +1,64 @@
+# Gitleaks configuration — secret scanning for the Arm Roll ERP repo.
+# Scans for: API keys, connection strings, JWT secrets, passwords, private keys.
+# Run locally:  gitleaks detect --source . --config .gitleaks.toml
+
+title = "Arm Roll ERP — Secret Scan"
+
+[allowlist]
+  description = "Allowed paths/strings (examples, tests, redacted placeholders)"
+  paths = [
+    '''\.env\.example$''',
+    '''^\.git/.*$''',
+    '''^node_modules/.*$''',
+    '''^\.next/.*$''',
+    '''^backups/.*$''',
+  ]
+  regexes = [
+    '''<REDACTED>''',
+    '''REDACTED''',
+    # Example/template placeholders in docs
+    '''example\.com''',
+    '''noreply@blinds\.am''',
+  ]
+
+[[rules]]
+  id = "nextauth-secret"
+  description = "NEXTAUTH_SECRET hardcoded value"
+  regex = '''NEXTAUTH_SECRET\s*[:=]\s*['"]?[A-Za-z0-9+/=_-]{16,}['"]?'''
+  tags = ["key", "jwt"]
+
+[[rules]]
+  id = "supabase-connection-string"
+  description = "Supabase/Postgres connection string with credentials"
+  regex = '''postgresql://[^:\s]+:[^@\s]+@[^\s]+:\d+/\w+'''
+  tags = ["database", "credentials"]
+
+[[rules]]
+  id = "hardcoded-password-assignment"
+  description = "Hardcoded password assignment in source/scripts"
+  regex = '''(?:password|passwd|pwd)\s*[:=]\s*['"][^'"]{4,}['"]'''
+  tags = ["password"]
+  [rules.allowlist]
+    regexes = [
+      '''passwordHash''',
+      '''password\?''',
+      '''PASSWORD env''',
+      '''password\.\.\.''',
+      '''password\*\*''',
+      '''process\.env\.''',
+      '''ADMIN_PASSWORD''',
+      '''RESET_PASSWORD''',
+      '''getServerSession''',
+    ]
+
+[[rules]]
+  id = "private-key-block"
+  description = "PEM private key block"
+  regex = '''-----BEGIN (RSA |EC |OPENSSH |)PRIVATE KEY-----'''
+  tags = ["key", "private-key"]
+
+[[rules]]
+  id = "generic-api-key"
+  description = "Generic API key assignment"
+  regex = '''(?:api[_-]?key|apikey|secret[_-]?key|access[_-]?token)\s*[:=]\s*['"]?[A-Za-z0-9_\-]{32,}['"]?'''
+  tags = ["key", "token"]

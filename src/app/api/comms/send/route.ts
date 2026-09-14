@@ -47,7 +47,9 @@ export async function POST(req: Request) {
       result = await sendWhatsApp({ to, body: messageBody, clientId, orderId, templateName });
     }
 
-    // Always log the communication
+    // Always log the communication. Status is sourced from the provider result
+    // — we never fake SENT. NOT_CONFIGURED and FAILED are recorded honestly.
+    const status = (result as any).status ?? (result.success ? "SENT" : "FAILED");
     const log = await db.communicationLog.create({
       data: {
         channel,
@@ -56,7 +58,7 @@ export async function POST(req: Request) {
         orderId: orderId ?? null,
         subject: subject ?? null,
         body: messageBody,
-        status: result.success ? "SENT" : "FAILED",
+        status,
         providerMessageId: result.messageId ?? null,
         error: result.error ?? null,
         byUserId: userId,
@@ -78,7 +80,9 @@ export async function POST(req: Request) {
       },
     });
 
-    return NextResponse.json({ log, result });
+    // HTTP 503 when not configured, so callers can distinguish from a real send.
+    const httpStatus = status === "NOT_CONFIGURED" ? 503 : 200;
+    return NextResponse.json({ log, result }, { status: httpStatus });
   } catch (e: any) {
     if (e?.name === "NextResponse") return e;
     return NextResponse.json({ error: e?.message ?? "failed" }, { status: 500 });

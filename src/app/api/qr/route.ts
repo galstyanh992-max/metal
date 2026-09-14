@@ -9,7 +9,7 @@ export async function GET(req: Request) {
     const data = searchParams.get("data") || "";
     if (!data) return NextResponse.json({ error: "data required" }, { status: 400 });
     const png = await generateQrPng(data);
-    return new NextResponse(png, {
+    return new NextResponse(new Uint8Array(png), {
       headers: { "Content-Type": "image/png", "Cache-Control": "public, max-age=3600" },
     });
   } catch (e: any) {

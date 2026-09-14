@@ -1,11 +1,12 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import { cn } from "@/lib/utils";
 
 /**
  * Skeleton loader — animated placeholder for loading states.
  */
-export function Skeleton({ className }: { className?: string }) {
+export function Skeleton({ className, style }: { className?: string; style?: CSSProperties }) {
   return (
     <div className={cn("animate-pulse bg-muted/50 rounded-sm", className)} />
   );

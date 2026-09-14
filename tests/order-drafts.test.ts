@@ -97,6 +97,48 @@ mock.module("../src/lib/rbac", () => ({
     }
     return { role, userId: "user" };
   },
+  can: (r: string | undefined, action: string) => {
+    if (!r) return false;
+    if (r === "ADMIN") return true;
+    if (r === "OPERATOR") return ["order.list", "order.create", "order.view_price", "order.confirm", "order.cancel", "order.mark_ready", "client.list", "client.create", "finance.view_payments", "finance.record_payment", "finance.view_debt"].includes(action);
+    if (r === "WAREHOUSE") return action === "order.list";
+    return false;
+  },
+}));
+mock.module("../src/lib/authz", () => ({
+  requirePermission: async (action: string) => {
+    if (role === "WAREHOUSE" && action !== "order.list") {
+      const { NextResponse } = await import("next/server");
+      throw NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
+    return { userId: "user", role, email: "user@test", sessionVersion: 0 };
+  },
+  requireRole: async (...allowed: string[]) => {
+    if (!allowed.includes(role)) {
+      const { NextResponse } = await import("next/server");
+      throw NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
+    return { userId: "user", role, email: "user@test", sessionVersion: 0 };
+  },
+  scopeOrdersForUser: (ctx: any) => {
+    if (ctx.role === "ADMIN") return {};
+    if (ctx.role === "OPERATOR") return { OR: [{ createdById: ctx.userId }] };
+    return { status: { not: "DRAFT" } };
+  },
+  scopePaymentsForUser: (ctx: any) => {
+    if (ctx.role === "ADMIN") return {};
+    if (ctx.role === "OPERATOR") return { order: { createdById: ctx.userId } };
+    return { id: "__NO_ACCESS__" };
+  },
+  scopeClientsForUser: (ctx: any) => {
+    if (ctx.role === "ADMIN") return {};
+    if (ctx.role === "OPERATOR") return { active: true, archivedAt: null };
+    return { id: "__NO_ACCESS__" };
+  },
+  canAccessOrder: async (ctx: any, _id: string) => true,
+  canAccessClient: async (_ctx: any, _id: string) => true,
+  canAccessPayment: async (_ctx: any, _id: string) => true,
+  stripForbiddenForWarehouse: (obj: any, r: string) => obj,
 }));
 
 const { POST, GET } = await import("../src/app/api/orders/route");

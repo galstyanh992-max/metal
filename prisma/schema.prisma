@@ -28,6 +28,9 @@ model User {
   passwordHash  String
   phone         String?
   active        Boolean  @default(true)
+  // Incremented on disable, role change, password change/reset, or explicit revocation.
+  // JWT carries this version; protected requests compare against the current DB value.
+  sessionVersion Int    @default(0)
   archivedAt    DateTime?
   lastLoginAt   DateTime?
   createdAt     DateTime @default(now())
@@ -35,6 +38,7 @@ model User {
 
   auditLogs     AuditLog[]
   ordersCreated Order[]      @relation("OrderCreatedBy")
+  pickedItems   OrderItem[]  @relation("OrderItemPicker")
   movements     InventoryMovement[]
   approvals     AiProposal[] @relation("AiApprovedBy")
   communications CommunicationLog[] @relation("CommCreatedBy")
@@ -586,12 +590,17 @@ model OrderItem {
   lineTotal       Int
   formVersionId   String?
   sortOrder       Int      @default(0)
+  // Optional warehouse picker assignment. Used for object-level authorization
+  // so WAREHOUSE users can only see orders they are assigned to pick.
+  pickedById      String?
 
   order           Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product         Product  @relation(fields: [productId], references: [id])
+  picker          User?    @relation("OrderItemPicker", fields: [pickedById], references: [id])
   parameters      OrderItemParameter[]
 
   @@index([orderId])
+  @@index([pickedById])
 }
 
 model OrderItemParameter {
@@ -863,6 +872,7 @@ enum CommStatus {
   DELIVERED
   READ
   FAILED
+  NOT_CONFIGURED
 }
 
 model CommunicationLog {

@@ -2,6 +2,7 @@ import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
+import { getNextAuthSecret } from "@/lib/env";
 
 export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt", maxAge: 60 * 60 * 12 },
@@ -39,6 +40,7 @@ export const authOptions: NextAuthOptions = {
           email: user.email,
           name: user.name,
           role: user.role,
+          sessionVersion: user.sessionVersion,
         } as any;
       },
     }),
@@ -48,6 +50,7 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.id = user.id;
         token.role = (user as any).role;
+        token.sessionVersion = (user as any).sessionVersion ?? 0;
       }
       return token;
     },
@@ -55,11 +58,16 @@ export const authOptions: NextAuthOptions = {
       if (session.user) {
         (session.user as any).id = token.id;
         (session.user as any).role = token.role;
+        (session.user as any).sessionVersion = token.sessionVersion ?? 0;
       }
       return session;
     },
   },
-  secret: process.env.NEXTAUTH_SECRET || "dev-secret-change-in-production",
+  // Resolve secret through centralized env validation.
+  // Production throws if missing; dev generates an ephemeral per-process secret.
+  get secret() {
+    return getNextAuthSecret();
+  },
 };
 
 export type AppRole = "ADMIN" | "OPERATOR" | "WAREHOUSE";

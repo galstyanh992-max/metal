@@ -2,7 +2,12 @@
 const nextConfig = {
   output: "standalone",
   typescript: {
-    ignoreBuildErrors: true,
+    // Production build MUST fail on type errors. Do not disable.
+    ignoreBuildErrors: false,
+  },
+  eslint: {
+    // Production build MUST fail on lint errors. Do not disable.
+    ignoreDuringBuilds: false,
   },
   reactStrictMode: false,
   poweredByHeader: false,

@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono, Noto_Sans_Armenian } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { Providers } from "@/components/providers";
@@ -10,14 +9,6 @@ export const viewport: Viewport = {
   maximumScale: 1,
   themeColor: "#0f172a",
 };
-
-const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
-const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
-const notoArmenian = Noto_Sans_Armenian({
-  variable: "--font-noto-armenian",
-  subsets: ["armenian"],
-  weight: ["400", "500", "600", "700"],
-});
 
 export const metadata: Metadata = {
   title: "Arm Roll ERP/CRM — Armenia",
@@ -30,8 +21,8 @@ export default function RootLayout({
   return (
     <html lang="hy" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} ${notoArmenian.variable} antialiased bg-background text-foreground`}
-        style={{ fontFamily: "var(--font-noto-armenian), var(--font-geist-sans), system-ui, sans-serif" }}
+        className="antialiased bg-background text-foreground"
+        style={{ fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}
       >
         <Providers>
           {children}

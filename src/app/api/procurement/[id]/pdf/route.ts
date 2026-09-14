@@ -7,7 +7,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     await requireAction("procurement.view_purchase_history");
     const { id } = await params;
     const result = await generateProcurementPdf(id);
-    return new NextResponse(result.buffer, {
+    return new NextResponse(new Uint8Array(result.buffer), {
       headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition": `inline; filename="${result.filename}"`,

@@ -70,6 +70,10 @@ export async function POST(req: Request) {
     if (!items?.length) {
       return NextResponse.json({ error: "items required" }, { status: 400 });
     }
+    // Validate quantities — must be positive integers.
+    if (items.some((it) => !it?.productId || !Number.isSafeInteger(it.qty) || it.qty <= 0)) {
+      return NextResponse.json({ error: "Քանակը պետք է լինի դրական ամբողջ թիվ" }, { status: 400 });
+    }
 
     // Validate branches exist
     const [fromBranch, toBranch] = await Promise.all([
@@ -105,7 +109,13 @@ export async function POST(req: Request) {
     const number = `TR-${year}-${String(count + 1).padStart(4, "0")}`;
 
     // Build transfer items
-    const transferItemsData = [];
+    const transferItemsData: Array<{
+      productId: string;
+      qty: number;
+      unitPrice: number;
+      total: number;
+      productName: string;
+    }> = [];
     let totalAmount = 0;
     for (const it of items) {
       const product = await db.product.findUnique({ where: { id: it.productId } });
@@ -121,51 +131,98 @@ export async function POST(req: Request) {
       });
     }
 
-    // Create transfer record
-    const transfer = await db.transfer.create({
-      data: {
-        number,
-        fromBranchId,
-        toBranchId,
-        status: autoConfirm ? "RECEIVED" : "DRAFT",
-        totalAmount,
-        note: note ?? null,
-        createdBy: userId,
-        receivedAt: autoConfirm ? new Date() : null,
-        items: { create: transferItemsData },
-      },
-      include: { items: true, fromBranch: true, toBranch: true },
-    });
+    // Atomic transfer: create record, movements, audit log, and snapshot refresh
+    // all inside a single transaction. Any failure rolls back completely.
+    const transfer = await db.$transaction(async (tx) => {
+      // Re-validate stock inside the transaction with a row-level check to
+      // close the TOCTOU window between the pre-check and the mutation.
+      const stockErrors: string[] = [];
+      for (const it of items) {
+        const product = await tx.product.findUnique({ where: { id: it.productId } });
+        if (!product) {
+          stockErrors.push(`Ապրանքը չի գտնվել`);
+          continue;
+        }
+        const { onHand } = await computeInventoryState(it.productId, fromBranchId);
+        if (onHand < it.qty) {
+          stockErrors.push(`«${product.name}» (${product.sku}) — մատչելի է ${onHand} հատ, պահանջվում է ${it.qty}`);
+        }
+      }
+      if (stockErrors.length > 0) {
+        throw Object.assign(new Error("Մասնաճյուղում պաշարը բավարար չէ"), {
+          details: stockErrors,
+          stockError: true,
+        });
+      }
 
-    // If autoConfirm, execute the actual stock movements
+      const transfer = await tx.transfer.create({
+        data: {
+          number,
+          fromBranchId,
+          toBranchId,
+          status: autoConfirm ? "RECEIVED" : "DRAFT",
+          totalAmount,
+          note: note ?? null,
+          createdBy: userId,
+          receivedAt: autoConfirm ? new Date() : null,
+          items: { create: transferItemsData },
+        },
+        include: { items: true, fromBranch: true, toBranch: true },
+      });
+
+      // If autoConfirm, execute the actual stock movements inside the same tx.
+      if (autoConfirm) {
+        for (const it of items) {
+          await tx.inventoryMovement.create({
+            data: {
+              productId: it.productId,
+              type: "WRITE_OFF",
+              qty: it.qty,
+              byUserId: userId,
+              branchId: fromBranchId,
+              refType: "TRANSFER",
+              refId: transfer.id,
+              note: `Տեղափոխություն ${number} → ${toBranch.name}`,
+            },
+          });
+          await tx.inventoryMovement.create({
+            data: {
+              productId: it.productId,
+              type: "RECEIVE",
+              qty: it.qty,
+              byUserId: userId,
+              branchId: toBranchId,
+              refType: "TRANSFER",
+              refId: transfer.id,
+              note: `Տեղափոխություն ${number} ← ${fromBranch.name}`,
+            },
+          });
+        }
+      }
+
+      await tx.auditLog.create({
+        data: {
+          actorId: userId,
+          action: "transfer.create",
+          entityType: "Transfer",
+          entityId: transfer.id,
+          afterJson: JSON.stringify({
+            number,
+            fromBranch: fromBranch.name,
+            toBranch: toBranch.name,
+            itemsCount: items.length,
+            totalAmount,
+            autoConfirmed: !!autoConfirm,
+          }),
+        },
+      });
+
+      return transfer;
+    }, { timeout: 30000 });
+
+    // Refresh snapshots AFTER the transaction commits (non-critical; idempotent).
     if (autoConfirm) {
       for (const it of items) {
-        // WRITE_OFF from fromBranch
-        await db.inventoryMovement.create({
-          data: {
-            productId: it.productId,
-            type: "WRITE_OFF",
-            qty: it.qty,
-            byUserId: userId,
-            branchId: fromBranchId,
-            refType: "TRANSFER",
-            refId: transfer.id,
-            note: `Տեղափոխություն ${number} → ${toBranch.name}`,
-          },
-        });
-        // RECEIVE to toBranch
-        await db.inventoryMovement.create({
-          data: {
-            productId: it.productId,
-            type: "RECEIVE",
-            qty: it.qty,
-            byUserId: userId,
-            branchId: toBranchId,
-            refType: "TRANSFER",
-            refId: transfer.id,
-            note: `Տեղափոխություն ${number} ← ${fromBranch.name}`,
-          },
-        });
         await Promise.all([
           refreshSnapshot(it.productId, fromBranchId),
           refreshSnapshot(it.productId, toBranchId),
@@ -173,26 +230,11 @@ export async function POST(req: Request) {
       }
     }
 
-    // Audit log
-    await db.auditLog.create({
-      data: {
-        actorId: userId,
-        action: "transfer.create",
-        entityType: "Transfer",
-        entityId: transfer.id,
-        afterJson: JSON.stringify({
-          number,
-          fromBranch: fromBranch.name,
-          toBranch: toBranch.name,
-          itemsCount: items.length,
-          totalAmount,
-          autoConfirmed: !!autoConfirm,
-        }),
-      },
-    });
-
     return NextResponse.json({ transfer }, { status: 201 });
   } catch (e: any) {
-    return NextResponse.json({ error: e?.message ?? "failed" }, { status: 500 });
+    if (e?.stockError) {
+      return NextResponse.json({ error: e.message, details: e.details, stockError: true }, { status: 409 });
+    }
+    return NextResponse.json({ error: e?.message ?? "failed" }, { status: e?.status ?? 500 });
   }
 }

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { requireAction } from "@/lib/rbac";
+import { requirePermission, canAccessOrder } from "@/lib/authz";
 import { releaseOrderStock, OrderStockError } from "@/lib/inventory/order-reservations";
 import { confirmDraftOrder, OrderConfirmationError } from "@/lib/orders/confirm-draft";
 import type { Order } from "@prisma/client";
@@ -26,8 +26,14 @@ async function cancelOrder(order: Order, userId: string) {
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { role } = await requireAction("order.list");
+    const ctx = await requirePermission("order.list");
     const { id } = await params;
+
+    // Object-level authorization (IDOR fix): reject before returning data.
+    const allowed = await canAccessOrder(ctx, id);
+    if (!allowed) {
+      return NextResponse.json({ error: "not found" }, { status: 404 });
+    }
 
     const order = await db.order.findUnique({
       where: { id },
@@ -41,10 +47,10 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       },
     });
 
-    if (!order || (role === "WAREHOUSE" && order.status === "DRAFT")) return NextResponse.json({ error: "not found" }, { status: 404 });
+    if (!order || (ctx.role === "WAREHOUSE" && order.status === "DRAFT")) return NextResponse.json({ error: "not found" }, { status: 404 });
 
     // Strip financial fields based on role
-    if (role === "WAREHOUSE") {
+    if (ctx.role === "WAREHOUSE") {
       const { baseAmount, discountAmount, taxAmount, totalAmount, paidAmount, outstandingAmount, costAmount, grossProfit, marginPercent, ...rest } = order as any;
       return NextResponse.json({
         order: {
@@ -57,19 +63,20 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
         },
       });
     }
-    if (role === "OPERATOR") {
+    if (ctx.role === "OPERATOR") {
       const { costAmount, grossProfit, marginPercent, ...rest } = order as any;
       return NextResponse.json({ order: rest });
     }
     return NextResponse.json({ order });
   } catch (e: any) {
-    return NextResponse.json({ error: e?.message ?? "failed" }, { status: 403 });
+    if (e instanceof NextResponse) return e;
+    return NextResponse.json({ error: e?.message ?? "failed" }, { status: e?.status ?? 403 });
   }
 }
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { userId, role } = await requireAction("order.confirm");
+    const ctx = await requirePermission("order.confirm");
     const { id } = await params;
     const body = await req.json();
     const { action, paymentMethod = "debt" } = body as { action: "confirm" | "cancel" | "mark_ready"; paymentMethod?: "debt" | "cash" | "transfer" };
@@ -80,26 +87,32 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const order = await db.order.findUnique({ where: { id }, include: { items: true } });
     if (!order) return NextResponse.json({ error: "not found" }, { status: 404 });
 
+    // Object-level authorization (IDOR fix): reject before mutation.
+    const allowed = await canAccessOrder(ctx, id);
+    if (!allowed) {
+      return NextResponse.json({ error: "not found" }, { status: 404 });
+    }
+
     if (action === "confirm") {
-      const confirmed = await confirmDraftOrder(id, userId, paymentMethod);
+      const confirmed = await confirmDraftOrder(id, ctx.userId, paymentMethod);
       return NextResponse.json({ ok: true, order: confirmed });
     } else if (action === "cancel") {
       if (order.status === "DELIVERED") return NextResponse.json({ error: "cannot cancel delivered" }, { status: 400 });
-      return await cancelOrder(order, userId);
+      return await cancelOrder(order, ctx.userId);
     } else if (action === "mark_ready") {
       if (order.status !== "CONFIRMED") return NextResponse.json({ error: "only confirmed can be marked ready" }, { status: 400 });
       await db.order.update({ where: { id }, data: { status: "READY" } });
-      await db.orderStatusHistory.create({ data: { orderId: id, status: "READY", byUserId: userId } });
+      await db.orderStatusHistory.create({ data: { orderId: id, status: "READY", byUserId: ctx.userId } });
     }
 
     await db.auditLog.create({
-      data: { actorId: userId, action: `order.${action}`, entityType: "Order", entityId: id, afterJson: JSON.stringify({ action }) },
+      data: { actorId: ctx.userId, action: `order.${action}`, entityType: "Order", entityId: id, afterJson: JSON.stringify({ action }) },
     });
 
     return NextResponse.json({ ok: true, order: { id, status: "READY", paidAmount: order.paidAmount, outstandingAmount: order.outstandingAmount } });
   } catch (e: any) {
     if (e instanceof NextResponse) return e;
     if (e instanceof OrderConfirmationError || e instanceof OrderStockError) return NextResponse.json({ error: e.message }, { status: 409 });
-    return NextResponse.json({ error: e?.message ?? "failed" }, { status: 500 });
+    return NextResponse.json({ error: e?.message ?? "failed" }, { status: e?.status ?? 500 });
   }
 }

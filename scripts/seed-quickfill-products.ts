@@ -61,7 +61,7 @@ async function main() {
     }
 
     // Find or create category (by name, since Category.name is not unique)
-    let category = null;
+    let category: { id: string; name: string; active: boolean; sortOrder: number; parentId: string | null } | null = null;
     if (item.category) {
       category = await db.category.findFirst({ where: { name: item.category } });
       if (!category) {

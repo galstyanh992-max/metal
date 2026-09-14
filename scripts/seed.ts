@@ -50,16 +50,32 @@ async function main() {
     await db.loyaltyTier.upsert({ where: { id: t.id }, update: {}, create: t });
   }
 
-  // Users — minimum 2 admins
-  const pw = (s: string) => bcrypt.hashSync(s, 10);
+  // Users — minimum 2 admins. Passwords are sourced from env vars
+  // (SEED_ADMIN_PASSWORD, SEED_OPERATOR_PASSWORD, SEED_WAREHOUSE_PASSWORD)
+  // or a single SEED_PASSWORD. If none are set, a random secure password is
+  // generated and printed once. NEVER hardcode passwords in source.
+  const pw = (s: string) => bcrypt.hashSync(s, 12);
+  const crypto = await import("node:crypto");
+  const genPw = () => crypto.randomBytes(24).toString("base64url");
+  const adminPw = process.env.SEED_ADMIN_PASSWORD ?? process.env.SEED_PASSWORD ?? genPw();
+  const opPw = process.env.SEED_OPERATOR_PASSWORD ?? process.env.SEED_PASSWORD ?? genPw();
+  const whPw = process.env.SEED_WAREHOUSE_PASSWORD ?? process.env.SEED_PASSWORD ?? genPw();
+  const generated: Array<{ email: string; password: string }> = [];
+  if (!process.env.SEED_ADMIN_PASSWORD && !process.env.SEED_PASSWORD) generated.push({ email: "admin1@blinds.am", password: adminPw });
+  if (!process.env.SEED_OPERATOR_PASSWORD && !process.env.SEED_PASSWORD) generated.push({ email: "operator@blinds.am", password: opPw });
+  if (!process.env.SEED_WAREHOUSE_PASSWORD && !process.env.SEED_PASSWORD) generated.push({ email: "warehouse@blinds.am", password: whPw });
   const users = [
-    { id: "user-admin-1", email: "admin1@blinds.am", name: "Ադմին Մեկ", role: "ADMIN" as const, passwordHash: pw("admin123") },
-    { id: "user-admin-2", email: "admin2@blinds.am", name: "Ադմին Երկու", role: "ADMIN" as const, passwordHash: pw("admin123") },
-    { id: "user-op-1", email: "operator@blinds.am", name: "Օպերատոր Մեկ", role: "OPERATOR" as const, passwordHash: pw("operator123") },
-    { id: "user-wh-1", email: "warehouse@blinds.am", name: "Պահեստապետ Մեկ", role: "WAREHOUSE" as const, passwordHash: pw("warehouse123") },
+    { id: "user-admin-1", email: "admin1@blinds.am", name: "Ադմին Մեկ", role: "ADMIN" as const, passwordHash: pw(adminPw) },
+    { id: "user-admin-2", email: "admin2@blinds.am", name: "Ադմին Երկու", role: "ADMIN" as const, passwordHash: pw(adminPw) },
+    { id: "user-op-1", email: "operator@blinds.am", name: "Օպերատոր Մեկ", role: "OPERATOR" as const, passwordHash: pw(opPw) },
+    { id: "user-wh-1", email: "warehouse@blinds.am", name: "Պահեստապետ Մեկ", role: "WAREHOUSE" as const, passwordHash: pw(whPw) },
   ];
   for (const u of users) {
     await db.user.upsert({ where: { email: u.email }, update: {}, create: u });
+  }
+  if (generated.length > 0) {
+    console.log("\n[seed] Generated one-time passwords (save immediately, will not be shown again):");
+    for (const g of generated) console.log(`  ${g.email} -> ${g.password}`);
   }
 
   // Suppliers
@@ -132,9 +148,9 @@ async function main() {
           },
         });
         await db.inventorySnapshot.upsert({
-          where: { productId: prod.id },
+          where: { productId_branchId: { productId: prod.id, branchId: "branch-main" } },
           update: { onHand: s.qty, reserved: 0 },
-          create: { productId: prod.id, onHand: s.qty, reserved: 0 },
+          create: { productId: prod.id, branchId: "branch-main", onHand: s.qty, reserved: 0 },
         });
       }
     }

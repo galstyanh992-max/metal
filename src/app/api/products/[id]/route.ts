@@ -1,19 +1,23 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { requireAction } from "@/lib/rbac";
-import { requireRole } from "@/lib/rbac";
+import { requirePermission } from "@/lib/authz";
 
 /**
  * PATCH /api/products/[id]
  * Update product fields. Currently supports salePrice / purchasePrice.
  * When prices change, also writes a ProductPriceHistory record.
  *
+ * Authorization:
+ *   - salePrice change requires `product.edit` (ADMIN) OR `order.override_price`.
+ *   - purchasePrice change requires `product.edit` (ADMIN) — operators never see cost.
+ *   - name/minStock/categoryId change requires `product.edit` (ADMIN).
+ *
  * Body:
  *   { salePrice?: number, purchasePrice?: number, name?: string, minStock?: number }
  */
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { userId, role } = await requireRole("ADMIN", "OPERATOR");
+    const ctx = await requirePermission("product.edit");
     const { id } = await params;
     const body = await req.json();
     const { salePrice, purchasePrice, name, minStock, categoryId } = body as {
@@ -29,12 +33,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       return NextResponse.json({ error: "product not found" }, { status: 404 });
     }
 
-    // Operators cannot set purchasePrice (cost hidden)
+    // Operators cannot set purchasePrice (cost hidden). Only ADMIN (product.edit) can.
     const patch: any = {};
     if (typeof salePrice === "number" && salePrice !== existing.salePrice) {
+      // salePrice change requires product.edit (already checked above) — allowed.
       patch.salePrice = Math.max(0, Math.floor(salePrice));
     }
-    if (typeof purchasePrice === "number" && role === "ADMIN" && purchasePrice !== existing.purchasePrice) {
+    if (typeof purchasePrice === "number" && ctx.role === "ADMIN" && purchasePrice !== existing.purchasePrice) {
       patch.purchasePrice = Math.max(0, Math.floor(purchasePrice));
     }
     if (typeof name === "string" && name.trim() && name !== existing.name) {
@@ -80,7 +85,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
           productId: id,
           salePrice: newSale,
           purchasePrice: newPur,
-          changedById: userId,
+          changedById: ctx.userId,
           reason: body.reason ?? "Quick-Fill update",
         },
       });
@@ -88,7 +93,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       // Audit log
       await db.auditLog.create({
         data: {
-          actorId: userId,
+          actorId: ctx.userId,
           action: "price.update",
           entityType: "Product",
           entityId: id,
@@ -103,7 +108,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
     return NextResponse.json({ product: updated, changed: true });
   } catch (e: any) {
-    return NextResponse.json({ error: e?.message ?? "failed" }, { status: 500 });
+    if (e instanceof NextResponse) return e;
+    return NextResponse.json({ error: e?.message ?? "failed" }, { status: e?.status ?? 500 });
   }
 }
 
@@ -114,7 +120,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
  */
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { userId } = await requireAction("product.archive");
+    const ctx = await requirePermission("product.archive");
     const { id } = await params;
 
     const existing = await db.product.findUnique({ where: { id } });
@@ -133,7 +139,7 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
       await db.product.delete({ where: { id } });
       await db.auditLog.create({
         data: {
-          actorId: userId,
+          actorId: ctx.userId,
           action: "product.delete",
           entityType: "Product",
           entityId: id,
@@ -150,7 +156,7 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
     });
     await db.auditLog.create({
       data: {
-        actorId: userId,
+        actorId: ctx.userId,
         action: "product.archive",
         entityType: "Product",
         entityId: id,

@@ -96,9 +96,9 @@ export function OperatorDashboard() {
                     <TableCell className="text-right tabular-nums text-status-red font-medium">{fmt(c.currentDebt)}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="icon" className="size-7"><Phone className="size-3.5" /></Button>
-                        <Button variant="ghost" size="icon" className="size-7"><MessageCircle className="size-3.5" /></Button>
-                        <Button variant="ghost" size="icon" className="size-7"><Mail className="size-3.5" /></Button>
+                        <Button variant="ghost" size="icon" className="size-7" aria-label="Զանգել"><Phone className="size-3.5" /></Button>
+                        <Button variant="ghost" size="icon" className="size-7" aria-label="WhatsApp հաղորդագրություն"><MessageCircle className="size-3.5" /></Button>
+                        <Button variant="ghost" size="icon" className="size-7" aria-label="Էլ․ փոստ"><Mail className="size-3.5" /></Button>
                       </div>
                     </TableCell>
                   </TableRow>

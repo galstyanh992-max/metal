@@ -147,7 +147,7 @@ export function WorkspaceShell() {
 
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
         <SheetTrigger asChild>
-          <Button variant="ghost" size="icon" className="lg:hidden absolute top-2 left-2 z-50 size-10">
+          <Button variant="ghost" size="icon" className="lg:hidden absolute top-2 left-2 z-50 size-10" aria-label="Բացել մենյուն">
             <Menu className="size-5" />
           </Button>
         </SheetTrigger>

@@ -67,7 +67,7 @@ export function NotificationsBell() {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative h-9 w-9">
+        <Button variant="ghost" size="icon" className="relative h-9 w-9" aria-label="Ծանուցումներ">
           <Bell className="size-4" />
           {unreadCount > 0 && (
             <span className="absolute top-1 right-1 min-w-[16px] h-4 px-1 bg-status-red text-white text-[9px] font-bold rounded-full flex items-center justify-center">

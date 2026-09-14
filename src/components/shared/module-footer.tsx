@@ -18,8 +18,8 @@ export function ModuleFooter({
 }: {
   title: string;
   whatIsIt: string;
-  howToUse: string[];
-  tips?: string[];
+  howToUse: readonly string[];
+  tips?: readonly string[];
 }) {
   return (
     <div className="mt-6 border border-hairline bg-muted/20 p-4">
