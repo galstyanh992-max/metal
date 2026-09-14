@@ -68,14 +68,14 @@ function createPdfDocument() {
   return doc;
 }
 
-function textHeight(doc: any, text: string, width: number, fontSize = 9) {
+function textHeight(doc: any, text: string, width: number, fontSize = 11) {
   doc.fontSize(fontSize).font(FONT_REG);
   return doc.heightOfString(text || "—", { width, lineGap: DOCUMENT_LINE_GAP });
 }
 
 function drawTableHeader(doc: any, y: number, cells: TableCell[]) {
-  const headerHeight = Math.max(...cells.map((cell) => textHeight(doc, cell.text, cell.width)), 11);
-  doc.fontSize(9).font(FONT_BOLD).fillColor("#666");
+  const headerHeight = Math.max(...cells.map((cell) => textHeight(doc, cell.text, cell.width, 11)), 14);
+  doc.fontSize(11).font(FONT_BOLD).fillColor("#666");
   for (const cell of cells) {
     doc.text(cell.text, cell.x, y, { width: cell.width, align: cell.align, lineGap: DOCUMENT_LINE_GAP });
   }
@@ -104,7 +104,7 @@ function addTablePage(doc: any, title: string, cells: TableCell[]) {
 }
 
 function addFooter(doc: any) {
-  doc.fontSize(8).font(FONT_REG).fillColor("#999").text(
+  doc.fontSize(11).font(FONT_REG).fillColor("#999").text(
     "Arm Roll ERP · Հայաստան · Տպվել է " + new Date().toLocaleString("hy-AM"),
     50, DOCUMENT_FOOTER_Y, { align: "center", width: 495, lineGap: DOCUMENT_LINE_GAP }
   );
@@ -174,15 +174,15 @@ export async function generateOrderPdf(orderId: string, type: DocumentType, role
   const orderMeta = `${order.number} · ${new Date(order.createdAt).toLocaleDateString("hy-AM")}`;
 
   doc.fontSize(16).font(FONT_BOLD).fillColor("#000").text("ARM ROLL", 50, DOCUMENT_VERTICAL_MARGIN, { width: 115 });
-  doc.fontSize(7).font(FONT_REG).fillColor("#666").text("ERP · ARMENIA", 50, DOCUMENT_VERTICAL_MARGIN + 19, { width: 115 });
+  doc.fontSize(11).font(FONT_REG).fillColor("#666").text("ERP · ARMENIA", 50, DOCUMENT_VERTICAL_MARGIN + 19, { width: 115 });
 
-  const titleHeight = textHeight(doc, documentTitle, 300, 12);
-  doc.fontSize(12).font(FONT_BOLD).fillColor("#000").text(documentTitle, 170, DOCUMENT_VERTICAL_MARGIN, { align: "right", width: 300, lineGap: DOCUMENT_LINE_GAP });
+  const titleHeight = textHeight(doc, documentTitle, 300, 14);
+  doc.fontSize(14).font(FONT_BOLD).fillColor("#000").text(documentTitle, 170, DOCUMENT_VERTICAL_MARGIN, { align: "right", width: 300, lineGap: DOCUMENT_LINE_GAP });
   const metaY = DOCUMENT_VERTICAL_MARGIN + titleHeight + 1;
-  doc.fontSize(9).font(FONT_REG).text(orderMeta, 170, metaY, { align: "right", width: 300, lineGap: DOCUMENT_LINE_GAP });
+  doc.fontSize(11).font(FONT_REG).text(orderMeta, 170, metaY, { align: "right", width: 300, lineGap: DOCUMENT_LINE_GAP });
 
-  const clientY = Math.max(DOCUMENT_VERTICAL_MARGIN + 38, metaY + textHeight(doc, orderMeta, 300, 9) + 4);
-  doc.fontSize(8).font(FONT_REG).fillColor("#555").text(clientDetails, 50, clientY, { width: 415, lineGap: DOCUMENT_LINE_GAP });
+  const clientY = Math.max(DOCUMENT_VERTICAL_MARGIN + 38, metaY + textHeight(doc, orderMeta, 300, 11) + 4);
+  doc.fontSize(11).font(FONT_REG).fillColor("#555").text(clientDetails, 50, clientY, { width: 415, lineGap: DOCUMENT_LINE_GAP });
   const dividerY = Math.max(DOCUMENT_VERTICAL_MARGIN + 58, clientY + textHeight(doc, clientDetails, 415, 8) + 6);
   doc.moveTo(50, dividerY).lineTo(545, dividerY).strokeColor("#999").lineWidth(0.5).stroke();
 
@@ -205,18 +205,20 @@ export async function generateOrderPdf(orderId: string, type: DocumentType, role
   const columns: TableCell[] = isWarehouseDoc
     ? [
         { text: "#", x: 50, width: 20 },
-        { text: "ԱՊՐԱՆՔ", x: 70, width: 200 },
-        { text: "ԳՈՒՅՆ", x: 270, width: 120 },
-        { text: "ՄԵՏՐ", x: 390, width: 75, align: "right" },
-        { text: "ՔԱՆԱԿ", x: 465, width: 80, align: "right" },
+        { text: "ԱՊՐԱՆՔ", x: 70, width: 140 },
+        { text: "ԼԱՅՆՈՒԹՅՈՒՆ", x: 210, width: 80, align: "right" },
+        { text: "ԲԱՐՁՐՈՒԹՅՈՒՆ", x: 290, width: 80, align: "right" },
+        { text: "ՄԵՏՐ", x: 370, width: 65, align: "right" },
+        { text: "ՔԱՆԱԿ", x: 435, width: 110, align: "right" },
       ]
     : [
         { text: "#", x: 50, width: 20 },
-        { text: "ԱՊՐԱՆՔ", x: 70, width: 120 },
-        { text: "ԳՈՒՅՆ", x: 190, width: 110 },
-        { text: "ՄԵՏՐ", x: 300, width: 45, align: "right" },
-        { text: "ՔԱՆԱԿ", x: 345, width: 45, align: "right" },
-        { text: "ԳԻՆ", x: 390, width: 75, align: "right" },
+        { text: "ԱՊՐԱՆՔ", x: 70, width: 100 },
+        { text: "ԼԱՅՆՈՒԹՅՈՒՆ", x: 170, width: 70, align: "right" },
+        { text: "ԲԱՐՁՐՈՒԹՅՈՒՆ", x: 240, width: 70, align: "right" },
+        { text: "ՄԵՏՐ", x: 310, width: 45, align: "right" },
+        { text: "ՔԱՆԱԿ", x: 355, width: 45, align: "right" },
+        { text: "ԳԻՆ", x: 400, width: 65, align: "right" },
         { text: "ԳՈՒՄԱՐ", x: 465, width: 80, align: "right" },
       ];
 
@@ -224,43 +226,48 @@ export async function generateOrderPdf(orderId: string, type: DocumentType, role
   for (const [idx, item] of order.items.entries()) {
     const meterage = paramNum(item, "measurement") ?? paramNum(item, "meterage");
     const measurementUnit = param(item, "measurementUnit") ?? item.product?.unit?.symbol ?? "";
-    const color = param(item, "color") ?? item.product?.color ?? null;
+    const width = param(item, "width") ?? param(item, "profile_width") ?? null;
+    const height = param(item, "height") ?? param(item, "profile_height") ?? null;
 
     const meterageText = meterage != null ? `${meterage.toFixed(3)} ${measurementUnit}` : "—";
+    const widthText = width != null ? `${Number(width).toFixed(0)}` : "—";
+    const heightText = height != null ? `${Number(height).toFixed(0)}` : "—";
     const cells: TableCell[] = isWarehouseDoc
       ? [
           { text: String(idx + 1), x: 50, width: 20 },
-          { text: item.productName, x: 70, width: 200 },
-          { text: color ?? "—", x: 270, width: 120 },
-          { text: meterageText, x: 390, width: 75, align: "right" },
-          { text: String(item.qty), x: 465, width: 80, align: "right" },
+          { text: item.productName, x: 70, width: 140 },
+          { text: widthText, x: 210, width: 80, align: "right" },
+          { text: heightText, x: 290, width: 80, align: "right" },
+          { text: meterageText, x: 370, width: 65, align: "right" },
+          { text: String(item.qty), x: 435, width: 110, align: "right" },
         ]
       : [
           { text: String(idx + 1), x: 50, width: 20 },
-          { text: item.productName, x: 70, width: 120 },
-          { text: color ?? "—", x: 190, width: 110 },
-          { text: meterageText, x: 300, width: 45, align: "right" },
-          { text: String(item.qty), x: 345, width: 45, align: "right" },
-          { text: `${item.unitPriceSnapshot.toLocaleString("hy-AM")} դր`, x: 390, width: 75, align: "right" },
+          { text: item.productName, x: 70, width: 100 },
+          { text: widthText, x: 170, width: 70, align: "right" },
+          { text: heightText, x: 240, width: 70, align: "right" },
+          { text: meterageText, x: 310, width: 45, align: "right" },
+          { text: String(item.qty), x: 355, width: 45, align: "right" },
+          { text: `${item.unitPriceSnapshot.toLocaleString("hy-AM")} դր`, x: 400, width: 65, align: "right" },
           { text: `${item.lineTotal.toLocaleString("hy-AM")} դր`, x: 465, width: 80, align: "right" },
         ];
-    const rowHeight = getTableRowHeight(doc, cells, 7.5, 12, 2);
+    const rowHeight = getTableRowHeight(doc, cells, 11, 16, 3);
     if (y + rowHeight > ORDER_TABLE_CONTENT_BOTTOM) y = addTablePage(doc, documentTitle, columns);
-    y += drawTableRow(doc, y, cells, 7.5, 12, 2);
+    y += drawTableRow(doc, y, cells, 11, 16, 3);
   }
 
   // Totals
   if (showPrices) {
-    if (y + 72 > ORDER_TABLE_CONTENT_BOTTOM) y = addTablePage(doc, documentTitle, columns);
-    y += 10;
+    if (y + 80 > ORDER_TABLE_CONTENT_BOTTOM) y = addTablePage(doc, documentTitle, columns);
+    y += 12;
     doc.moveTo(350, y).lineTo(545, y).strokeColor("#999").lineWidth(0.5).stroke();
-    y += 10;
-    doc.fontSize(10).font(FONT_REG).text("Ընդհանուր՝", 350, y, { width: 130, align: "right" });
+    y += 12;
+    doc.fontSize(11).font(FONT_REG).text("Ընդհանուր՝", 350, y, { width: 130, align: "right" });
     doc.font(FONT_BOLD).text(`${order.totalAmount.toLocaleString("hy-AM")} դր`, 480, y, { width: 65, align: "right" });
-    y += 20;
-    doc.font(FONT_REG).fillColor("#666").fontSize(9);
+    y += 22;
+    doc.font(FONT_REG).fillColor("#666").fontSize(11);
     doc.text(`Վճարված՝ ${order.paidAmount.toLocaleString("hy-AM")} դր`, 350, y, { width: 195, align: "right" });
-    y += 14;
+    y += 16;
     doc.text(`Մնացորդ՝ ${order.outstandingAmount.toLocaleString("hy-AM")} դր`, 350, y, { width: 195, align: "right" });
   }
 
