@@ -276,6 +276,8 @@ export function RolshutterCalculator({ products = [], onRowsChange, onTotalChang
               color: color ?? null,
               unitCode,
               isService: false,
+              width: Number(width) || 0,
+              height: Number(height) || 0,
             };
           }),
         ...customRows

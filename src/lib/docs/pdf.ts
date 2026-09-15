@@ -42,12 +42,14 @@ const FONT_BOLD = "NotoArmenian-Bold";
 // PDFKit measures typography in points. 0.3 mm is the required breathing room
 // between text baselines in every printable document.
 export const DOCUMENT_LINE_GAP = (0.3 / 25.4) * 72;
-export const DOCUMENT_VERTICAL_MARGIN = (10 / 25.4) * 72;
-const DOCUMENT_FOOTER_Y = 801;
+// Reduced bottom margin to 0.5cm (from 1cm) to maximize A4 usage
+export const DOCUMENT_VERTICAL_MARGIN = (5 / 25.4) * 72;
+const DOCUMENT_FOOTER_Y = 815;
 // Keep the lower part of the page free for the QR code and footer. This also
 // avoids PDFKit creating a trailing page when it reaches the A4 bottom margin.
 const TABLE_CONTENT_BOTTOM = 660;
-const ORDER_TABLE_CONTENT_BOTTOM = 760;
+// Extended content area to use more of the page (reduced from 760 to allow more rows)
+const ORDER_TABLE_CONTENT_BOTTOM = 790;
 
 type TableCell = {
   text: string;
@@ -74,8 +76,8 @@ function textHeight(doc: any, text: string, width: number, fontSize = 11) {
 }
 
 function drawTableHeader(doc: any, y: number, cells: TableCell[]) {
-  const headerHeight = Math.max(...cells.map((cell) => textHeight(doc, cell.text, cell.width, 11)), 14);
-  doc.fontSize(11).font(FONT_BOLD).fillColor("#666");
+  const headerHeight = Math.max(...cells.map((cell) => textHeight(doc, cell.text, cell.width, 9)), 14);
+  doc.fontSize(9).font(FONT_BOLD).fillColor("#666");
   for (const cell of cells) {
     doc.text(cell.text, cell.x, y, { width: cell.width, align: cell.align, lineGap: DOCUMENT_LINE_GAP });
   }
@@ -104,10 +106,7 @@ function addTablePage(doc: any, title: string, cells: TableCell[]) {
 }
 
 function addFooter(doc: any) {
-  doc.fontSize(11).font(FONT_REG).fillColor("#999").text(
-    "Arm Roll ERP · Հայաստան · Տպվել է " + new Date().toLocaleString("hy-AM"),
-    50, DOCUMENT_FOOTER_Y, { align: "center", width: 495, lineGap: DOCUMENT_LINE_GAP }
-  );
+  // Footer removed - no date/company info at bottom of page
 }
 
 /**
@@ -206,16 +205,16 @@ export async function generateOrderPdf(orderId: string, type: DocumentType, role
     ? [
         { text: "#", x: 50, width: 20 },
         { text: "ԱՊՐԱՆՔ", x: 70, width: 140 },
-        { text: "ԼԱՅՆՈՒԹՅՈՒՆ", x: 210, width: 80, align: "right" },
-        { text: "ԲԱՐՁՐՈՒԹՅՈՒՆ", x: 290, width: 80, align: "right" },
+        { text: "Լայն․", x: 210, width: 80, align: "right" },
+        { text: "Բարձր․", x: 290, width: 80, align: "right" },
         { text: "ՄԵՏՐ", x: 370, width: 65, align: "right" },
         { text: "ՔԱՆԱԿ", x: 435, width: 110, align: "right" },
       ]
     : [
         { text: "#", x: 50, width: 20 },
         { text: "ԱՊՐԱՆՔ", x: 70, width: 100 },
-        { text: "ԼԱՅՆՈՒԹՅՈՒՆ", x: 170, width: 70, align: "right" },
-        { text: "ԲԱՐՁՐՈՒԹՅՈՒՆ", x: 240, width: 70, align: "right" },
+        { text: "Լայն․", x: 170, width: 70, align: "right" },
+        { text: "Բարձր․", x: 240, width: 70, align: "right" },
         { text: "ՄԵՏՐ", x: 310, width: 45, align: "right" },
         { text: "ՔԱՆԱԿ", x: 355, width: 45, align: "right" },
         { text: "ԳԻՆ", x: 400, width: 65, align: "right" },
@@ -225,11 +224,20 @@ export async function generateOrderPdf(orderId: string, type: DocumentType, role
   let y = drawTableHeader(doc, dividerY + 10, columns);
   for (const [idx, item] of order.items.entries()) {
     const meterage = paramNum(item, "measurement") ?? paramNum(item, "meterage");
-    const measurementUnit = param(item, "measurementUnit") ?? item.product?.unit?.symbol ?? "";
+    const measurementUnit = param(item, "measurementUnit") ?? item.product?.unit?.symbol ?? "մ";
+    // Try to read width/height from parameters (rolshutter calculator)
     const width = param(item, "width") ?? param(item, "profile_width") ?? null;
     const height = param(item, "height") ?? param(item, "profile_height") ?? null;
+    
+    // Debug: log parameters for first item
+    if (idx === 0) {
+      console.log("[PDF] Item parameters:", item.parameters);
+      console.log("[PDF] width:", width, "height:", height);
+    }
 
-    const meterageText = meterage != null ? `${meterage.toFixed(3)} ${measurementUnit}` : "—";
+    // Only show unit if it's not "հատ" (piece) - for meters show "մ", hide "հատ"
+    const unitDisplay = measurementUnit === "հատ" ? "" : ` ${measurementUnit}`;
+    const meterageText = meterage != null ? `${meterage.toFixed(3)}${unitDisplay}` : "—";
     const widthText = width != null ? `${Number(width).toFixed(0)}` : "—";
     const heightText = height != null ? `${Number(height).toFixed(0)}` : "—";
     const cells: TableCell[] = isWarehouseDoc

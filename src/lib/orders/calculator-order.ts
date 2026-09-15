@@ -20,6 +20,8 @@ export type CalculatorRow = {
   color?: string | null;
   unitCode?: string;
   isService?: boolean;
+  width?: number;
+  height?: number;
 };
 
 function productMappingError(name: string) {
@@ -92,6 +94,8 @@ export async function buildItemsFromCalculatorRows(
         unitPrice: String(unitPrice),
         fromCalculator: "rolshutter",
         ...(isService ? { isService: "true" } : {}),
+        ...(r.width != null && r.width > 0 ? { width: String(r.width) } : {}),
+        ...(r.height != null && r.height > 0 ? { height: String(r.height) } : {}),
       },
     });
   }
