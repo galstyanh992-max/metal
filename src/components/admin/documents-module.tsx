@@ -21,9 +21,10 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
-import { FileText, FilePlus, FileCheck, Download, Eye, Pencil, Loader2 } from "lucide-react";
+import { FileText, FilePlus, FileCheck, Download, Eye, Pencil, Loader2, Palette } from "lucide-react";
 import { toast } from "sonner";
 import { fmtDate } from "@/lib/export/excel";
+import { TemplateEditor } from "./template-editor";
 
 async function fetchTemplates() {
   const res = await fetch("/api/documents");
@@ -46,6 +47,7 @@ export function DocumentsModule() {
   const { data, isLoading } = useQuery({ queryKey: ["documents"], queryFn: fetchTemplates });
   const [previewTemplate, setPreviewTemplate] = useState<any>(null);
   const [editTemplate, setEditTemplate] = useState<any>(null);
+  const [visualEditTemplate, setVisualEditTemplate] = useState<any>(null);
 
   const templates = data?.templates ?? [];
   const generated = data?.generated ?? [];
@@ -130,9 +132,17 @@ export function DocumentsModule() {
                               size="sm"
                               variant="ghost"
                               className="h-7 text-xs gap-1.5"
+                              onClick={() => setVisualEditTemplate(t)}
+                            >
+                              <Palette className="size-3.5" /> Դիզայն
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 text-xs gap-1.5"
                               onClick={() => setEditTemplate(t)}
                             >
-                              <Pencil className="size-3.5" /> Խմբագրել
+                              <Pencil className="size-3.5" /> Կոդ
                             </Button>
                           </div>
                         </TableCell>
@@ -224,6 +234,10 @@ export function DocumentsModule() {
 
       {editTemplate && (
         <EditTemplateDialog template={editTemplate} onClose={() => setEditTemplate(null)} />
+      )}
+
+      {visualEditTemplate && (
+        <TemplateEditor template={visualEditTemplate} onClose={() => setVisualEditTemplate(null)} />
       )}
     </div>
   );

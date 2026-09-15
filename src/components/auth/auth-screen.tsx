@@ -26,8 +26,11 @@ export function AuthScreen({ mode, onModeChange }: { mode: "signin" | "signup"; 
     setLoading(false);
     if (!res?.ok) {
       setError("Սխալ էլ․ հասցե կամ գաղտնաբառ");
+      toast.error("Մուտքի սխալ", { description: "Ստուգեք էլ․ հասցեն և գաղտնաբառը" });
     } else {
-      window.location.reload();
+      toast.success("Հաջողված մուտք", { description: "Բեռնվում է համակարգը..." });
+      // Force reload to refresh session state
+      window.location.href = "/";
     }
   };
 

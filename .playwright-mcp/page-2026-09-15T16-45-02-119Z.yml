@@ -1,0 +1,6 @@
+- generic [active] [ref=f3e1]:
+  - generic [ref=f3e2]: Բեռնվում է…
+  - region "Notifications (F8)":
+    - list
+  - button "Open Next.js Dev Tools" [ref=f3e9] [cursor=pointer]
+  - alert [ref=f3e13]

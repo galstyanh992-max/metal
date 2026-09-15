@@ -51,7 +51,7 @@ export function AcceptOrderModule({ role, onOrderCreated }: { role: string; onOr
   const [tab, setTab] = useState<"quickfill" | "calculator">("quickfill");
   const [calculatorOpened, setCalculatorOpened] = useState(false);
   const [clientId, setClientId] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("debt");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [discountPercent, setDiscountPercent] = useState("0");
   const [savePrices, setSavePrices] = useState(true);
 
@@ -195,8 +195,8 @@ export function AcceptOrderModule({ role, onOrderCreated }: { role: string; onOr
             <Label className="text-xs uppercase tracking-wider text-muted-foreground">Վճարման եղանակ</Label>
             <div className="flex items-center gap-1 border border-hairline bg-card h-9 rounded-md overflow-hidden">
               {([
+                { v: "cash", label: "Կանխիկ" },
                 { v: "debt", label: "Պարտք" },
-                { v: "cash", label: "Առձեռն" },
                 { v: "transfer", label: "Փոխանցում" },
               ] as const).map((opt) => (
                 <button
