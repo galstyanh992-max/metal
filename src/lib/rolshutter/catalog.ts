@@ -27,6 +27,26 @@ export function isColorApplicableName(productName: string | null | undefined): b
   return COLOR_APPLICABLE_NAME_PREFIXES.some((p) => name.startsWith(p));
 }
 
+// Product keys whose rows carry a meaningful size/measure (W×H, meters, etc.)
+// in the order document. Other components (springs, bearings, rings, locks,
+// electronics) are sold by piece count and have no dimension to print.
+// Վալ is included even though it's unpainted — it still has a length.
+export const MEASURE_APPLICABLE_KEYS = ["korob", "val", "lamil", "chotka", "takatsu", "napravl"] as const;
+export function isMeasureApplicableKey(key: string): boolean {
+  return (MEASURE_APPLICABLE_KEYS as readonly string[]).includes(key);
+}
+
+// Name-prefix mirror of MEASURE_APPLICABLE_KEYS for PDF / document consumers.
+// "Լամիլ" must NOT match "Լամիլի խցան" — same special-case as color.
+// "Պուխ" matches both "Պուխ խոշոր" and "Պուխ մանր".
+const MEASURE_APPLICABLE_NAME_PREFIXES = ["Կոռոբ", "Վալ", "Տակացու", "Ուղղորդիչ", "Պուխ"];
+export function isMeasureApplicableName(productName: string | null | undefined): boolean {
+  if (!productName) return false;
+  const name = productName.trim();
+  if (name.startsWith("Լամիլ") && !name.startsWith("Լամիլի")) return true;
+  return MEASURE_APPLICABLE_NAME_PREFIXES.some((p) => name.startsWith(p));
+}
+
 // Lamel-height divisor per profile line, used by the "how many lamels do I need"
 // helper (mirrors C12 in the original sheet, which used 0.077 for the 7,7 line).
 export const LAMEL_DIVISOR_BY_LINE = { "7,7": 0.077, "5,5": 0.055, "3,9": 0.039 };

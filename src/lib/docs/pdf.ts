@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import type { DocumentType } from "@prisma/client";
 import { readFileSync } from "fs";
 import { join } from "path";
-import { isColorApplicableName } from "@/lib/rolshutter/catalog";
+import { isColorApplicableName, isMeasureApplicableName } from "@/lib/rolshutter/catalog";
 
 /**
  * PDF document generator using pdfkit.
@@ -283,7 +283,10 @@ export async function generateOrderPdf(orderId: string, type: DocumentType, role
     const meterageText = isService ? "" : (meterage != null ? `${meterage.toFixed(2)}${unitDisplay}` : "—");
     // Combined size/measure column: "W×H · M" format when both width and height exist,
     // otherwise just the meterage. Falls back to "—" when nothing is available.
-    const sizeText = isService
+    // Only powder-coated / length-bearing parts (Կոռոբ/Վալ/Լամիլ/Պուխ/Տակացու/Ուղղորդիչ)
+    // print a dimension; other components are sold by piece count and have no size.
+    const measureApplicable = isMeasureApplicableName(item.productName);
+    const sizeText = isService || !measureApplicable
       ? ""
       : width != null && height != null
         ? `${Number(width).toFixed(0)}×${Number(height).toFixed(0)}${meterage != null ? ` · ${meterage.toFixed(2)}${unitDisplay}` : ""}`
