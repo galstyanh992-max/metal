@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import type { DocumentType } from "@prisma/client";
 import { readFileSync } from "fs";
 import { join } from "path";
+import { isColorApplicableName } from "@/lib/rolshutter/catalog";
 
 /**
  * PDF document generator using pdfkit.
@@ -177,56 +178,92 @@ export async function generateOrderPdf(orderId: string, type: DocumentType, role
   ].filter(Boolean);
   const orderMeta = orderMetaParts.join(" · ");
 
-  doc.fontSize(16).font(FONT_BOLD).fillColor("#000").text("ARM ROLL", 50, DOCUMENT_VERTICAL_MARGIN, { width: 115 });
-  doc.fontSize(11).font(FONT_REG).fillColor("#666").text("ERP · ARMENIA", 50, DOCUMENT_VERTICAL_MARGIN + 19, { width: 115 });
+  // Header — left: company; center-right: document title + meta; right: QR.
+  // Compact industrial ERP layout (reference: 10–12 pt title, 8–9 pt meta).
+  const qrSizePx = 56; // ≈ 14.8 mm — within reference 15–18 mm range
+  const qrX = 545 - qrSizePx + 5; // right-aligned within content area (margins ~50pt)
+  doc.fontSize(12).font(FONT_BOLD).fillColor("#000").text("ARM ROLL", 50, DOCUMENT_VERTICAL_MARGIN, { width: 115 });
+  doc.fontSize(8).font(FONT_REG).fillColor("#666").text("ERP · ARMENIA", 50, DOCUMENT_VERTICAL_MARGIN + 16, { width: 115 });
 
-  const titleHeight = textHeight(doc, documentTitle, 300, 14);
-  doc.fontSize(14).font(FONT_BOLD).fillColor("#000").text(documentTitle, 170, DOCUMENT_VERTICAL_MARGIN, { align: "right", width: 300, lineGap: DOCUMENT_LINE_GAP });
+  const titleHeight = textHeight(doc, documentTitle, 300, 11);
+  doc.fontSize(11).font(FONT_BOLD).fillColor("#000").text(documentTitle, 170, DOCUMENT_VERTICAL_MARGIN, { align: "right", width: 300, lineGap: DOCUMENT_LINE_GAP });
   const metaY = DOCUMENT_VERTICAL_MARGIN + titleHeight + 1;
-  doc.fontSize(11).font(FONT_REG).text(orderMeta, 170, metaY, { align: "right", width: 300, lineGap: DOCUMENT_LINE_GAP });
+  doc.fontSize(9).font(FONT_REG).fillColor("#666").text(orderMeta, 170, metaY, { align: "right", width: 300, lineGap: DOCUMENT_LINE_GAP });
 
-  const clientY = Math.max(DOCUMENT_VERTICAL_MARGIN + 38, metaY + textHeight(doc, orderMeta, 300, 11) + 4);
-  doc.fontSize(11).font(FONT_REG).fillColor("#555").text(clientDetails, 50, clientY, { width: 415, lineGap: DOCUMENT_LINE_GAP });
-  const dividerY = Math.max(DOCUMENT_VERTICAL_MARGIN + 58, clientY + textHeight(doc, clientDetails, 415, 8) + 6);
-  doc.moveTo(50, dividerY).lineTo(545, dividerY).strokeColor("#999").lineWidth(0.5).stroke();
+  const clientY = Math.max(DOCUMENT_VERTICAL_MARGIN + 34, metaY + textHeight(doc, orderMeta, 300, 9) + 4);
+  doc.fontSize(9).font(FONT_REG).fillColor("#555").text(clientDetails, 50, clientY, { width: 415, lineGap: DOCUMENT_LINE_GAP });
+  const dividerY = Math.max(DOCUMENT_VERTICAL_MARGIN + 52, clientY + textHeight(doc, clientDetails, 415, 8) + 6);
+  doc.moveTo(50, dividerY).lineTo(545, dividerY).strokeColor("#cfcfcf").lineWidth(0.5).stroke();
 
   try {
     const qrDataUrl = await QRCode.toDataURL(JSON.stringify({ type: "order", id: order.id, number: order.number }), {
-      width: 48, margin: 1, color: { dark: "#000", light: "#fff" },
+      width: qrSizePx, margin: 1, color: { dark: "#000", light: "#fff" },
     });
-    doc.image(qrDataUrl, 492, DOCUMENT_VERTICAL_MARGIN, { width: 48, height: 48 });
+    doc.image(qrDataUrl, qrX, DOCUMENT_VERTICAL_MARGIN, { width: qrSizePx, height: qrSizePx });
   } catch (e) {
     // QR generation failed — the printable document remains valid.
   }
 
   doc.fillColor("#000");
 
+  // Order parameters block — two columns of compact key/value pairs.
+  // Source values come from the first non-service item's parameters
+  // (rolshutter calculator stores width/height/color/meterage there).
+  // System is inferred from the product name of the first meter-priced item.
+  const firstNonService = order.items.find((it: any) => {
+    const isService = it.parameters?.some((p: any) => p.fieldKey === "isService" && p.value === "true") === true
+      || it.product?.unit?.code === "service";
+    return !isService;
+  });
+  const pWidth = firstNonService ? paramNum(firstNonService, "width") : null;
+  const pHeight = firstNonService ? paramNum(firstNonService, "height") : null;
+  const pColor = firstNonService ? param(firstNonService, "color") : null;
+  // System — find first item whose unit is "m" (e.g. Լամիլ 7,7 / Տակացու 7,7) and use its name
+  const systemItem = order.items.find((it: any) => it.product?.unit?.code === "m");
+  const pSystem = systemItem ? systemItem.productName : null;
+
+  const paramsY = dividerY + 10;
+  const fmtNum = (n: number | null) => (n != null ? n.toLocaleString("hy-AM", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—");
+  doc.fontSize(8).font(FONT_REG).fillColor("#000");
+  // Left column: Դարձակ / Բարձրություն
+  doc.fillColor("#999").text("Դարձակ՝", 50, paramsY, { width: 50, lineGap: DOCUMENT_LINE_GAP });
+  doc.fillColor("#000").text(fmtNum(pWidth), 100, paramsY, { width: 120, lineGap: DOCUMENT_LINE_GAP });
+  doc.fillColor("#999").text("Բարձրություն՝", 50, paramsY + 12, { width: 50, lineGap: DOCUMENT_LINE_GAP });
+  doc.fillColor("#000").text(fmtNum(pHeight), 100, paramsY + 12, { width: 120, lineGap: DOCUMENT_LINE_GAP });
+  // Right column: Գույն / Համակարգ
+  doc.fillColor("#999").text("Գույն՝", 240, paramsY, { width: 50, lineGap: DOCUMENT_LINE_GAP });
+  doc.fillColor("#000").text(pColor ?? "—", 290, paramsY, { width: 255, lineGap: DOCUMENT_LINE_GAP });
+  doc.fillColor("#999").text("Համակարգ՝", 240, paramsY + 12, { width: 50, lineGap: DOCUMENT_LINE_GAP });
+  doc.fillColor("#000").text(pSystem ?? "—", 290, paramsY + 12, { width: 255, lineGap: DOCUMENT_LINE_GAP });
+
+  const tableTopY = paramsY + 30;
+
   // Items table
   const isWarehouseDoc = type === "WAREHOUSE_ORDER";
   // The warehouse document is a picking sheet. It is price-free even when
   // generated by an administrator.
   const showPrices = !isWarehouseDoc && role !== "WAREHOUSE";
+  // Reference column layout (7 cols): # | Product | Color | Size/Measure | Qty | Price | Total
+  // Numeric columns are right-aligned with nowrap behavior via single-line text.
   const columns: TableCell[] = isWarehouseDoc
     ? [
         { text: "#", x: 50, width: 20 },
-        { text: "ԱՊՐԱՆՔ", x: 70, width: 140 },
-        { text: "Լայն․", x: 210, width: 80, align: "right" },
-        { text: "Բարձր․", x: 290, width: 80, align: "right" },
-        { text: "ՄԵՏՐ", x: 370, width: 65, align: "right" },
-        { text: "ՔԱՆԱԿ", x: 435, width: 110, align: "right" },
+        { text: "ԱՊՐԱՆՔ", x: 70, width: 150 },
+        { text: "ԳՈՒՅՆ", x: 220, width: 130 },
+        { text: "ՉԱՓ/ՄԵՏՐ", x: 350, width: 95, align: "right" },
+        { text: "ՔԱՆԱԿ", x: 445, width: 100, align: "right" },
       ]
     : [
         { text: "#", x: 50, width: 20 },
-        { text: "ԱՊՐԱՆՔ", x: 70, width: 100 },
-        { text: "Լայն․", x: 170, width: 70, align: "right" },
-        { text: "Բարձր․", x: 240, width: 70, align: "right" },
-        { text: "ՄԵՏՐ", x: 310, width: 45, align: "right" },
-        { text: "ՔԱՆԱԿ", x: 355, width: 45, align: "right" },
-        { text: "ԳԻՆ", x: 400, width: 65, align: "right" },
-        { text: "ԳՈՒՄԱՐ", x: 465, width: 80, align: "right" },
+        { text: "ԱՊՐԱՆՔ", x: 70, width: 130 },
+        { text: "ԳՈՒՅՆ", x: 200, width: 120 },
+        { text: "ՉԱՓ/ՄԵՏՐ", x: 320, width: 80, align: "right" },
+        { text: "ՔԱՆԱԿ", x: 400, width: 45, align: "right" },
+        { text: "ԳԻՆ", x: 445, width: 55, align: "right" },
+        { text: "ԳՈՒՄԱՐ", x: 500, width: 45, align: "right" },
       ];
 
-  let y = drawTableHeader(doc, dividerY + 10, columns);
+  let y = drawTableHeader(doc, tableTopY, columns);
   for (const [idx, item] of order.items.entries()) {
     const isService = item.parameters?.some((p: any) => p.fieldKey === "isService" && p.value === "true") === true
       || item.product?.unit?.code === "service";
@@ -235,64 +272,77 @@ export async function generateOrderPdf(orderId: string, type: DocumentType, role
     // Try to read width/height from parameters (rolshutter calculator)
     const width = isService ? null : (param(item, "width") ?? param(item, "profile_width") ?? null);
     const height = isService ? null : (param(item, "height") ?? param(item, "profile_height") ?? null);
-    // Color parameter (rolshutter calculator) — append to product name for clarity
-    const color = isService ? null : param(item, "color");
+    // Color parameter (rolshutter calculator) — shown in its own column, but
+    // only for powder-coated parts (Կոռոբ/Լամիլ/Կողային կափարիչ/Տակացու/Ուղղորդիչ).
+    // Other components are unpainted; showing a color there would be misleading.
+    const colorRaw = isService ? null : param(item, "color");
+    const color = colorRaw && isColorApplicableName(item.productName) ? colorRaw : null;
 
     // Only show unit if it's not "հատ" (piece) - for meters show "մ", hide "հատ"
     const unitDisplay = measurementUnit === "հատ" || isService ? "" : ` ${measurementUnit}`;
-    const meterageText = isService ? "" : (meterage != null ? `${meterage.toFixed(3)}${unitDisplay}` : "—");
-    const widthText = isService ? "" : (width != null ? `${Number(width).toFixed(0)}` : "—");
-    const heightText = isService ? "" : (height != null ? `${Number(height).toFixed(0)}` : "—");
-    const productDisplay = color ? `${item.productName} (${color})` : item.productName;
+    const meterageText = isService ? "" : (meterage != null ? `${meterage.toFixed(2)}${unitDisplay}` : "—");
+    // Combined size/measure column: "W×H · M" format when both width and height exist,
+    // otherwise just the meterage. Falls back to "—" when nothing is available.
+    const sizeText = isService
+      ? ""
+      : width != null && height != null
+        ? `${Number(width).toFixed(0)}×${Number(height).toFixed(0)}${meterage != null ? ` · ${meterage.toFixed(2)}${unitDisplay}` : ""}`
+        : meterageText;
+    const colorText = color ?? "—";
     const cells: TableCell[] = isWarehouseDoc
       ? [
           { text: String(idx + 1), x: 50, width: 20 },
-          { text: productDisplay, x: 70, width: 140 },
-          { text: widthText, x: 210, width: 80, align: "right" },
-          { text: heightText, x: 290, width: 80, align: "right" },
-          { text: meterageText, x: 370, width: 65, align: "right" },
-          { text: String(item.qty), x: 435, width: 110, align: "right" },
+          { text: item.productName, x: 70, width: 150 },
+          { text: colorText, x: 220, width: 130 },
+          { text: sizeText, x: 350, width: 95, align: "right" },
+          { text: String(item.qty), x: 445, width: 100, align: "right" },
         ]
       : [
           { text: String(idx + 1), x: 50, width: 20 },
-          { text: productDisplay, x: 70, width: 100 },
-          { text: widthText, x: 170, width: 70, align: "right" },
-          { text: heightText, x: 240, width: 70, align: "right" },
-          { text: meterageText, x: 310, width: 45, align: "right" },
-          { text: String(item.qty), x: 355, width: 45, align: "right" },
-          { text: `${item.unitPriceSnapshot.toLocaleString("hy-AM")} դր`, x: 400, width: 65, align: "right" },
-          { text: `${item.lineTotal.toLocaleString("hy-AM")} դր`, x: 465, width: 80, align: "right" },
+          { text: item.productName, x: 70, width: 130 },
+          { text: colorText, x: 200, width: 120 },
+          { text: sizeText, x: 320, width: 80, align: "right" },
+          { text: String(item.qty), x: 400, width: 45, align: "right" },
+          { text: `${item.unitPriceSnapshot.toLocaleString("hy-AM")} դր`, x: 445, width: 55, align: "right" },
+          { text: `${item.lineTotal.toLocaleString("hy-AM")} դր`, x: 500, width: 45, align: "right" },
         ];
-    const rowHeight = getTableRowHeight(doc, cells, 11, 16, 3);
+    // Compact row padding (reference ~1.5 pt) — pass minHeight=14, padding=1.5
+    const rowHeight = getTableRowHeight(doc, cells, 9, 14, 1.5);
     if (y + rowHeight > ORDER_TABLE_CONTENT_BOTTOM) y = addTablePage(doc, documentTitle, columns);
-    y += drawTableRow(doc, y, cells, 11, 16, 3);
+    y += drawTableRow(doc, y, cells, 9, 14, 1.5);
   }
 
-  // Totals
+  // Totals — reference style: short horizontal line, then bold Ընդհանուր՝ on the right.
+  // Discount / paid / outstanding / note lines are kept (they reflect real order data
+  // and do not contradict the reference, which simply omits them when zero).
   if (showPrices) {
     if (y + 120 > ORDER_TABLE_CONTENT_BOTTOM) y = addTablePage(doc, documentTitle, columns);
-    y += 12;
-    doc.moveTo(350, y).lineTo(545, y).strokeColor("#999").lineWidth(0.5).stroke();
-    y += 12;
-    doc.fontSize(11).font(FONT_REG).fillColor("#000").text("Մինչև զեղչումը՝", 350, y, { width: 130, align: "right" });
+    y += 10;
+    // Short line above total (reference: ~195pt wide on the right)
+    doc.moveTo(350, y).lineTo(545, y).strokeColor("#cfcfcf").lineWidth(0.5).stroke();
+    y += 8;
+    doc.fontSize(10).font(FONT_REG).fillColor("#000").text("Մինչև զեղչումը՝", 350, y, { width: 130, align: "right" });
     doc.font(FONT_REG).text(`${order.baseAmount.toLocaleString("hy-AM")} դր`, 480, y, { width: 65, align: "right" });
-    y += 16;
+    y += 14;
     if (order.discountAmount > 0) {
       doc.fillColor("#000").font(FONT_REG).text("Զեղչում՝", 350, y, { width: 130, align: "right" });
       doc.text(`-${order.discountAmount.toLocaleString("hy-AM")} դր`, 480, y, { width: 65, align: "right" });
-      y += 16;
+      y += 14;
     }
-    doc.font(FONT_BOLD).fillColor("#000").fontSize(12).text("Ընդհանուր՝", 350, y, { width: 130, align: "right" });
+    // Grand total — bold, right-aligned, with short line above
+    doc.moveTo(350, y).lineTo(545, y).strokeColor("#cfcfcf").lineWidth(0.5).stroke();
+    y += 8;
+    doc.font(FONT_BOLD).fillColor("#000").fontSize(11).text("Ընդհանուր՝", 350, y, { width: 130, align: "right" });
     doc.text(`${order.totalAmount.toLocaleString("hy-AM")} դր`, 480, y, { width: 65, align: "right" });
-    y += 22;
-    doc.font(FONT_REG).fillColor("#666").fontSize(11);
+    y += 18;
+    doc.font(FONT_REG).fillColor("#666").fontSize(9);
     doc.text(`Վճարված՝ ${order.paidAmount.toLocaleString("hy-AM")} դր`, 350, y, { width: 195, align: "right" });
-    y += 16;
+    y += 12;
     doc.text(`Մնացորդ՝ ${order.outstandingAmount.toLocaleString("hy-AM")} դր`, 350, y, { width: 195, align: "right" });
-    y += 20;
+    y += 16;
     // Order note (payment method / custom note from operator)
     if (order.note) {
-      doc.fillColor("#000").font(FONT_REG).fontSize(10);
+      doc.fillColor("#000").font(FONT_REG).fontSize(8);
       doc.text(`Նշում՝ ${order.note}`, 350, y, { width: 195, align: "right" });
     }
   }

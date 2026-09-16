@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { requireAction } from "@/lib/rbac";
 import { computeInventoryState, recordMovement } from "@/lib/inventory/ledger";
 import { calculateInventoryQuantity, roundInventoryQuantity, type InventoryQuantityInput } from "@/lib/inventory/quantity";
+import { isColorApplicableName } from "@/lib/rolshutter/catalog";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ productId: string }> }) {
   try {
@@ -44,12 +45,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ product
     const { userId } = await requireAction("inventory.adjust");
     const { productId } = await params;
     const body = await req.json();
-    const { type, note, branchId, measurement } = body as {
+    const { type, note, branchId, measurement, lot } = body as {
       type: "RECEIVE" | "WRITE_OFF" | "ADJUSTMENT";
       qty: number;
       note?: string;
       branchId?: string;
       measurement?: InventoryQuantityInput;
+      // Lot identifier — for powder-coated parts the warehouse operator may
+      // tag the received batch with a RAL color (e.g. "Անտրացիտ V16 (RAL 7016)").
+      // Only accepted for products whose name matches COLOR_APPLICABLE_NAME_PREFIXES.
+      lot?: string;
     };
 
     if (!type || !["RECEIVE", "WRITE_OFF", "ADJUSTMENT"].includes(type)) {
@@ -71,6 +76,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ product
     const { qty, calculation } = quantity;
     const movementNote = [measurement ? calculation : null, note?.trim()].filter(Boolean).join(" · ") || `${type} via Պահեստ module`;
 
+    // Lot (color) is only meaningful for RECEIVE movements of powder-coated parts.
+    // Silently drop it for other movement types / unpainted products so the
+    // warehouse UI can stay generic without polluting the ledger.
+    const trimmedLot = typeof lot === "string" ? lot.trim() : "";
+    const normalizedLot = trimmedLot && type === "RECEIVE" && isColorApplicableName(product.name) ? trimmedLot : undefined;
+
     const result = await db.$transaction(async (tx) => {
       const movement = await recordMovement({
         productId,
@@ -80,6 +91,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ product
         refType: "MANUAL",
         note: movementNote,
         branchId,
+        lot: normalizedLot,
       }, tx);
       if (!movement.ok) return movement;
       await tx.auditLog.create({
@@ -88,7 +100,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ product
           action: `inventory.${type.toLowerCase()}`,
           entityType: "Product",
           entityId: productId,
-          afterJson: JSON.stringify({ type, qty, note: movementNote, branchId, measurement }),
+          afterJson: JSON.stringify({ type, qty, note: movementNote, branchId, measurement, lot: normalizedLot }),
         },
       });
       return movement;

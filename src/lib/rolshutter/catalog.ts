@@ -4,6 +4,29 @@ export type Catalog = Record<string, CatalogOption[]>;
 
 export const ASSEMBLY_PRICE_PER_SQM_DEFAULT = 2000;
 
+// Product keys that are physically powder-coated and therefore carry the
+// gate's color. Other components (springs, bearings, electronics) remain
+// unpainted and must NOT receive a color in orders or warehouse entries.
+// Used by the calculator (summary rows) and the warehouse receiving form
+// to decide whether to attach the `color` parameter.
+export const COLOR_APPLICABLE_KEYS = ["korob", "lamil", "takatsu", "napravl", "bakovina"] as const;
+export function isColorApplicableKey(key: string): boolean {
+  return (COLOR_APPLICABLE_KEYS as readonly string[]).includes(key);
+}
+
+// Name-prefix list mirroring COLOR_APPLICABLE_KEYS for downstream consumers
+// (PDF / warehouse UI) that only have a product name, not the catalog key.
+// "Լամիլ" must NOT match "Լամիլի խցան" (different part, unpainted) — hence
+// the special-case handling in isColorApplicableName.
+const COLOR_APPLICABLE_NAME_PREFIXES = ["Կոռոբ", "Տակացու", "Ուղղորդիչ", "Կողային կափարիչ"];
+export function isColorApplicableName(productName: string | null | undefined): boolean {
+  if (!productName) return false;
+  const name = productName.trim();
+  // Լամիլ — matches "Լամիլ 7,7" but NOT "Լամիլի խցան"
+  if (name.startsWith("Լամիլ") && !name.startsWith("Լամիլի")) return true;
+  return COLOR_APPLICABLE_NAME_PREFIXES.some((p) => name.startsWith(p));
+}
+
 // Lamel-height divisor per profile line, used by the "how many lamels do I need"
 // helper (mirrors C12 in the original sheet, which used 0.077 for the 7,7 line).
 export const LAMEL_DIVISOR_BY_LINE = { "7,7": 0.077, "5,5": 0.055, "3,9": 0.039 };

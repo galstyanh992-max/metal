@@ -94,8 +94,11 @@ export async function recordMovement(params: {
   refId?: string;
   note?: string;
   branchId?: string;
+  // Lot identifier — for powder-coated parts (Կոռոբ/Լամիլ/Տակացու/Ուղղորդիչ/Կողային կափարիչ)
+  // we store the RAL color name here so the warehouse can track stock per color.
+  lot?: string;
 }, transaction?: Prisma.TransactionClient): Promise<{ ok: boolean; error?: string }> {
-  const { productId, type, qty, byUserId, refType, refId, note, branchId } = params;
+  const { productId, type, qty, byUserId, refType, refId, note, branchId, lot } = params;
   if (!Number.isFinite(qty) || qty === 0 || (type !== "ADJUSTMENT" && qty < 0)) {
     return { ok: false, error: "qty must be a finite nonzero number (positive unless adjusting)" };
   }
@@ -138,6 +141,7 @@ export async function recordMovement(params: {
         refId: refId ?? null,
         note: note ?? null,
         branchId: branchId ?? null,
+        lot: lot ?? null,
       },
     });
 

@@ -21,6 +21,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { exportToExcel } from "@/lib/export/excel";
 import { toast } from "sonner";
 import { calculateInventoryQuantity, formatInventoryQuantity, inventoryDimension, inventoryInputUnits, type InventoryQuantityInput } from "@/lib/inventory/quantity";
+import { DEFAULT_COLORS, isColorApplicableName } from "@/lib/rolshutter/catalog";
 
 async function fetchInventory() {
   const res = await fetch("/api/inventory");
@@ -411,9 +412,12 @@ function InventoryAdjustDialog({
   const [width, setWidth] = useState("");
   const [height, setHeight] = useState("");
   const [amountPerPiece, setAmountPerPiece] = useState("");
+  const [color, setColor] = useState("");
   const [error, setError] = useState<string | null>(null);
   const measurement: InventoryQuantityInput = { mode: inputMode, unit: inputUnit, amount: qty, count, length, width, height, amountPerPiece };
   const unitOptions = inventoryInputUnits(stockUnit.code, inputMode);
+  // Color (lot) only applies to RECEIVE of powder-coated parts (Կոռոբ/Լամիլ/...)
+  const colorApplicable = mode === "RECEIVE" && isColorApplicableName(product.name);
   let quantityResult: ReturnType<typeof calculateInventoryQuantity> | null = null;
   try { quantityResult = calculateInventoryQuantity(measurement, stockUnit, mode === "ADJUSTMENT"); } catch { /* Preview appears when required fields are valid. */ }
   const meta = MODE_LABELS[mode];
@@ -424,7 +428,7 @@ function InventoryAdjustDialog({
       const res = await fetch(`/api/inventory/${product.id}`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ type: mode, measurement, branchId, note }),
+        body: JSON.stringify({ type: mode, measurement, branchId, note, lot: colorApplicable ? color : undefined }),
       });
       if (!res.ok) { const e = await res.json(); throw new Error(e.error ?? "failed"); }
       return res.json();
@@ -478,6 +482,21 @@ function InventoryAdjustDialog({
               </SelectContent>
             </Select>
           </div>
+
+          {colorApplicable && (
+            <div className="space-y-1.5">
+              <Label htmlFor="inventory-color" className="text-xs uppercase tracking-wider text-muted-foreground">Գույն (LOT)</Label>
+              <Select value={color} onValueChange={setColor}>
+                <SelectTrigger id="inventory-color"><SelectValue placeholder="Ընտրեք գույնը" /></SelectTrigger>
+                <SelectContent>
+                  {DEFAULT_COLORS.map((c) => (
+                    <SelectItem key={c} value={c}>{c}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">Այս ապրանքի համար գույնը գրանցվում է որպես խմբաքանակ (lot)՝ պահեստում գույնով հետևելու համար։</p>
+            </div>
+          )}
 
           <p className="text-xs text-muted-foreground">{meta.description}</p>
 

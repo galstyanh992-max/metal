@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CalculatorRow } from "@/lib/orders/calculator-order";
 import {
   ASSEMBLY_PRICE_PER_SQM_DEFAULT, DEFAULT_COLORS, DEFAULT_MATERIALS,
-  DOOR_PRESETS, LAMEL_DIVISOR_BY_LINE, LINE_OFFSET, buildCatalog, type WarehouseProduct,
+  DOOR_PRESETS, LAMEL_DIVISOR_BY_LINE, LINE_OFFSET, buildCatalog, isColorApplicableKey, type WarehouseProduct,
 } from "@/lib/rolshutter/catalog";
 import {
   DEFAULTS_QUERY_KEY, captureGateDefaults, factoryGateDefaults, resolveCatalogOption,
@@ -266,6 +266,9 @@ export function RolshutterCalculator({ products = [], onRowsChange, onTotalChang
           .map((r) => {
             const selectedProduct = (catalog[r.key] || []).find((p) => p.id === r.selectedId);
             const unitCode = selectedProduct?.unit?.code ?? (r.mode === "count" || r.mode === "zaglushka" ? "piece" : "m");
+            // Color is only attached to powder-coated parts (Կոռոբ/Լամիլ/Կողային կափարիչ/Տակացու/Ուղղորդիչ).
+            // Other components are unpainted and must not carry a color in the order.
+            const rowColor = isColorApplicableKey(r.key) ? (color ?? null) : null;
             return {
               productId: selectedProduct?.id ?? null,
               name: String(r.name || ""),
@@ -273,7 +276,7 @@ export function RolshutterCalculator({ products = [], onRowsChange, onTotalChang
               meters: r.meters ?? null,
               price: Number(r.price) || 0,
               sum: Number(r.sum) || 0,
-              color: color ?? null,
+              color: rowColor,
               unitCode,
               isService: false,
               width: Number(width) || 0,
