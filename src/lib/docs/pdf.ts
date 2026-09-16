@@ -170,7 +170,12 @@ export async function generateOrderPdf(orderId: string, type: DocumentType, role
   const documentTitle = DOC_TYPE_LABELS[type] ?? type;
   const clientName = [order.client?.firstName, order.client?.lastName].filter(Boolean).join(" ") || "—";
   const clientDetails = [clientName, order.client?.phone, order.client?.primaryAddress].filter(Boolean).join(" · ");
-  const orderMeta = `${order.number} · ${new Date(order.createdAt).toLocaleDateString("hy-AM")}`;
+  const orderMetaParts = [
+    order.number,
+    new Date(order.createdAt).toLocaleDateString("hy-AM"),
+    order.dueDate ? `Կատարման՝ ${new Date(order.dueDate).toLocaleDateString("hy-AM")}` : null,
+  ].filter(Boolean);
+  const orderMeta = orderMetaParts.join(" · ");
 
   doc.fontSize(16).font(FONT_BOLD).fillColor("#000").text("ARM ROLL", 50, DOCUMENT_VERTICAL_MARGIN, { width: 115 });
   doc.fontSize(11).font(FONT_REG).fillColor("#666").text("ERP · ARMENIA", 50, DOCUMENT_VERTICAL_MARGIN + 19, { width: 115 });
@@ -223,27 +228,26 @@ export async function generateOrderPdf(orderId: string, type: DocumentType, role
 
   let y = drawTableHeader(doc, dividerY + 10, columns);
   for (const [idx, item] of order.items.entries()) {
+    const isService = item.parameters?.some((p: any) => p.fieldKey === "isService" && p.value === "true") === true
+      || item.product?.unit?.code === "service";
     const meterage = paramNum(item, "measurement") ?? paramNum(item, "meterage");
     const measurementUnit = param(item, "measurementUnit") ?? item.product?.unit?.symbol ?? "մ";
     // Try to read width/height from parameters (rolshutter calculator)
-    const width = param(item, "width") ?? param(item, "profile_width") ?? null;
-    const height = param(item, "height") ?? param(item, "profile_height") ?? null;
-    
-    // Debug: log parameters for first item
-    if (idx === 0) {
-      console.log("[PDF] Item parameters:", item.parameters);
-      console.log("[PDF] width:", width, "height:", height);
-    }
+    const width = isService ? null : (param(item, "width") ?? param(item, "profile_width") ?? null);
+    const height = isService ? null : (param(item, "height") ?? param(item, "profile_height") ?? null);
+    // Color parameter (rolshutter calculator) — append to product name for clarity
+    const color = isService ? null : param(item, "color");
 
     // Only show unit if it's not "հատ" (piece) - for meters show "մ", hide "հատ"
-    const unitDisplay = measurementUnit === "հատ" ? "" : ` ${measurementUnit}`;
-    const meterageText = meterage != null ? `${meterage.toFixed(3)}${unitDisplay}` : "—";
-    const widthText = width != null ? `${Number(width).toFixed(0)}` : "—";
-    const heightText = height != null ? `${Number(height).toFixed(0)}` : "—";
+    const unitDisplay = measurementUnit === "հատ" || isService ? "" : ` ${measurementUnit}`;
+    const meterageText = isService ? "" : (meterage != null ? `${meterage.toFixed(3)}${unitDisplay}` : "—");
+    const widthText = isService ? "" : (width != null ? `${Number(width).toFixed(0)}` : "—");
+    const heightText = isService ? "" : (height != null ? `${Number(height).toFixed(0)}` : "—");
+    const productDisplay = color ? `${item.productName} (${color})` : item.productName;
     const cells: TableCell[] = isWarehouseDoc
       ? [
           { text: String(idx + 1), x: 50, width: 20 },
-          { text: item.productName, x: 70, width: 140 },
+          { text: productDisplay, x: 70, width: 140 },
           { text: widthText, x: 210, width: 80, align: "right" },
           { text: heightText, x: 290, width: 80, align: "right" },
           { text: meterageText, x: 370, width: 65, align: "right" },
@@ -251,7 +255,7 @@ export async function generateOrderPdf(orderId: string, type: DocumentType, role
         ]
       : [
           { text: String(idx + 1), x: 50, width: 20 },
-          { text: item.productName, x: 70, width: 100 },
+          { text: productDisplay, x: 70, width: 100 },
           { text: widthText, x: 170, width: 70, align: "right" },
           { text: heightText, x: 240, width: 70, align: "right" },
           { text: meterageText, x: 310, width: 45, align: "right" },
@@ -266,17 +270,31 @@ export async function generateOrderPdf(orderId: string, type: DocumentType, role
 
   // Totals
   if (showPrices) {
-    if (y + 80 > ORDER_TABLE_CONTENT_BOTTOM) y = addTablePage(doc, documentTitle, columns);
+    if (y + 120 > ORDER_TABLE_CONTENT_BOTTOM) y = addTablePage(doc, documentTitle, columns);
     y += 12;
     doc.moveTo(350, y).lineTo(545, y).strokeColor("#999").lineWidth(0.5).stroke();
     y += 12;
-    doc.fontSize(11).font(FONT_REG).text("Ընդհանուր՝", 350, y, { width: 130, align: "right" });
-    doc.font(FONT_BOLD).text(`${order.totalAmount.toLocaleString("hy-AM")} դր`, 480, y, { width: 65, align: "right" });
+    doc.fontSize(11).font(FONT_REG).fillColor("#000").text("Մինչև զեղչումը՝", 350, y, { width: 130, align: "right" });
+    doc.font(FONT_REG).text(`${order.baseAmount.toLocaleString("hy-AM")} դր`, 480, y, { width: 65, align: "right" });
+    y += 16;
+    if (order.discountAmount > 0) {
+      doc.fillColor("#000").font(FONT_REG).text("Զեղչում՝", 350, y, { width: 130, align: "right" });
+      doc.text(`-${order.discountAmount.toLocaleString("hy-AM")} դր`, 480, y, { width: 65, align: "right" });
+      y += 16;
+    }
+    doc.font(FONT_BOLD).fillColor("#000").fontSize(12).text("Ընդհանուր՝", 350, y, { width: 130, align: "right" });
+    doc.text(`${order.totalAmount.toLocaleString("hy-AM")} դր`, 480, y, { width: 65, align: "right" });
     y += 22;
     doc.font(FONT_REG).fillColor("#666").fontSize(11);
     doc.text(`Վճարված՝ ${order.paidAmount.toLocaleString("hy-AM")} դր`, 350, y, { width: 195, align: "right" });
     y += 16;
     doc.text(`Մնացորդ՝ ${order.outstandingAmount.toLocaleString("hy-AM")} դր`, 350, y, { width: 195, align: "right" });
+    y += 20;
+    // Order note (payment method / custom note from operator)
+    if (order.note) {
+      doc.fillColor("#000").font(FONT_REG).fontSize(10);
+      doc.text(`Նշում՝ ${order.note}`, 350, y, { width: 195, align: "right" });
+    }
   }
 
   // Footer
