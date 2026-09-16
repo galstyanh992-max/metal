@@ -40,8 +40,8 @@ export function RolshutterCalculator({ products = [], onRowsChange, onTotalChang
   products?: WarehouseProduct[];
   onRowsChange?: (rows: CalculatorRow[]) => void;
   onTotalChange?: (total: number) => void;
-  // Report non-row meta (motorSide) to parent so it can be persisted in the order note.
-  onMetaChange?: (meta: { motorSide: "right" | "left" }) => void;
+  // Report non-row meta (motorSide, doorType) to parent so it can be persisted in the order note.
+  onMetaChange?: (meta: { motorSide: "right" | "left"; doorType: string | null }) => void;
 }) {
   const [width, setWidth] = useState<number | string>(3);
   const [height, setHeight] = useState<number | string>(2.5);
@@ -351,15 +351,19 @@ export function RolshutterCalculator({ products = [], onRowsChange, onTotalChang
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [total]);
 
-  // Report motorSide to parent so it can be persisted in the order note.
-  const lastMotorSideRef = useRef<string>("");
+  // Report motorSide + doorType to parent so they can be persisted in the order note.
+  const lastMetaKeyRef = useRef<string>("");
   useEffect(() => {
     if (typeof onMetaChange !== "function") return;
-    if (motorSide !== lastMotorSideRef.current) {
-      lastMotorSideRef.current = motorSide;
-      onMetaChange({ motorSide });
+    const doorType = selectedPresetId
+      ? DOOR_PRESETS.find((p) => p.id === selectedPresetId)?.label ?? null
+      : null;
+    const key = `${motorSide}|${doorType ?? ""}`;
+    if (key !== lastMetaKeyRef.current) {
+      lastMetaKeyRef.current = key;
+      onMetaChange({ motorSide, doorType });
     }
-  }, [motorSide, onMetaChange]);
+  }, [motorSide, selectedPresetId, onMetaChange]);
 
   // Lamel-count helper (C12 in the original sheet): (height - boxDepth*0.01) / line-divisor.
   const lamelDivisor = LAMEL_DIVISOR_BY_LINE[currentLine];

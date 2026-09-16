@@ -221,25 +221,26 @@ export async function generateOrderPdf(orderId: string, type: DocumentType, role
   // only the human-friendly color name (e.g. "Անտրացիտ V16").
   const pColorRaw = firstNonService ? param(firstNonService, "color") : null;
   const pColor = pColorRaw ? pColorRaw.replace(/\s*\([^\)]*\)\s*/g, " ").trim() : null;
-  // System — find first item whose unit is "m" (e.g. Լամիլ 7,7 / Տակացու 7,7) and use its name
+  // System / door type — extracted from order.note (e.g. "Տեսակ՝ Ռոլետային դարպաս 7,7 Standart").
+  // Falls back to the first meter-priced item name when note is absent (legacy orders).
+  const doorTypeMatch = order.note?.match(/Տեսակ՝\s*([^·]+)/);
+  const pDoorType = doorTypeMatch ? doorTypeMatch[1].trim() : null;
   const systemItem = order.items.find((it: any) => it.product?.unit?.code === "m");
-  const pSystem = systemItem ? systemItem.productName : null;
+  const pSystem = pDoorType ?? (systemItem ? systemItem.productName : null);
   // Motor side — extracted from order.note (e.g. "... · Շարժիչի կողմը՝ Աջ · ...")
   const motorSideMatch = order.note?.match(/Շարժիչի կողմը՝\s*(Աջ|Ձախ)/);
   const pMotorSide = motorSideMatch ? motorSideMatch[1] : null;
-  // Delivery — true if the order contains an Առաքում service line
-  const pDelivery = order.items.some((it: any) => {
+  // Delivery — true if the order contains an Առաքում line (service or named).
+  // Match by product name to be resilient to older orders that may not carry
+  // the isService parameter flag on service rows.
+  const deliveryItem = order.items.find((it: any) => {
+    if (it.productName !== "Առաքում") return false;
     const isService = it.parameters?.some((p: any) => p.fieldKey === "isService" && p.value === "true") === true
       || it.product?.unit?.code === "service";
-    return isService && it.productName === "Առաքում";
+    return isService;
   });
-  const pDeliveryAmount = pDelivery
-    ? order.items.find((it: any) => {
-        const isService = it.parameters?.some((p: any) => p.fieldKey === "isService" && p.value === "true") === true
-          || it.product?.unit?.code === "service";
-        return isService && it.productName === "Առաքում";
-      })?.lineTotal ?? null
-    : null;
+  const pDelivery = !!deliveryItem;
+  const pDeliveryAmount = deliveryItem ? deliveryItem.lineTotal ?? null : null;
 
   const paramsY = dividerY + 10;
   const fmtNum = (n: number | null) => (n != null ? n.toLocaleString("hy-AM", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—");

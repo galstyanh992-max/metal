@@ -111,8 +111,9 @@ export async function createOrderFromCalculatorRows(opts: {
   discountPercent: number;
   products: any[];
   motorSide?: "right" | "left";
+  doorType?: string | null;
 }): Promise<any> {
-  const { clientId, rows, total, paymentMethod, discountPercent, products, motorSide, status = "CONFIRMED" } = opts;
+  const { clientId, rows, total, paymentMethod, discountPercent, products, motorSide, doorType, status = "CONFIRMED" } = opts;
 
   if (!clientId) throw new Error("Ընտրեք հաճախորդ");
   if (rows.length === 0) throw new Error("Լցրեք ապրանքները");
@@ -124,12 +125,13 @@ export async function createOrderFromCalculatorRows(opts: {
   const pct = Math.min(100, Math.max(0, Number(discountPercent) || 0));
   const finalTotal = Math.max(0, total - Math.round((total * pct) / 100));
 
-  // Build note — include motorSide so PDF / document generator can display it.
+  // Build note — include motorSide + doorType so PDF / document generator can display them.
   // Delivery (Առաքում) is already a service row in items; no need to note it here.
   const noteParts = [
     "Ստեղծված է Դարպասի Հաշվարկից",
     `Ընդհանուր՝ ${Math.round(finalTotal).toLocaleString("hy-AM")} դր`,
     pct > 0 ? `զեղչ ${pct}%` : null,
+    doorType ? `Տեսակ՝ ${doorType}` : null,
     motorSide ? `Շարժիչի կողմը՝ ${motorSide === "right" ? "Աջ" : "Ձախ"}` : null,
   ].filter(Boolean);
 
