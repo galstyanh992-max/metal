@@ -217,7 +217,10 @@ export async function generateOrderPdf(orderId: string, type: DocumentType, role
   });
   const pWidth = firstNonService ? paramNum(firstNonService, "width") : null;
   const pHeight = firstNonService ? paramNum(firstNonService, "height") : null;
-  const pColor = firstNonService ? param(firstNonService, "color") : null;
+  // Color in the header parameters block — strip "(RAL xxxx)" code, keep
+  // only the human-friendly color name (e.g. "Անտրացիտ V16").
+  const pColorRaw = firstNonService ? param(firstNonService, "color") : null;
+  const pColor = pColorRaw ? pColorRaw.replace(/\s*\([^\)]*\)\s*/g, " ").trim() : null;
   // System — find first item whose unit is "m" (e.g. Լամիլ 7,7 / Տակացու 7,7) and use its name
   const systemItem = order.items.find((it: any) => it.product?.unit?.code === "m");
   const pSystem = systemItem ? systemItem.productName : null;
@@ -275,22 +278,22 @@ export async function generateOrderPdf(orderId: string, type: DocumentType, role
     // Color parameter (rolshutter calculator) — shown in its own column, but
     // only for powder-coated parts (Կոռոբ/Լամիլ/Կողային կափարիչ/Տակացու/Ուղղորդիչ).
     // Other components are unpainted; showing a color there would be misleading.
+    // Strip any "(RAL xxxx)" code from the displayed value — the warehouse/operator
+    // wants the human-friendly color name only (e.g. "Անտրացիտ V16").
     const colorRaw = isService ? null : param(item, "color");
-    const color = colorRaw && isColorApplicableName(item.productName) ? colorRaw : null;
+    const colorValue = colorRaw && isColorApplicableName(item.productName)
+      ? colorRaw.replace(/\s*\([^\)]*\)\s*/g, " ").trim()
+      : null;
+    const color = colorValue && colorValue.length > 0 ? colorValue : null;
 
     // Only show unit if it's not "հատ" (piece) - for meters show "մ", hide "հատ"
     const unitDisplay = measurementUnit === "հատ" || isService ? "" : ` ${measurementUnit}`;
     const meterageText = isService ? "" : (meterage != null ? `${meterage.toFixed(2)}${unitDisplay}` : "—");
-    // Combined size/measure column: "W×H · M" format when both width and height exist,
-    // otherwise just the meterage. Falls back to "—" when nothing is available.
-    // Only powder-coated / length-bearing parts (Կոռոբ/Վալ/Լամիլ/Պուխ/Տակացու/Ուղղորդիչ)
-    // print a dimension; other components are sold by piece count and have no size.
+    // ՉԱՓ/ՄԵՏՐ column shows ONLY the meterage (length consumed by this row).
+    // Width/height are gate dimensions, not per-part measurements, and were
+    // removed per operator request. Empty for non-applicable parts.
     const measureApplicable = isMeasureApplicableName(item.productName);
-    const sizeText = isService || !measureApplicable
-      ? ""
-      : width != null && height != null
-        ? `${Number(width).toFixed(0)}×${Number(height).toFixed(0)}${meterage != null ? ` · ${meterage.toFixed(2)}${unitDisplay}` : ""}`
-        : meterageText;
+    const sizeText = isService || !measureApplicable ? "" : meterageText;
     const colorText = color ?? "—";
     const cells: TableCell[] = isWarehouseDoc
       ? [
