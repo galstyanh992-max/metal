@@ -245,10 +245,10 @@ export async function generateOrderPdf(orderId: string, type: DocumentType, role
   const paramsY = dividerY + 10;
   const fmtNum = (n: number | null) => (n != null ? n.toLocaleString("hy-AM", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—");
   doc.fontSize(8).font(FONT_REG).fillColor("#000");
-  // Left column: Լայնք / Բարձրություն
+  // Left column: Լայնք / Բարձր․
   doc.fillColor("#999").text("Լայնք՝", 50, paramsY, { width: 50, lineGap: DOCUMENT_LINE_GAP });
   doc.fillColor("#000").text(fmtNum(pWidth), 100, paramsY, { width: 120, lineGap: DOCUMENT_LINE_GAP });
-  doc.fillColor("#999").text("Բարձրություն՝", 50, paramsY + 12, { width: 50, lineGap: DOCUMENT_LINE_GAP });
+  doc.fillColor("#999").text("Բարձր․", 50, paramsY + 12, { width: 50, lineGap: DOCUMENT_LINE_GAP });
   doc.fillColor("#000").text(fmtNum(pHeight), 100, paramsY + 12, { width: 120, lineGap: DOCUMENT_LINE_GAP });
   // Right column: Գույն / Համակարգ
   doc.fillColor("#999").text("Գույն՝", 240, paramsY, { width: 50, lineGap: DOCUMENT_LINE_GAP });

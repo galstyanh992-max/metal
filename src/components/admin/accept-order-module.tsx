@@ -64,6 +64,9 @@ export function AcceptOrderModule({ role, onOrderCreated }: { role: string; onOr
   // Calculator state
   const [calcRows, setCalcRows] = useState<CalculatorRow[]>([]);
   const [calcTotal, setCalcTotal] = useState(0);
+  // Calculator meta — motor side + door type (preset label) for the order note
+  const [calcMotorSide, setCalcMotorSide] = useState<"right" | "left">("right");
+  const [calcDoorType, setCalcDoorType] = useState<string | null>(null);
 
   const [stockError, setStockError] = useState<string[] | null>(null);
   const [formVersion, setFormVersion] = useState(0);
@@ -78,6 +81,10 @@ export function AcceptOrderModule({ role, onOrderCreated }: { role: string; onOr
 
   const onCalcRowsChange = useCallback((r: CalculatorRow[]) => setCalcRows(r), []);
   const onCalcTotalChange = useCallback((t: number) => setCalcTotal(t), []);
+  const onCalcMetaChange = useCallback((m: { motorSide: "right" | "left"; doorType: string | null }) => {
+    setCalcMotorSide(m.motorSide);
+    setCalcDoorType(m.doorType);
+  }, []);
 
   const resetForm = () => {
     setClientId("");
@@ -124,6 +131,15 @@ export function AcceptOrderModule({ role, onOrderCreated }: { role: string; onOr
 
       if (items.length === 0) throw new Error("Չկան ապրանքներ պատվերի համար");
 
+      // Build note — include door type + motor side when calculator block contributed items.
+      // These are parsed by the PDF generator to populate the Համակարգ / Շարժիչի կողմը fields.
+      const noteParts = [
+        "«Ընդունել պատվեր»",
+        `Ընդհանուր՝ ${combined.finalTotal.toLocaleString("hy-AM")} դր`,
+        combined.calcItemCount > 0 && calcDoorType ? `Տեսակ՝ ${calcDoorType}` : null,
+        combined.calcItemCount > 0 ? `Շարժիչի կողմը՝ ${calcMotorSide === "right" ? "Աջ" : "Ձախ"}` : null,
+      ].filter(Boolean);
+
       const res = await fetch("/api/orders", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -134,7 +150,7 @@ export function AcceptOrderModule({ role, onOrderCreated }: { role: string; onOr
           savePrices,
           paymentMethod,
           discountPercent: Number(discountPercent) || 0,
-          note: `«Ընդունել պատվեր» · Ընդհանուր՝ ${combined.finalTotal.toLocaleString("hy-AM")} դր`,
+          note: noteParts.join(" · "),
         }),
       });
       if (!res.ok) {
@@ -288,6 +304,7 @@ export function AcceptOrderModule({ role, onOrderCreated }: { role: string; onOr
                 products={products}
                 onRowsChange={onCalcRowsChange}
                 onTotalChange={onCalcTotalChange}
+                onMetaChange={onCalcMetaChange}
               />
             </ErrorBoundary>
           </div>}
