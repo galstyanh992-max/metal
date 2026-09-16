@@ -36,15 +36,17 @@ function parseNum(v) {
   return Number(s);
 }
 
-export function RolshutterCalculator({ products = [], onRowsChange, onTotalChange }: {
+export function RolshutterCalculator({ products = [], onRowsChange, onTotalChange, onMetaChange }: {
   products?: WarehouseProduct[];
   onRowsChange?: (rows: CalculatorRow[]) => void;
   onTotalChange?: (total: number) => void;
+  // Report non-row meta (motorSide) to parent so it can be persisted in the order note.
+  onMetaChange?: (meta: { motorSide: "right" | "left" }) => void;
 }) {
   const [width, setWidth] = useState<number | string>(3);
   const [height, setHeight] = useState<number | string>(2.5);
   const [color, setColor] = useState(DEFAULT_COLORS[0]);
-  const [motorSide, setMotorSide] = useState("right");
+  const [motorSide, setMotorSide] = useState<"right" | "left">("right");
 
   const [overrides, setOverrides] = useState<Record<string, RowOverride>>({});
   const [customRows, setCustomRows] = useState<(CalculatorConfig["customRows"][number] & { id: string })[]>([]);
@@ -348,6 +350,16 @@ export function RolshutterCalculator({ products = [], onRowsChange, onTotalChang
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [total]);
+
+  // Report motorSide to parent so it can be persisted in the order note.
+  const lastMotorSideRef = useRef<string>("");
+  useEffect(() => {
+    if (typeof onMetaChange !== "function") return;
+    if (motorSide !== lastMotorSideRef.current) {
+      lastMotorSideRef.current = motorSide;
+      onMetaChange({ motorSide });
+    }
+  }, [motorSide, onMetaChange]);
 
   // Lamel-count helper (C12 in the original sheet): (height - boxDepth*0.01) / line-divisor.
   const lamelDivisor = LAMEL_DIVISOR_BY_LINE[currentLine];
@@ -759,7 +771,7 @@ export function RolshutterCalculator({ products = [], onRowsChange, onTotalChang
             <select
               aria-label="Շարժիչի կողմը"
               value={motorSide}
-              onChange={(e) => setMotorSide(e.target.value)}
+              onChange={(e) => setMotorSide(e.target.value as "right" | "left")}
               className="border border-neutral-200 rounded px-2 py-1 print:px-0 print:py-0"
             >
               <option value="right">Աջ</option>

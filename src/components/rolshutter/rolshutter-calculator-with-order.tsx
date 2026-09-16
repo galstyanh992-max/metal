@@ -39,6 +39,7 @@ export type CalculatorOrderState = {
   total: number;
   paymentMethod: "debt" | "cash" | "transfer";
   discountPercent: number;
+  motorSide: "right" | "left";
 };
 
 export function RolshutterCalculatorWithOrder({
@@ -65,11 +66,13 @@ export function RolshutterCalculatorWithOrder({
   const [discountPercent, setDiscountPercent] = useState("0");
   const [rows, setRows] = useState<CalculatorRow[]>([]);
   const [total, setTotal] = useState(0);
+  const [motorSide, setMotorSide] = useState<"right" | "left">("right");
 
   const clientId = embedded ? (externalClientId ?? "") : internalClientId;
 
   const onRowsChange = useCallback((r: CalculatorRow[]) => setRows(r), []);
   const onTotalChange = useCallback((t: number) => setTotal(t), []);
+  const onMetaChange = useCallback((m: { motorSide: "right" | "left" }) => setMotorSide(m.motorSide), []);
 
   const clients = clientsData?.clients ?? [];
   const products = productsData?.products ?? [];
@@ -86,9 +89,10 @@ export function RolshutterCalculatorWithOrder({
         total,
         paymentMethod,
         discountPercent: Number(discountPercent) || 0,
+        motorSide,
       });
     }
-  }, [embedded, rows, total, paymentMethod, discountPercent]);
+  }, [embedded, rows, total, paymentMethod, discountPercent, motorSide]);
 
   // Compute discount-adjusted total
   const discountAmount = useMemo(() => {
@@ -110,6 +114,7 @@ export function RolshutterCalculatorWithOrder({
         paymentMethod,
         discountPercent: Number(discountPercent) || 0,
         products,
+        motorSide,
       });
     },
     onSuccess: (data) => {
@@ -214,6 +219,7 @@ export function RolshutterCalculatorWithOrder({
           products={products}
           onRowsChange={onRowsChange}
           onTotalChange={onTotalChange}
+          onMetaChange={onMetaChange}
         />
       </div>
 

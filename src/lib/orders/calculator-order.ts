@@ -110,8 +110,9 @@ export async function createOrderFromCalculatorRows(opts: {
   paymentMethod: "debt" | "cash" | "transfer";
   discountPercent: number;
   products: any[];
+  motorSide?: "right" | "left";
 }): Promise<any> {
-  const { clientId, rows, total, paymentMethod, discountPercent, products, status = "CONFIRMED" } = opts;
+  const { clientId, rows, total, paymentMethod, discountPercent, products, motorSide, status = "CONFIRMED" } = opts;
 
   if (!clientId) throw new Error("Ընտրեք հաճախորդ");
   if (rows.length === 0) throw new Error("Լցրեք ապրանքները");
@@ -123,6 +124,15 @@ export async function createOrderFromCalculatorRows(opts: {
   const pct = Math.min(100, Math.max(0, Number(discountPercent) || 0));
   const finalTotal = Math.max(0, total - Math.round((total * pct) / 100));
 
+  // Build note — include motorSide so PDF / document generator can display it.
+  // Delivery (Առաքում) is already a service row in items; no need to note it here.
+  const noteParts = [
+    "Ստեղծված է Դարպասի Հաշվարկից",
+    `Ընդհանուր՝ ${Math.round(finalTotal).toLocaleString("hy-AM")} դր`,
+    pct > 0 ? `զեղչ ${pct}%` : null,
+    motorSide ? `Շարժիչի կողմը՝ ${motorSide === "right" ? "Աջ" : "Ձախ"}` : null,
+  ].filter(Boolean);
+
   const res = await fetch("/api/orders", {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -133,7 +143,7 @@ export async function createOrderFromCalculatorRows(opts: {
       savePrices: false,
       paymentMethod,
       discountPercent: pct,
-      note: `Ստեղծված է Դարպասի Հաշվարկից · Ընդհանուր՝ ${Math.round(finalTotal).toLocaleString("hy-AM")} դր${pct > 0 ? ` · զեղչ ${pct}%` : ""}`,
+      note: noteParts.join(" · "),
     }),
   });
   if (!res.ok) {

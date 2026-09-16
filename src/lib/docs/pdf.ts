@@ -224,12 +224,28 @@ export async function generateOrderPdf(orderId: string, type: DocumentType, role
   // System — find first item whose unit is "m" (e.g. Լամիլ 7,7 / Տակացու 7,7) and use its name
   const systemItem = order.items.find((it: any) => it.product?.unit?.code === "m");
   const pSystem = systemItem ? systemItem.productName : null;
+  // Motor side — extracted from order.note (e.g. "... · Շարժիչի կողմը՝ Աջ · ...")
+  const motorSideMatch = order.note?.match(/Շարժիչի կողմը՝\s*(Աջ|Ձախ)/);
+  const pMotorSide = motorSideMatch ? motorSideMatch[1] : null;
+  // Delivery — true if the order contains an Առաքում service line
+  const pDelivery = order.items.some((it: any) => {
+    const isService = it.parameters?.some((p: any) => p.fieldKey === "isService" && p.value === "true") === true
+      || it.product?.unit?.code === "service";
+    return isService && it.productName === "Առաքում";
+  });
+  const pDeliveryAmount = pDelivery
+    ? order.items.find((it: any) => {
+        const isService = it.parameters?.some((p: any) => p.fieldKey === "isService" && p.value === "true") === true
+          || it.product?.unit?.code === "service";
+        return isService && it.productName === "Առաքում";
+      })?.lineTotal ?? null
+    : null;
 
   const paramsY = dividerY + 10;
   const fmtNum = (n: number | null) => (n != null ? n.toLocaleString("hy-AM", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—");
   doc.fontSize(8).font(FONT_REG).fillColor("#000");
-  // Left column: Դարձակ / Բարձրություն
-  doc.fillColor("#999").text("Դարձակ՝", 50, paramsY, { width: 50, lineGap: DOCUMENT_LINE_GAP });
+  // Left column: Լայնք / Բարձրություն
+  doc.fillColor("#999").text("Լայնք՝", 50, paramsY, { width: 50, lineGap: DOCUMENT_LINE_GAP });
   doc.fillColor("#000").text(fmtNum(pWidth), 100, paramsY, { width: 120, lineGap: DOCUMENT_LINE_GAP });
   doc.fillColor("#999").text("Բարձրություն՝", 50, paramsY + 12, { width: 50, lineGap: DOCUMENT_LINE_GAP });
   doc.fillColor("#000").text(fmtNum(pHeight), 100, paramsY + 12, { width: 120, lineGap: DOCUMENT_LINE_GAP });
@@ -238,8 +254,23 @@ export async function generateOrderPdf(orderId: string, type: DocumentType, role
   doc.fillColor("#000").text(pColor ?? "—", 290, paramsY, { width: 255, lineGap: DOCUMENT_LINE_GAP });
   doc.fillColor("#999").text("Համակարգ՝", 240, paramsY + 12, { width: 50, lineGap: DOCUMENT_LINE_GAP });
   doc.fillColor("#000").text(pSystem ?? "—", 290, paramsY + 12, { width: 255, lineGap: DOCUMENT_LINE_GAP });
-
-  const tableTopY = paramsY + 30;
+  // Extra row: Շարժիչի կողմը / Առաքում — only shown when present in the order
+  let tableTopY = paramsY + 30;
+  if (pMotorSide || pDelivery) {
+    const extraY = paramsY + 24;
+    if (pMotorSide) {
+      doc.fillColor("#999").text("Շարժիչի կողմը՝", 50, extraY, { width: 95, lineGap: DOCUMENT_LINE_GAP });
+      doc.fillColor("#000").text(pMotorSide, 145, extraY, { width: 75, lineGap: DOCUMENT_LINE_GAP });
+    }
+    if (pDelivery) {
+      doc.fillColor("#999").text("Առաքում՝", 240, extraY, { width: 50, lineGap: DOCUMENT_LINE_GAP });
+      const deliveryText = pDeliveryAmount != null
+        ? `Այո · ${pDeliveryAmount.toLocaleString("hy-AM")} դր`
+        : "Այո";
+      doc.fillColor("#000").text(deliveryText, 290, extraY, { width: 255, lineGap: DOCUMENT_LINE_GAP });
+    }
+    tableTopY = extraY + 18;
+  }
 
   // Items table
   const isWarehouseDoc = type === "WAREHOUSE_ORDER";
